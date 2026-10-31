@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use voku\AgentLoop\Execution\CandidateWorkspaceIdentity;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Tests\Support\VerifyStageRunFixture;
 
@@ -116,6 +117,42 @@ final class CandidateScopeExportTest extends TestCase
         $projection = $this->verify();
 
         self::assertTrue($projection->complete(), (string) $projection->attention?->message);
+    }
+
+    public function testExportCandidatePreservesTrackedSymlinksAndExecutableModes(): void
+    {
+        $source = sys_get_temp_dir() . '/agent-loop-export-source-' . bin2hex(random_bytes(8));
+        $export = sys_get_temp_dir() . '/agent-loop-export-copy-' . bin2hex(random_bytes(8));
+
+        try {
+            self::assertTrue(mkdir($source, 0o775, true));
+            self::assertTrue(mkdir($export, 0o775, true));
+            self::assertNotFalse(file_put_contents($source . '/target.txt', 'target'));
+            self::assertNotFalse(file_put_contents($source . '/run.sh', "#!/bin/sh\nexit 0\n"));
+            self::assertTrue(chmod($source . '/run.sh', 0o755));
+            if (!@symlink('target.txt', $source . '/link.txt')) {
+                self::markTestSkipped('Symbolic links are unavailable.');
+            }
+
+            $this->run->git($source, 'init', '-q');
+            $this->run->git($source, 'config', 'user.name', 'Evidence Lab');
+            $this->run->git($source, 'config', 'user.email', 'evidence@example.invalid');
+            $this->run->git($source, 'add', 'target.txt', 'link.txt', 'run.sh');
+            $this->run->git($source, 'commit', '-qm', 'candidate');
+            $base = $this->run->git($source, 'rev-parse', 'HEAD');
+
+            $identity = new CandidateWorkspaceIdentity();
+            $candidate = $identity->observe($source, $base);
+            $identity->exportCandidate($source, $base, $candidate, $export);
+
+            self::assertTrue(is_link($export . '/link.txt'));
+            self::assertSame('target.txt', readlink($export . '/link.txt'));
+            $mode = fileperms($export . '/run.sh');
+            self::assertIsInt($mode);
+            self::assertNotSame(0, $mode & 0o111);
+        } finally {
+            exec('rm -rf ' . escapeshellarg($source) . ' ' . escapeshellarg($export));
+        }
     }
 
     public function testValidationThatWritesIntoTheCheckoutInPlaceIsStillRefused(): void
