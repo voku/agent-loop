@@ -249,10 +249,11 @@ final readonly class WorkflowPipelineCommand
         $acceptedOutcomes = array_map(static fn (StageOutcome $o): string => $o->value, $bundle->acceptedOutcomes);
 
         $nextAction = sprintf(
-            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s",
+            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s%s",
             $taskId,
             $acceptedOutcomes[0] ?? "completed",
             $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
+            $bundle->mayMutate ? ' --workspace "<workspace-with-edits>"' : '',
         );
 
         $payload = [

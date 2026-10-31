@@ -84,6 +84,37 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertStringContainsString("# Governed execution stage", $stage["prompt"]);
     }
 
+    public function testMutatingStageGuidesSubmissionFromTheEditedWorkspace(): void
+    {
+        $this->prepareSurgicalRun("PIPE-WORKSPACE");
+        $command = new WorkflowPipelineCommand($this->root);
+
+        $readOnly = $this->captureRun($command, ["stage", "PIPE-WORKSPACE", "--format=json"]);
+        self::assertSame(0, $readOnly["exit"]);
+        $investigate = json_decode($readOnly["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse($investigate["may_mutate"]);
+        self::assertStringNotContainsString("--workspace", $investigate["next_action"]);
+        self::assertStringNotContainsString('Use --workspace <path> to identify the checkout containing your edits.', $investigate["prompt"]);
+
+        $submitted = $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed"]);
+        self::assertSame(0, $submitted["exit"]);
+        $result = $this->captureRun($command, ["stage", "PIPE-WORKSPACE", "--format=json"]);
+        self::assertSame(0, $result["exit"]);
+        $build = json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertTrue($build["may_mutate"]);
+        self::assertStringContainsString('--workspace "<workspace-with-edits>"', $build["next_action"]);
+        self::assertStringContainsString('--workspace <path>', $build["prompt"]);
+        self::assertStringContainsString('--candidate <identity>', $build["prompt"]);
+        self::assertStringContainsString('optional except for an intentional revert to the base', $build["prompt"]);
+        self::assertStringContainsString('checked against the workspace', $build["prompt"]);
+
+        $text = $this->captureRun($command, ["stage", "PIPE-WORKSPACE"]);
+        self::assertSame(0, $text["exit"]);
+        self::assertStringContainsString('--workspace "<workspace-with-edits>"', $text["stdout"]);
+        self::assertStringContainsString('--candidate <identity>', $text["stdout"]);
+    }
+
     public function testPipelineProgressionWithReviewFeedbackLoop(): void
     {
         $this->prepareSurgicalRun("PIPE-2");
