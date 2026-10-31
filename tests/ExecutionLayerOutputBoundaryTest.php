@@ -14,7 +14,12 @@ final class ExecutionLayerOutputBoundaryTest extends TestCase
     public function testExecutionLayerNeverWritesToTheProcessOutput(): void
     {
         $violations = [];
-        foreach (glob(dirname(__DIR__) . '/src/Execution/*.php') ?: [] as $file) {
+        $files = new \RegexIterator(
+            new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(dirname(__DIR__) . '/src/Execution', \FilesystemIterator::SKIP_DOTS)),
+            '/\.php$/',
+        );
+        foreach ($files as $file) {
+            $file = (string) $file;
             foreach (token_get_all((string) file_get_contents($file)) as $token) {
                 if (!is_array($token)) {
                     continue;
