@@ -615,7 +615,14 @@ final class HostFrontDoorCommandTest extends TestCase
     /** @return array<string, mixed> */
     private function json(string $json): array
     {
-        $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        try {
+            $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new RuntimeException(
+                'Host front-door emitted invalid JSON (' . $exception->getMessage() . '). Output (first 4096 bytes): ' . substr($json, 0, 4096),
+                previous: $exception,
+            );
+        }
         self::assertIsArray($decoded);
 
         return $decoded;
