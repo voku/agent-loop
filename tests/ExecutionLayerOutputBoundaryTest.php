@@ -48,19 +48,20 @@ final class ExecutionLayerOutputBoundaryTest extends TestCase
     {
         $violations = [];
         foreach (token_get_all($php) as $token) {
-                if (!is_array($token)) {
-                    continue;
-                }
-                [$id, $text, $line] = $token;
-                $normalized = ltrim(strtolower($text), '\\');
-                $isOutput = in_array($id, [T_ECHO, T_PRINT, T_INLINE_HTML], true)
-                    || (in_array($id, [T_STRING, T_NAME_FULLY_QUALIFIED], true)
-                        && (in_array($normalized, ['stderr', 'stdout'], true) || in_array($normalized, self::OUTPUT_FUNCTIONS, true)))
-                    || ($id === T_CONSTANT_ENCAPSED_STRING && preg_match('~php://(stdout|stderr|output)~i', $text) === 1);
-                if ($isOutput) {
-                    $violations[] = $line . ' ' . trim($text);
-                }
+            if (!is_array($token)) {
+                continue;
             }
+
+            [$id, $text, $line] = $token;
+            $normalized = ltrim(strtolower($text), '\\');
+            $isOutput = in_array($id, [T_ECHO, T_PRINT, T_INLINE_HTML], true)
+                || (in_array($id, [T_STRING, T_NAME_FULLY_QUALIFIED], true)
+                    && (in_array($normalized, ['stderr', 'stdout'], true) || in_array($normalized, self::OUTPUT_FUNCTIONS, true)))
+                || ($id === T_CONSTANT_ENCAPSED_STRING && preg_match('~php://(stdout|stderr|output)~i', $text) === 1);
+            if ($isOutput) {
+                $violations[] = $line . ' ' . trim($text);
+            }
+        }
 
         return $violations;
     }
