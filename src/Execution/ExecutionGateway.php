@@ -130,10 +130,10 @@ final readonly class ExecutionGateway
      * persists the evidence once the rest of the submission has been prepared. Non-mutating stages keep the
      * stage candidate.
      */
-    public function observeStageCandidate(StageExecutionBundle $bundle, ?string $claimedCandidate, ?string $candidateWorkspace = null): string
+    public function observeStageCandidate(StageExecutionBundle $bundle, ?string $claimedCandidate, ?string $candidateWorkspace = null): ObservedStageCandidate
     {
         if ($bundle->kind !== ExecutionStageKind::AGENT || !$bundle->mayMutate) {
-            return $claimedCandidate ?? $bundle->candidateRevision;
+            return new ObservedStageCandidate($claimedCandidate ?? $bundle->candidateRevision);
         }
 
         $workspace = $this->verifyWorkspace($candidateWorkspace);
@@ -142,9 +142,7 @@ final readonly class ExecutionGateway
         $scope = $this->scopeFor($bundle, $workspace);
         $statePath = $this->relativeStateRoot();
         $observed = $identity->observe($workspace, $bundle->baseCommit, $statePath, $scope);
-        if ($scope !== [] && $identity->differsOutsideScope($workspace, (string) $bundle->baseCommit, $statePath, $scope)) {
-            fwrite(STDERR, "NOTE: the workspace holds changes outside the approved scope. They are not part of the candidate and are neither validated nor reviewed.\n");
-        }
+        $changesOutsideScope = $scope !== [] && $identity->differsOutsideScope($workspace, (string) $bundle->baseCommit, $statePath, $scope);
         $unchanged = hash_equals($identity->normalize($workspace, (string) $bundle->baseCommit, $bundle->candidateRevision), $observed);
 
         if ($unchanged) {
@@ -152,7 +150,7 @@ final readonly class ExecutionGateway
                 throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: claimed candidate %s is not the unchanged workspace candidate %s.', $claimedCandidate, $observed));
             }
 
-            return $bundle->candidateRevision;
+            return new ObservedStageCandidate($bundle->candidateRevision, $changesOutsideScope);
         }
         if ($claimedCandidate !== null && !hash_equals($observed, $claimedCandidate)) {
             throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: claimed candidate %s is not the candidate %s held by the workspace.', $claimedCandidate, $observed));
@@ -163,7 +161,7 @@ final readonly class ExecutionGateway
             throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: workspace holds the unchanged base but the stage candidate is %s; pass --workspace for the candidate worktree or claim the revert with --candidate %s.', $bundle->candidateRevision, $observed));
         }
 
-        return $observed;
+        return new ObservedStageCandidate($observed, $changesOutsideScope);
     }
 
     /** Persists candidate evidence for a candidate returned by `observeStageCandidate()` when it differs from the stage candidate. */
@@ -411,7 +409,6 @@ final readonly class ExecutionGateway
         return $directory;
     }
 
-    /** Best-effort removal that must never throw: it runs in `finally` and may not mask the validation result. */
     private function removeDirectory(string $directory): void
     {
         if (!is_dir($directory) || is_link($directory)) {

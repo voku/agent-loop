@@ -73,6 +73,21 @@ Before asking for any `decision_required` action, surface the smallest complete 
   vendor/bin/agent-loop workflow reflect <task-id> --scope project
   ```
 
+### Outcome-aware next-step prompt
+
+When an agent has evidence of completion, a stalled approach, or an inconclusive
+investigation and would benefit from a fresh direction, optionally render:
+
+```bash
+vendor/bin/agent-loop prompt next-step
+```
+
+This is a context-light, Recall-owned recommendation primitive, not a new phase
+or permission to execute a proposed follow-up. Unlike governed `workflow reflect`,
+it does not assume `ready_to_close` or `complete`. The host must still re-ground
+current authority and follow the canonical `enter`/`finish` result. Do not
+automatically repeat it after every step or manufacture work on a clean stop.
+
 ## Reflection Eligibility and Post-completion Future Work
 
 Reflection eligibility depends on its scope:
