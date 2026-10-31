@@ -96,11 +96,13 @@ final class CandidateScopeExportTest extends TestCase
         file_put_contents($this->run->root . '/notes-of-another-task.txt', 'work in progress');
         $before = glob(sys_get_temp_dir() . '/agent-loop-candidate-export-*') ?: [];
 
-        $projection = $this->verify();
-
-        $leaked = array_values(array_diff(glob(sys_get_temp_dir() . '/agent-loop-candidate-export-*') ?: [], $before));
-        foreach ($leaked as $directory) {
-            exec('chmod -R u+rwx ' . escapeshellarg($directory) . ' && rm -rf ' . escapeshellarg($directory));
+        try {
+            $projection = $this->verify();
+        } finally {
+            $leaked = array_values(array_diff(glob(sys_get_temp_dir() . '/agent-loop-candidate-export-*') ?: [], $before));
+            foreach ($leaked as $directory) {
+                exec('chmod -R u+rwx ' . escapeshellarg($directory) . ' && rm -rf ' . escapeshellarg($directory));
+            }
         }
         self::assertSame([], $leaked, 'The export (a copy of tracked sources) must not outlive verify.');
         self::assertTrue($projection->complete(), (string) $projection->attention?->message);
