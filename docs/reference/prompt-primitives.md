@@ -152,6 +152,29 @@ tool's repository. Consumers may install or reference the owned asset, but must
 not keep a second canonical copy. That keeps tool code and coding instructions on
 the same review, test, and release cadence.
 
+## Outcome-aware next-step reflection
+
+When an attempt finishes, stalls, or has inconclusive evidence, a host can explicitly
+ask the installed Recall-owned primitive what direction is worth considering:
+
+```bash
+vendor/bin/agent-loop prompt next-step
+```
+
+This works for `DONE`, `INCOMPLETE`, `BLOCKED`, and `INCONCLUSIVE` outcomes;
+it does **not** assume that the task is already complete or require a governed Run.
+After reviewing actual evidence, the agent may recommend a bounded continuation,
+a discriminating experiment, an alternative approach, a follow-up candidate,
+an external decision, or no further investment.
+
+This is a **read-only, opt-in recommendation**, not an automatic retry or new
+workflow stage. Run the existing `enter`/`finish` lifecycle and review gates
+normally. A generated suggestion cannot change the approved Contract, grant
+mutation authority, approve an action, reopen a retired task, or turn a blocker
+into success. Hosts may offer it after a meaningful result or stalled approach,
+not after every tool call. The prompt semantics live only in Recall >= 0.25.10;
+Loop forwards through the existing `prompt` dispatcher rather than copying them.
+
 ## Post-task reflection
 
 Reflection is optional and read-only. It is not REVIEW, LEARN, or another

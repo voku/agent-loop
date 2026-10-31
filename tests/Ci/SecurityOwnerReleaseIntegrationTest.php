@@ -43,10 +43,6 @@ final class SecurityOwnerReleaseIntegrationTest extends TestCase
         foreach (self::SECURITY_RELEASES as $package => $release) {
             $constraint = $requirements[$package] ?? null;
             self::assertIsString($constraint, sprintf('Loop must declare a direct requirement for %s.', $package));
-            self::assertTrue(
-                $this->constraintSatisfies($release['fixed'], $constraint),
-                sprintf('%s must permit its fixed release %s.', $package, $release['fixed']),
-            );
             self::assertFalse(
                 $this->constraintSatisfies($release['previous'], $constraint),
                 sprintf('%s must not permit the pre-fix release %s.', $package, $release['previous']),
@@ -54,6 +50,10 @@ final class SecurityOwnerReleaseIntegrationTest extends TestCase
 
             $locked = $lockedVersions[$package] ?? null;
             self::assertIsString($locked, sprintf('composer.lock must include %s.', $package));
+            self::assertTrue(
+                $this->constraintSatisfies($locked, $constraint),
+                sprintf('%s locked at %s must satisfy its declared constraint %s.', $package, $locked, $constraint),
+            );
             self::assertGreaterThanOrEqual(
                 0,
                 version_compare($locked, $release['fixed']),
