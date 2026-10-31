@@ -339,9 +339,11 @@ final readonly class WorkflowPipelineCommand
         $bundle = $gateway->prepareStage($taskId, $currentStageId);
         // Only a completing submission claims the workspace; blocked/failed/clarification must stay reportable from any workspace.
         $completing = $outcome === StageOutcome::COMPLETED;
-        $effectiveCandidate = $completing
-            ? $gateway->observeStageCandidate($bundle, $candidate, $candidateWorkspace)
-            : ($candidate ?? $bundle->candidateRevision);
+        $observedCandidate = $completing ? $gateway->observeStageCandidate($bundle, $candidate, $candidateWorkspace) : null;
+        $effectiveCandidate = $observedCandidate === null ? ($candidate ?? $bundle->candidateRevision) : $observedCandidate->candidateRevision;
+        if ($observedCandidate !== null && $observedCandidate->changesOutsideScope) {
+            fwrite(STDERR, "NOTE: the workspace holds changes outside the approved scope. They are not part of the candidate and are neither validated nor reviewed.\n");
+        }
         if ($completing) {
             // Artifact claims for a changed candidate are only accepted once its candidate evidence exists. The
             // record is idempotent, so retrying after a later refusal is safe.

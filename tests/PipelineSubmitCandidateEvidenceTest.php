@@ -220,6 +220,62 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         self::assertSame($this->base, $this->projection()->candidateRevision);
     }
 
+    public function testSharedCheckoutReportsChangesOutsideTheApprovedScopeAsData(): void
+    {
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 1; }\n");
+        file_put_contents($this->root . '/src/Other.php', "<?php\nfinal class Other {}\n");
+
+        $observed = (new ExecutionGateway($this->root))->observeStageCandidate($this->buildBundle(), null, $this->root);
+
+        self::assertTrue($observed->changesOutsideScope);
+        self::assertSame($this->scopedCandidate(), $observed->candidateRevision, 'the foreign file must not enter the candidate');
+    }
+
+    public function testSharedCheckoutWithoutForeignFilesReportsNothingOutsideTheScope(): void
+    {
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 1; }\n");
+
+        $observed = (new ExecutionGateway($this->root))->observeStageCandidate($this->buildBundle(), null, $this->root);
+
+        self::assertFalse($observed->changesOutsideScope);
+        self::assertSame($this->scopedCandidate(), $observed->candidateRevision);
+    }
+
+    public function testCandidateWorktreeKeepsTheWholeTreeIdentityAndReportsNoScopeNotice(): void
+    {
+        $this->changeWorkspace();
+        file_put_contents($this->workspace . '/src/Other.php', "<?php\nfinal class Other {}\n");
+
+        $observed = (new ExecutionGateway($this->root))->observeStageCandidate($this->buildBundle(), null, $this->workspace);
+
+        self::assertFalse($observed->changesOutsideScope);
+        self::assertSame($this->observedCandidate(), $observed->candidateRevision);
+    }
+
+    private function buildBundle(): \voku\AgentLoop\Execution\StageExecutionBundle
+    {
+        return (new ExecutionGateway($this->root))->prepareStage('SUB-1', 'build');
+    }
+
+    /** The base overlaid with only the approved scope path, computed independently of Loop. */
+    private function scopedCandidate(): string
+    {
+        $index = sys_get_temp_dir() . '/agent-loop-submit-scope-index-' . bin2hex(random_bytes(4));
+        $env = 'GIT_INDEX_FILE=' . escapeshellarg($index) . ' ';
+        exec(
+            'cd ' . escapeshellarg($this->root) . ' && ' . $env . 'git read-tree ' . escapeshellarg($this->base)
+            . ' && ' . $env . 'git add -A -- src/Foo.php && ' . $env . 'git write-tree',
+            $output,
+            $exit,
+        );
+        if (is_file($index)) {
+            unlink($index);
+        }
+        self::assertSame(0, $exit);
+
+        return 'git-tree-v1:' . $this->base . ':' . trim((string) end($output));
+    }
+
     /**
      * @param list<string> $arguments
      * @return array{int, stdClass}
