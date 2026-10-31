@@ -33,6 +33,13 @@ final class RecallEditBriefingCompilerOwnerBoundaryTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
         self::assertIsArray($composer);
-        self::assertSame('^0.25.9', $composer['require']['voku/agent-recall-compiler'] ?? null);
+        $constraint = $composer['require']['voku/agent-recall-compiler'] ?? null;
+        self::assertIsString($constraint);
+        self::assertMatchesRegularExpression('/^\\^\\d+\\.\\d+\\.\\d+$/', $constraint);
+        self::assertGreaterThanOrEqual(
+            0,
+            version_compare(substr($constraint, 1), '0.25.9'),
+            'Recall must require at least the released typed owner API boundary (0.25.9).',
+        );
     }
 }

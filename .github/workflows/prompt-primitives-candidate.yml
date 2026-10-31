@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/agent-recall-compiler
-          ref: 0.25.9
+          ref: 0.25.10
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
 
@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/candidate-agent-recall-compiler rev-parse 'HEAD^{commit}')" = "d7325a77fd4c7cf1a81201e4a6e9273e7c487562"
+          test "$(git -C build/candidate-agent-recall-compiler rev-parse 'HEAD^{commit}')" = "9e17f7502dcdedab612a89faad34e3d89e79e6d9"
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -103,6 +103,10 @@ jobs:
           grep -Fq 'falsification rather than confirmation' first-draft.prompt.md
           grep -Fq 'CLEAN is valid only after concrete attempts to falsify' first-draft.prompt.md
 
+          php vendor/bin/agent-loop prompt next-step > next-step.prompt.md
+          grep -Fq 'So what would you like to do next?' next-step.prompt.md
+          grep -Fq 'NO_USEFUL_NEXT_STEP' next-step.prompt.md
+
           php vendor/bin/agent-loop prompt guidance-gaps > guidance-gaps.prompt.md
           grep -Fq 'implementation-notes.html' guidance-gaps.prompt.md
           grep -Fq 'HUMAN_DECISION_REQUIRED' guidance-gaps.prompt.md
@@ -119,6 +123,7 @@ jobs:
           cp "${catalog}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/installed-operating-prompts.json"
           cp "${system}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/system.md"
           cp first-draft.prompt.md "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/first-draft.prompt.md"
+          cp next-step.prompt.md "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/next-step.prompt.md"
           cp guidance-gaps.prompt.md "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/guidance-gaps.prompt.md"
           cp "${code_prompt}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/code.prompt.md"
 
