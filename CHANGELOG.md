@@ -1,8 +1,22 @@
 ## Unreleased
 
+## [0.20.76] - 2026-10-31
+
+### Added
+
+- Expose Recall 0.25.10's optional next-step reflection through the existing prompt dispatcher, with CLI subprocess and integration coverage. It remains advisory and does not become a lifecycle gate (#894).
+
+### Fixed
+
+- Make retired Run state harder to accidentally bypass: reject invalid post-retirement close and pipeline entry, let explicitly approved successor Contracts proceed, reject stage-illegal third review results before opening Attention, and persist/show retirement projection evidence (#865, #869, #870, #871, #872).
+- Refresh agent-map after `composer.lock`-only dependency transitions so repository maps do not silently stay stale (#884).
+- Avoid leaking temporary scoped-verification exports when validation leaves unreadable directories; cleanup restores access before descending and remains best effort. The new end-to-end test reproduces the prior permission failure (#900, #859).
+
 ### Changed
 
 - `ExecutionGateway::observeStageCandidate()` returns immutable `ObservedStageCandidate` (`candidateRevision`, `changesOutsideScope`) instead of `string`; typed execution consumers must read `->candidateRevision`. Only the CLI emits the out-of-scope notice. The Execution output-boundary regression checks both ordinary and fully qualified PHP output calls (#899, #859).
+- Refresh agent-map / agent-graph release integration and routine locked PHP, Docker and development dependencies; compatibility is covered by the repository's installed-release-set dogfood and PHP CI matrix (#832, #882, #809, #816, #818, #821, #823, #829, #850, #873, #874).
+
 
 ## [0.20.75] - 2026-10-28
 
