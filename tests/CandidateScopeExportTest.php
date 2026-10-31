@@ -87,6 +87,27 @@ final class CandidateScopeExportTest extends TestCase
         self::assertSame($before, glob(sys_get_temp_dir() . '/agent-loop-candidate-export-*') ?: [], 'The export directory is removed.');
     }
 
+    public function testExportIsRemovedEvenWhenValidationLeavesAnUnreadableDirectory(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            self::markTestSkipped('Directory permissions do not restrict root.');
+        }
+        $this->acceptCandidate(self::GOOD, ['php -r "mkdir(\'locked\'); file_put_contents(\'locked/data.txt\', \'x\'); chmod(\'locked\', 0);"']);
+        file_put_contents($this->run->root . '/notes-of-another-task.txt', 'work in progress');
+        $before = glob(sys_get_temp_dir() . '/agent-loop-candidate-export-*') ?: [];
+
+        try {
+            $projection = $this->verify();
+        } finally {
+            $leaked = array_values(array_diff(glob(sys_get_temp_dir() . '/agent-loop-candidate-export-*') ?: [], $before));
+            foreach ($leaked as $directory) {
+                exec('chmod -R u+rwx ' . escapeshellarg($directory) . ' && rm -rf ' . escapeshellarg($directory));
+            }
+        }
+        self::assertSame([], $leaked, 'The export (a copy of tracked sources) must not outlive verify.');
+        self::assertTrue($projection->complete(), (string) $projection->attention?->message);
+    }
+
     public function testForeignEditWhileValidationRunsInTheExportDoesNotBlockVerify(): void
     {
         $this->acceptCandidate(self::GOOD, [sprintf('php -r "file_put_contents(\'%s/late-foreign.txt\', \'x\');"', $this->run->root)]);

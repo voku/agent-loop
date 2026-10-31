@@ -414,17 +414,17 @@ final readonly class ExecutionGateway
         if (!is_dir($directory) || is_link($directory)) {
             return;
         }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $item) {
-            $path = $item->getPathname();
-            if ($item->isLink() || $item->isFile()) {
-                @unlink($path);
+        // A validation command may leave a directory it cannot read back; restore access before descending.
+        @chmod($directory, 0o700);
+        foreach (@scandir($directory) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $path = $directory . DIRECTORY_SEPARATOR . $entry;
+            if (is_dir($path) && !is_link($path)) {
+                $this->removeDirectory($path);
             } else {
-                @chmod($path, 0o700);
-                @rmdir($path);
+                @unlink($path);
             }
         }
         @rmdir($directory);
