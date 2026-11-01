@@ -245,7 +245,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertFalse($refused['payload']['complete'] ?? true);
         self::assertStringContainsString(
             'standing: is reserved',
-            (string) ($refused['payload']['error']['message'] ?? ''),
+            (string) ($refused['payload']['blockers'][0]['message'] ?? ''),
         );
         self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-STANDING-REVIEW'));
         $run = (new GovernedRunStore($this->root))->find('FINISH-STANDING-REVIEW');
@@ -278,7 +278,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertSame(1, $refused['exit']);
         self::assertStringContainsString(
             'standing: is reserved',
-            (string) ($refused['payload']['error']['message'] ?? ''),
+            (string) ($refused['payload']['blockers'][0]['message'] ?? ''),
         );
         $run = (new GovernedRunStore($this->root))->find('FINISH-STANDING-LEARNING');
         self::assertNotNull($run);
