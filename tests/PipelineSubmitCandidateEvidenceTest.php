@@ -7,6 +7,9 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionPlan;
+use voku\AgentLoop\Execution\ExecutionPlanStore;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
@@ -245,6 +248,39 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         self::assertSame('candidate', $evidence['evidence_kind']);
         self::assertSame($revert, $evidence['candidate_revision']);
         self::assertSame($first, $evidence['source_reference']);
+    }
+
+    public function testPersistedPlanWithoutBaseRefusesCandidateSubmission(): void
+    {
+        $planStore = new ExecutionPlanStore($this->root);
+        $original = $planStore->load('SUB-1');
+        $plan = new ExecutionPlan(
+            $original->taskId,
+            $original->runId,
+            $original->contractRevision,
+            $original->contractSource,
+            null,
+            $original->profile,
+            $original->roles,
+            $original->stages,
+            $original->preparedAt,
+        );
+        self::assertNotFalse(file_put_contents($planStore->path('SUB-1'), json_encode($plan->toArray(), JSON_THROW_ON_ERROR)));
+        $stateStore = new ExecutionStateStore($this->root);
+        $state = $stateStore->find('SUB-1');
+        self::assertNotNull($state);
+        $payload = $state->toArray();
+        $payload['execution_plan_digest'] = $plan->digest();
+        self::assertNotFalse(file_put_contents($stateStore->path('SUB-1'), json_encode($payload, JSON_THROW_ON_ERROR)));
+        $evidence = $this->evidenceFiles();
+
+        [$exit, $response] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
+
+        self::assertNotSame(0, $exit);
+        self::assertStringContainsString('STALE_CANDIDATE: observing a candidate requires an exact governed base commit.', (string) ($response->message ?? ''));
+        self::assertSame('build', $this->projection()->currentStageId);
+        self::assertSame($state->candidateRevision, $this->projection()->candidateRevision);
+        self::assertSame($evidence, $this->evidenceFiles(), 'a refused submission must not persist candidate evidence');
     }
 
     public function testUnchangedWorkspaceKeepsTheStageCandidate(): void
