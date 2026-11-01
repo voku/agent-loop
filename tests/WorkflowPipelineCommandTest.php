@@ -9,9 +9,9 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionPlan;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
-use voku\AgentLoop\Execution\ExecutionPlan;
 use voku\AgentLoop\Execution\ExecutionStage;
 use voku\AgentLoop\Execution\ExecutionStageKind;
 use voku\AgentLoop\Execution\ExecutionState;
@@ -120,7 +120,6 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertStringContainsString('--workspace "<workspace-with-edits>"', $text["stdout"]);
         self::assertStringContainsString('--candidate <identity>', $text["stdout"]);
     }
-
 
     public function testDeterministicMutatingStageDoesNotSuggestUncheckedWorkspace(): void
     {
