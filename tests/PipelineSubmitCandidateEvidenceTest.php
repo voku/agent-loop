@@ -212,6 +212,41 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         self::assertSame($second, $this->projection()->candidateRevision);
     }
 
+    public function testLaterAttemptAcceptsAnExplicitRevertToTheGovernedBase(): void
+    {
+        $this->changeWorkspace();
+        $first = $this->observedCandidate();
+        [$exit] = $this->submit(['--outcome', 'completed', '--candidate', $first, '--context-id', 'ctx:build']);
+        self::assertSame(0, $exit);
+        [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review']);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        self::assertSame('build', $this->projection()->currentStageId);
+        self::assertSame($first, $this->projection()->candidateRevision);
+        $bundle = $this->buildBundle();
+        self::assertSame(2, $bundle->attempt);
+        $priorEvidence = $this->evidenceFiles();
+
+        $this->git($this->workspace, 'reset', '--hard', $this->base);
+        $revert = 'git-tree-v1:' . $this->base . ':' . $this->git($this->workspace, 'rev-parse', $this->base . '^{tree}');
+        self::assertNotSame($first, $revert);
+        self::assertSame($revert, $this->observedCandidate());
+
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--candidate', $revert, '--context-id', 'ctx:build2']);
+
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame($revert, $this->projection()->candidateRevision);
+        $newEvidence = array_values(array_diff($this->evidenceFiles(), $priorEvidence));
+        self::assertCount(1, $newEvidence, 'the revert must create candidate evidence for the later build attempt');
+        $evidence = json_decode((string) file_get_contents($newEvidence[0]), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($evidence);
+        self::assertSame($bundle->runId, $evidence['run_id']);
+        self::assertSame($bundle->attempt, $evidence['attempt']);
+        self::assertSame('candidate', $evidence['evidence_kind']);
+        self::assertSame($revert, $evidence['candidate_revision']);
+        self::assertSame($first, $evidence['source_reference']);
+    }
+
     public function testUnchangedWorkspaceKeepsTheStageCandidate(): void
     {
         [$exit] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
