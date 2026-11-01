@@ -22,7 +22,7 @@ A run has three different kinds of evidence, and they must stay distinguishable.
 | Plane | Question it answers | Tool | Installed as |
 |---|---|---|---|
 | Structure | what code exists, where it is, what calls it | `voku/agent-map` | runtime dependency of `agent-loop` |
-| Intent | why the selected code is constrained: architecture rules, owners, refs, proof metadata | `voku/itp-context` | runtime dependency of `agent-loop` |
+| Intent | why the selected code is constrained: architecture rules, owners, refs, proof metadata | `voku/itp-context` | development dependency of `agent-loop`; optional in consumers |
 | Candidate quality | whether the candidate introduced explainable low-quality patterns | `voku/slop-scan` | external tool |
 
 The planes complement each other and none of them substitutes for another:
@@ -34,19 +34,14 @@ The planes complement each other and none of them substitutes for another:
   deliberately downstream of implementation, and **a heuristic finding is not
   automatically a correctness failure.**
 
-`itp-context` is a runtime dependency rather than an external tool, and that is
-deliberate: `ArchitectureRules` ships in `src/` and implements
-`ItpContext\Contract\RuleIdentifier`, so loading a class agent-loop publishes
-would fatal if the package were dev-only. Anything that reflects over
-agent-loop's production classes - including this repository's own rule
-coverage test - hits exactly that path.
-
-The table above said "external tool" until this was checked against the
-dependency graph. Removing the package leaves the CLI, `verify` and
-`ProjectLayout` working, which is what made the claim look plausible; the
-suite's reflection sweep is what falsifies it.
-`voku/slop-scan` remains a genuine external tool, installed from its own
-Composer project.
+`itp-context` validates this repository's *development-only* architecture rules.
+`ArchitectureRules` lives in `tools/Context/`, is loaded through `autoload-dev`,
+and is not attached to production symbols with `#[Rule]` attributes. A passing
+`context:validate` therefore establishes that the rule definitions are valid,
+**not** that an acting agent has received source-targeted intent before an edit.
+An installed consumer may separately provide its own annotated production code;
+the consumer's actual annotations, not this repository's dev enum, decide whether
+per-symbol context exists. `voku/slop-scan` stays an isolated external tool.
 
 `itp-context` is designed for a small number of high-signal annotations. Coating
 a repository in attributes to raise a coverage number produces noise, not
@@ -54,8 +49,11 @@ context.
 
 ## Installation boundary
 
-Neither external tool is a dependency of `voku/agent-loop`, and a dogfood run
-must not make it one. They are invoked by the workflow, not welded into it.
+Neither `itp-context` nor `slop-scan` is a production dependency of
+`voku/agent-loop`. The former is in `require-dev` for this repository's
+architecture validation; the latter is installed as an isolated tool. A consumer
+dogfood run must not add either to the consumer's runtime dependencies merely to
+obtain evidence.
 
 Older slop-scan releases conflicted with agent-map's parser dependency. That
 constraint conflict is resolved in current slop-scan releases, so isolation is
@@ -163,7 +161,7 @@ Persist before any production mutation:
 
 - issue URL/number and the issue body or a faithful digest;
 - base commit SHA;
-- dependency and tool versions, including the two external tools;
+- dependency and tool versions, including any optional evidence tools actually used;
 - runtime versions;
 - the project gates that are expected to pass;
 - the baseline reproduction.
@@ -231,13 +229,21 @@ Record:
 - irrelevant hits;
 - missing context.
 
-Then use `itp-context` when the repository already has it configured:
+Then use `itp-context` only when the repository already has production
+annotations. These commands illustrate a consumer's isolated installation; use
+the path reported by `init tools`, and replace the example enum/file with real
+ones from the repository under test:
 
 ```bash
 tools/agent-loop/vendor/bin/itp-context-validate 'Project\Context\ArchitectureRules'
+tools/agent-loop/vendor/bin/itp-context-summarize src/Path/To/AnnotatedClass.php
 tools/agent-loop/vendor/bin/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
 tools/agent-loop/vendor/bin/itp-context-query var/itp-context --text='<issue concepts>'
 ```
+
+The exact-file summary, not a broad keyword query, is the candidate for a
+pre-edit decision-impact experiment. Verify that the selected symbol actually
+has `#[Rule]` metadata; a dev-only enum or an empty summary is not a treatment.
 
 The package ships `itp-context-summarize`, `itp-context-validate`,
 `itp-context-generate`, `itp-context-export` and `itp-context-query`. Export
@@ -252,6 +258,34 @@ Record separately from the structural evidence:
 - rules that were useful;
 - rules that were irrelevant;
 - architecture context that was missing.
+
+### Optional pre-edit intent dogfood (agent-loop#781)
+
+The ordinary workflow does **not** require an ITP summary or gate on it. To
+measure whether showing declared intent changes an engineering decision, follow
+[the bounded experiment](https://github.com/voku/agent-loop/issues/781):
+
+1. Identify a **real independent engineering task** that naturally touches an
+   already `#[Rule]`-annotated production symbol. Freeze its problem, base SHA,
+   initial green PHPStan result, rule metadata, model/settings, tool access,
+   allowed edits and decision rubric *before* observing either agent.
+2. Run two independent fresh agent sessions on identical checkouts and budgets:
+   a baseline with the normal `enter`/Contract workflow and no injected ITP
+   summary, and a treatment with the exact-symbol `itp-context-summarize`
+   output delivered **before** the first proposed source edit. Preserve normal
+   repository access in both arms; do not fabricate rules or a task.
+3. Retain host-visible receipts: first inspected source, proposed owner/scope,
+   intended validation, concrete decisions, eventual outcome, false leads and
+   available time/token costs. Record unavailable telemetry as `unknown`.
+4. Compare **decisions**, not rule mentions, generated text, test counts or
+   PHPStan success. Mark `VALUE` only for a defensible, source-linked decision
+   difference; `NO VALUE` for equivalent decisions or extra noise; otherwise
+   `INCONCLUSIVE / NOT RUN`. Stop after one valid pair.
+
+Do not inject this treatment into default host guidance, add new lifecycle
+state, or automate a presentation gate before the comparison demonstrates a
+repeatable missed decision. The existing `itp-context` API owns rule data;
+Loop/Recall or the host would own a later, evidence-backed presentation change.
 
 ### CONTRACT: keep provenance
 
@@ -395,41 +429,25 @@ re-run with better keywords.
 "Should the workflow know about these tools" and "should this package depend on
 them" are different questions, and they have different answers.
 
-The two tools ended up on opposite sides of the dependency line, for reasons
-that are worth keeping straight.
+The current dependency boundary is intentionally narrower than the original
+architecture-rule experiment:
 
 | | `itp-context` | `slop-scan` |
 |---|---|---|
 | Discovery via `init tools` | yes | yes |
 | Guidance in the skills | yes | yes |
-| Composer dependency | **`require`** | **no** |
+| Composer dependency | **`require-dev`** | **no** |
 | Runs in CI | `composer ci` → `context:validate` | its own job, from `tools/slop-scan` |
 
-`itp-context` had to become a real dependency the moment this repository
-declared rules of its own: `ArchitectureRules` implements the package's
-`RuleIdentifier`, and `src/` carries its `Rule` attribute, so the rules cannot
-exist without it. It requires only PHP >= 8.3, which this package already
-requires, so nothing downstream changes.
+`ArchitectureRules` moved out of `src/` into the dev-only `tools/Context/`
+namespace. `context:validate` remains a CI check, not production autoload or
+proof of host consumption. `slop-scan` remains isolated, regardless of whether
+its current Composer constraints could co-resolve with the runtime graph.
 
-`slop-scan` cannot be one yet — not as a judgment, as arithmetic. 0.1.4 requires
-Simple-PHP-Code-Parser `^0.21` against `agent-map`'s `^0.22`, and the 0.1.5
-release that moves to `^0.22.2` has no Git tag, so Packagist still serves 0.1.4.
-CI installs the isolated tool project instead. When the tag lands, that becomes
-a judgment again, and the question to ask is whether a deterministic heuristic
-scanner belongs in the same resolution graph as the product — not whether it
-finally fits.
-
-Both are still optional at runtime. An absent tool remains one evidence plane a
-run does not have.
-
-Discovery and guidance cost nothing when the tool is absent: the probe reports
-it, the skills say so, and the run records one plane it did not have. That is
-the same deal `rg` already gets.
-
-The last row is the one that needs evidence rather than enthusiasm, because it
-is the one that puts an external tool inside a gate. `tests/RealIssueEvidenceToolBoundaryTest.php`
-keeps the dependency answer executable, so promoting either tool stays a
-deliberate change rather than one that arrives quietly.
+Either evidence plane may be `NOT_CONFIGURED` or unavailable for a consumer;
+absence does not block the workflow. `tests/RealIssueEvidenceToolBoundaryTest.php`
+asserts the actual package boundary. Changing that boundary or projecting ITP
+intent into a default acting-host prompt requires separate consumer evidence.
 
 ## Recorded runs
 
@@ -466,13 +484,11 @@ summarizing a heavily documented class returned only its heading. That was the
 honest state of a repository with no declared rules, and the run recorded it
 instead of manufacturing one.
 
-The repository has since declared four, because the abstention itself was the
-argument: `ProjectLayout`'s "nothing else may spell a state location" is exactly
-the intent the tool encodes, and a violation of it shipped anyway — `init tools`
-reported a built map index as never built. `src/Context/ArchitectureRules.php`
-now carries that rule and three others, each naming the check that would catch
-the next violation, and the package moved into `require` because declaring rules
-means implementing its `RuleIdentifier`.
+The repository later declared four rules after a real `ProjectLayout` state-path
+violation exposed the missing intent. That history explains their existence;
+it does not establish pre-edit host value. The rules now live in
+`tools/Context/ArchitectureRules.php` and `itp-context` lives in `require-dev`.
+None is a production `#[Rule]` target for the paired experiment.
 
 The bar for adding a rule is deliberately high: every one of the four was
 violated at least once by a change that passed review. A rule nobody has broken
