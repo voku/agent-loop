@@ -30,6 +30,9 @@ final readonly class ReviewAcknowledgementStore
         if ($acknowledgedBy === '') {
             throw new RuntimeException('Review acknowledgement requires a named actor.');
         }
+        if (str_starts_with($acknowledgedBy, 'standing:')) {
+            throw new RuntimeException('The standing: actor prefix is reserved for owner-authorized standing approval.');
+        }
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $reportSha256) !== 1) {
             throw new RuntimeException('Review acknowledgement report identity must be a sha256 digest.');
         }
