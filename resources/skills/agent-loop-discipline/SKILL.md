@@ -20,7 +20,7 @@ Do not decide mutation legality, gates, contract currency, or superseded scope. 
 
 SessionStart/SubagentStart hints are navigation only. Never infer approval, validation, review, learning, product intent, or a next command from them.
 
-Human authority exists only for lifecycle `decision_required`; present its exact subject after resolving agent-owned facts. Ordinary review acknowledgement and Learning disposition stay agent work unless the lifecycle says otherwise.
+Human authority exists only for lifecycle `decision_required`; present its exact subject after resolving agent-owned facts. Follow `agent-loop-workflow`'s Decision & Review Presentation guidance for language, choices, recommendations, and authority boundaries. Ordinary review acknowledgement and Learning disposition stay agent work unless the lifecycle says otherwise.
 
 ## Workflow Evidence Integrity
 

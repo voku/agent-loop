@@ -7,15 +7,17 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use JsonException;
 use Throwable;
+use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
 
 /**
  * CLI-facing presentation layer around HostFrontDoorCommand.
  *
  * Lifecycle authority stays in HostFrontDoorCommand and its owners. This layer
- * enriches JSON with exact human decision subjects and optional human-facing
- * projections while keeping those projections outside lifecycle legality.
+ * enriches JSON with exact human decision subjects and selects the configured
+ * human-facing decision view while keeping both outside lifecycle legality.
  */
 final readonly class HostFrontDoorApplication
 {
@@ -39,12 +41,34 @@ final readonly class HostFrontDoorApplication
     public function run(string $command, array $args): int
     {
         if (!$this->jsonRequested($args)) {
-            $exitCode = $this->runFrontDoor($command, $args);
-            if (in_array($command, ['enter', 'finish'], true)) {
-                $taskId = $this->taskIdFromArgs($args);
-                if ($taskId !== null) {
-                    $this->printControlPlanePresentation($this->controlPlane->project($taskId));
-                }
+            if (!in_array($command, ['enter', 'finish'], true)) {
+                return $this->runFrontDoor($command, $args);
+            }
+
+            $taskId = $this->taskIdFromArgs($args);
+            $config = (new InitConfigLoader($this->rootPath))->load((new ProjectLayout($this->rootPath))->configPath());
+            $presentationMode = $config['interaction']['decision_presentation'];
+            $htmlPresentation = null;
+            $htmlDecisionAvailable = $taskId !== null
+                && $command === 'enter'
+                && $presentationMode === 'html'
+                && $this->htmlContractApprovalAvailable($taskId);
+            if ($taskId !== null) {
+                $htmlPresentation = $this->controlPlane->project($taskId);
+            }
+            $htmlReady = ($htmlPresentation['status'] ?? null) === 'ready'
+                && is_string($htmlPresentation['url'] ?? null);
+            $htmlLanguageMatches = $this->isEnglishLanguage($config['prompting']['language']);
+            $showDecisionPresentation = !($htmlDecisionAvailable && $htmlReady && $htmlLanguageMatches);
+            $exitCode = $this->runFrontDoor($command, $args, $showDecisionPresentation);
+            if ($htmlDecisionAvailable) {
+                $this->printHtmlDecisionPresentation(
+                    $htmlPresentation,
+                    $config['prompting']['language'],
+                    $htmlLanguageMatches,
+                );
+            } else {
+                $this->printControlPlanePresentation($htmlPresentation);
             }
 
             return $exitCode;
@@ -157,13 +181,20 @@ final readonly class HostFrontDoorApplication
     }
 
     /** @param list<string> $args */
-    private function runFrontDoor(string $command, array $args): int
+    private function runFrontDoor(string $command, array $args, bool $showDecisionPresentation = true): int
     {
         if ($command === 'finish' && $this->findingIdAdapter->supports($args)) {
             return $this->findingIdAdapter->run($args);
         }
 
-        return $this->command->run($command, $args);
+        return $this->command->run($command, $args, $showDecisionPresentation);
+    }
+
+    private function htmlContractApprovalAvailable(string $taskId): bool
+    {
+        $available = (new WorkflowHumanDecisionService($this->rootPath))->availableActions($taskId);
+
+        return $available->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT);
     }
 
     private function materializeReviewPresentationWhenRequired(string $taskId): bool
@@ -245,6 +276,53 @@ final readonly class HostFrontDoorApplication
             echo ' (' . $detail . ')';
         }
         echo "\n";
+    }
+
+    /**
+     * @param array{status: string, url: string|null, detail: string|null}|null $presentation
+     */
+    private function printHtmlDecisionPresentation(
+        ?array $presentation,
+        string $language,
+        bool $languageMatchesHtml,
+    ): void {
+        if (($presentation['status'] ?? null) === 'ready' && is_string($presentation['url'] ?? null)) {
+            $german = $this->isGermanLanguage($language);
+            if (!$languageMatchesHtml) {
+                echo "\n" . ($german
+                    ? 'agent-ui ist erreichbar, aber seine Entscheidungslabels sind auf Englisch; die CLI zeigt die Übersicht auf Deutsch.'
+                    : 'agent-ui is reachable, but its decision labels do not match the configured language; the CLI shows the overview.') . "\n";
+                echo ($german ? 'Optionale englische agent-ui-Ansicht: ' : 'Optional English agent-ui view: ')
+                    . $presentation['url'] . "\n";
+
+                return;
+            }
+
+            echo "\n" . ($german ? 'Entscheidungsübersicht in agent-ui: ' : 'Decision overview in agent-ui: ')
+                . $presentation['url'] . "\n";
+
+            return;
+        }
+
+        $german = $this->isGermanLanguage($language);
+        echo "\n" . ($german
+            ? 'agent-ui ist nicht verfügbar; die vollständige Entscheidungsübersicht wird in der CLI angezeigt.'
+            : 'agent-ui is unavailable; the full decision overview is shown in the CLI.') . "\n";
+        $this->printControlPlanePresentation($presentation);
+    }
+
+    private function isGermanLanguage(string $language): bool
+    {
+        $normalized = strtolower($language);
+
+        return $normalized === 'de' || str_starts_with($normalized, 'de-');
+    }
+
+    private function isEnglishLanguage(string $language): bool
+    {
+        $normalized = strtolower($language);
+
+        return $normalized === 'en' || str_starts_with($normalized, 'en-');
     }
 
     /**

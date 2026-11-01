@@ -101,7 +101,7 @@ final class HostFrontDoorCommandTest extends TestCase
         );
     }
 
-    public function testEnterTextShowsTheFullCandidateGoalBeforeApprovalAction(): void
+    public function testEnterTextShowsTheDecisionAndApprovalBoundaryBeforeNextAction(): void
     {
         $goal = 'Show this complete goal before an approver is asked to decide.';
         (new TaskContractStore($this->root))->create(
@@ -116,11 +116,19 @@ final class HostFrontDoorCommandTest extends TestCase
         $result = $this->runBinary(['enter', 'TEXT-1']);
 
         self::assertSame(1, $result['exit'], $result['stderr']);
-        $goalOffset = strpos($result['stdout'], "Approval subject:\n  Contract revision: 1\n  Goal:\n    " . $goal);
+        $goalOffset = strpos($result['stdout'], "Decision required: Contract approval\nTask: TEXT-1\nRevision: 1\nGoal:\n  " . $goal);
+        $scopeOffset = strpos($result['stdout'], "Scope:\n  - src/Foo.php");
+        $authorityOffset = strpos($result['stdout'], 'What approval authorizes: work only within the Contract scope. It does not approve the implementation, validation results, or Learning.');
         $nextOffset = strpos($result['stdout'], 'Next: agent-loop workflow approve TEXT-1 --revision 1 --by <named-actor>');
         self::assertNotFalse($goalOffset, $result['stdout']);
+        self::assertNotFalse($scopeOffset, $result['stdout']);
+        self::assertNotFalse($authorityOffset, $result['stdout']);
         self::assertNotFalse($nextOffset, $result['stdout']);
+        self::assertLessThan($nextOffset, $scopeOffset, $result['stdout']);
+        self::assertLessThan($nextOffset, $authorityOffset, $result['stdout']);
         self::assertLessThan($nextOffset, $goalOffset, $result['stdout']);
+        self::assertStringContainsString('Request changes: Describe what must change.', $result['stdout']);
+        self::assertStringContainsString('There is no separate rejection action; the task stays blocked.', $result['stdout']);
     }
 
     public function testEnterJsonRemainsOneDocumentWhileRecallIsPrepared(): void
