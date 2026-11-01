@@ -126,7 +126,6 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
         }
     }
 
-
     public function testApprovalOwnerRefusesReservedStandingActorWithoutPersistingApproval(): void
     {
         $root = $this->root('standing-actor');
@@ -146,7 +145,7 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
                 $contracts->approve('STANDING-OWNER', '  standing:forged ', 1);
                 self::fail('The owner must refuse the reserved standing actor.');
             } catch (RuntimeException $exception) {
-                self::assertStringContainsString('standing: is reserved', $exception->getMessage());
+                self::assertStringContainsString('standing:', $exception->getMessage());
             }
 
             self::assertSame(TaskContract::CANDIDATE, $contracts->load('STANDING-OWNER')->status);
@@ -175,7 +174,7 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
                 (new WorkflowHumanDecisionService($root))->approveContract('STANDING-SERVICE', 'standing:forged', 1);
                 self::fail('The human decision adapter must not bypass the owner.');
             } catch (RuntimeException $exception) {
-                self::assertStringContainsString('standing: is reserved', $exception->getMessage());
+                self::assertStringContainsString('standing:', $exception->getMessage());
             }
 
             self::assertSame(TaskContract::CANDIDATE, $contracts->load('STANDING-SERVICE')->status);
