@@ -407,6 +407,9 @@ final readonly class WorkflowCloseReadinessInspector
         if ($decision === null) {
             return null;
         }
+        if (str_starts_with($decision->decidedBy, 'standing:')) {
+            return 'Persisted Learning decision uses an unverified reserved standing: actor.';
+        }
         if (
             $decision->contractRevision !== $boundary->implementation->contractRevision
             || $decision->implementationSnapshot !== $boundary->implementation->digest
