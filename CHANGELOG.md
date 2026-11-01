@@ -1,5 +1,15 @@
 ## Unreleased
 
+## [0.20.78] - 2026-11-01
+
+### Added
+
+- Present Contract approval and revision decisions in the CLI in the configured language, with the exact decision subject, scope, revision changes, available choices, and an evidence-backed recommendation when useful. `interaction.decision_presentation` selects CLI (default) or HTML; the CLI remains the complete fallback when agent-ui is unavailable or its labels use another language (#916).
+
+### Tests
+
+- Cover localized CLI decision output, presentation configuration, Contract revision changes, and fallback behavior while preserving explicit human authority over approvals (#916).
+
 ## [0.20.77] - 2026-11-01
 
 ### Changed
