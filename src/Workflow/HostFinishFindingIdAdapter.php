@@ -59,6 +59,9 @@ final readonly class HostFinishFindingIdAdapter
             if ($by === null) {
                 throw new InvalidArgumentException('A learning decision requires --by <actor>.');
             }
+            if (str_starts_with(trim($by), 'standing:')) {
+                throw new InvalidArgumentException('Actor prefix standing: is reserved for authorized standing approval.');
+            }
 
             $command = new HostFrontDoorCommand($this->rootPath);
             $preparation = $this->runQuietly($command, $this->withoutLearningInput($args));

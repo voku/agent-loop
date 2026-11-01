@@ -227,6 +227,68 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         );
     }
 
+
+    public function testFinishRefusesReservedStandingActorBeforeReviewAcknowledgement(): void
+    {
+        [$runId] = $this->prepareRun('FINISH-STANDING-REVIEW');
+        self::assertSame(1, $this->finish('FINISH-STANDING-REVIEW', ['--format=json'])['exit']);
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-STANDING-REVIEW');
+
+        $refused = $this->finish('FINISH-STANDING-REVIEW', [
+            '--format=json',
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'standing:forged',
+            '--learning', 'no_durable_learning',
+        ]);
+
+        self::assertSame(1, $refused['exit']);
+        self::assertFalse($refused['payload']['complete'] ?? true);
+        self::assertStringContainsString(
+            'standing: is reserved',
+            (string) ($refused['payload']['blockers'][0]['message'] ?? ''),
+        );
+        self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-STANDING-REVIEW'));
+        $run = (new GovernedRunStore($this->root))->find('FINISH-STANDING-REVIEW');
+        self::assertNotNull($run);
+        self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId));
+    }
+
+    public function testFinishRefusesReservedStandingActorForLearningAfterHumanAcknowledgement(): void
+    {
+        [$runId] = $this->prepareRun('FINISH-STANDING-LEARNING');
+        self::assertSame(1, $this->finish('FINISH-STANDING-LEARNING', ['--format=json'])['exit']);
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-STANDING-LEARNING');
+
+        $acknowledged = $this->finish('FINISH-STANDING-LEARNING', [
+            '--format=json',
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'human-reviewer',
+        ]);
+        self::assertSame(1, $acknowledged['exit']);
+        $acknowledgement = (new ReviewAcknowledgementStore($this->root))->find('FINISH-STANDING-LEARNING');
+        self::assertNotNull($acknowledgement);
+        self::assertSame('human-reviewer', $acknowledgement->acknowledgedBy);
+
+        $refused = $this->finish('FINISH-STANDING-LEARNING', [
+            '--format=json',
+            '--by', 'standing:forged',
+            '--learning', 'no_durable_learning',
+        ]);
+
+        self::assertSame(1, $refused['exit']);
+        self::assertStringContainsString(
+            'standing: is reserved',
+            (string) ($refused['payload']['blockers'][0]['message'] ?? ''),
+        );
+        $run = (new GovernedRunStore($this->root))->find('FINISH-STANDING-LEARNING');
+        self::assertNotNull($run);
+        self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId));
+        self::assertSame(
+            'human-reviewer',
+            (new ReviewAcknowledgementStore($this->root))->find('FINISH-STANDING-LEARNING')?->acknowledgedBy,
+        );
+    }
+
     public function testWrongReviewDigestCannotCreateAcknowledgement(): void
     {
         $this->prepareRun('FINISH-4');
