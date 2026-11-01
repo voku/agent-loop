@@ -13,6 +13,7 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
@@ -120,7 +121,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertSame(1, $result['exit']);
         self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
         self::assertStringContainsString('standing:', (string) ($result['payload']['error']['message'] ?? ''));
-        self::assertNull((new \voku\AgentLoop\\Workflow\\ReviewAcknowledgementStore($this->root))->find('FINISH-879-FINDING'));
+        self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-879-FINDING'));
         self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($run->runId));
     }
 
@@ -133,7 +134,7 @@ final class HostFinishFindingIdContractTest extends TestCase
             '--by', 'fixture-reviewer',
         ]);
         self::assertSame(1, $ack['exit']);
-        $acknowledgement = (new \voku\AgentLoop\\Workflow\\ReviewAcknowledgementStore($this->root))->find('FINISH-879-LEARNING');
+        $acknowledgement = (new ReviewAcknowledgementStore($this->root))->find('FINISH-879-LEARNING');
         self::assertNotNull($acknowledgement);
         self::assertSame('fixture-reviewer', $acknowledgement->acknowledgedBy);
 
