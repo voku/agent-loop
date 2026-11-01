@@ -306,20 +306,28 @@ final class WorkflowPipelineCommandTest extends TestCase
 
     public function testPipelineSubmitAutoVerifyUsesExplicitLinkedCandidateWorkspace(): void
     {
-        $this->prepareSurgicalRun("PIPE-WORKSPACE-SUBMIT", ["test -f .agent-loop/candidate-marker"]);
+        $this->prepareSurgicalRun("PIPE-WORKSPACE-SUBMIT", [
+            "test -f .agent-loop/candidate-marker",
+            "grep -q changed-candidate src/Foo.php",
+        ]);
         $workspace = $this->root . "-candidate-submit";
         $git = "git -C " . escapeshellarg($this->root);
         exec("$git worktree add -q --detach " . escapeshellarg($workspace) . " " . escapeshellarg($this->baseCommit));
         try {
             mkdir($workspace . "/.agent-loop", 0o775, true);
             file_put_contents($workspace . "/.agent-loop/candidate-marker", "candidate worktree\n");
+            file_put_contents($workspace . "/src/Foo.php", "<?php\nfinal class Foo {} // changed-candidate\n");
             $command = new WorkflowPipelineCommand($this->root);
 
             $this->captureRun($command, ["submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed"]);
-            $this->captureRun($command, ["submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed", "--context-id=ctx:build-workspace-submit"]);
+            $build = $this->captureRun($command, [
+                "submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed", "--context-id=ctx:build-workspace-submit",
+                "--workspace", $workspace, "--format=json",
+            ]);
+            self::assertSame(0, $build["exit"], $build["stdout"]);
             $review = $this->captureRun($command, [
                 "submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=pass", "--context-id=ctx:review-workspace-submit",
-                "--auto-verify", "--workspace", $workspace, "--format=json",
+                "--artifact", "src/Foo.php", "--auto-verify", "--workspace", $workspace, "--format=json",
             ]);
 
             self::assertSame(0, $review["exit"], $review["stdout"]);

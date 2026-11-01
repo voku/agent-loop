@@ -20,14 +20,37 @@ The repository already ignores `/build/`, and `phpunit.xml` points the normal su
 mkdir -p build/evidence/GH-123/probes
 ```
 
-Write the task-specific PHPUnit check to that file. Run it by naming the file directly and disabling the default PHPUnit configuration:
+For example, an evidence file can use PHPUnit without a `Test.php` filename:
+
+```php
+<?php
+
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\Execution\CandidateWorkspaceIdentity;
+
+final class QuestionEvidence extends TestCase
+{
+    #[Test]
+    public function missingBaseIsReported(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('STALE_CANDIDATE: observing a candidate requires an exact governed base commit.');
+        (new CandidateWorkspaceIdentity())->observe(getcwd(), null);
+    }
+}
+```
+
+Save it as `QuestionEvidence.php` and run it explicitly without loading the default PHPUnit configuration:
 
 ```sh
 vendor/bin/phpunit \
     --no-configuration \
     --bootstrap vendor/autoload.php \
-    build/evidence/GH-123/probes/QuestionTest.php
+    build/evidence/GH-123/probes/QuestionEvidence.php
 ```
+
+PHPUnit reports the executed method as a test; the file's purpose and disposable location make it an implementation probe, not a maintained regression test. Match the class name to the filename when invoking a file directly.
 
 This command does not add the probe to `composer test`, `composer test:fast`, or `composer ci`. Do not put disposable checks in the `slow` group: the full `composer ci` command still includes that group. Keep production edits within the approved task scope; the ignored probe directory does not grant extra source-edit authority.
 
