@@ -29,6 +29,7 @@ final readonly class InitConfigLoader
      *     prompting: array{language: string, blindspots: array{tone: 'measured'|'direct'|'unflinching'}},
      *     interaction: array{
      *         human_explanations: 'ask'|'always'|'never',
+     *         decision_presentation: 'cli'|'html',
      *         control_plane: array{enabled: bool, host: string, port: int}
      *     },
      *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}},
@@ -51,6 +52,7 @@ final readonly class InitConfigLoader
             ],
             'interaction' => [
                 'human_explanations' => HumanExplanationPolicy::ASK->value,
+                'decision_presentation' => 'cli',
                 'control_plane' => [
                     'enabled' => false,
                     'host' => '127.0.0.1',
@@ -256,6 +258,16 @@ final readonly class InitConfigLoader
                     $result['warnings'][] = '[WARN] init config: interaction.human_explanations must be ask, always, or never';
                 } else {
                     $result['interaction']['human_explanations'] = $policy->value;
+                }
+            }
+
+            if (array_key_exists('decision_presentation', $interaction)) {
+                $configured = $interaction['decision_presentation'];
+                $presentation = is_string($configured) ? strtolower(trim($configured)) : null;
+                if ($presentation === null || !in_array($presentation, ['cli', 'html'], true)) {
+                    $result['warnings'][] = '[WARN] init config: interaction.decision_presentation must be cli or html';
+                } else {
+                    $result['interaction']['decision_presentation'] = $presentation;
                 }
             }
 

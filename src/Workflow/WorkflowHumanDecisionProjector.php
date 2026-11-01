@@ -50,10 +50,21 @@ final readonly class WorkflowHumanDecisionProjector
             return null;
         }
 
-        $available = (new WorkflowHumanDecisionService($this->rootPath))->availableActions($taskId);
-        if ($available->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)) {
-            return $this->contractApproval($taskId, $nextAction);
+        $contractApproval = $this->projectContractApprovalPresentation(
+            $taskId,
+            $nextAction,
+            $nextActionKind,
+        );
+        if ($contractApproval !== null) {
+            return $this->decision(
+                'contract_approval',
+                $taskId,
+                $nextAction,
+                $contractApproval->subject(PathResolver::relativeTo($this->rootPath, $contractApproval->contract->path)),
+            );
         }
+
+        $available = (new WorkflowHumanDecisionService($this->rootPath))->availableActions($taskId);
         if ($available->allows(WorkflowHumanDecisionProjection::ACKNOWLEDGE_REVIEW)) {
             return $this->reviewAcknowledgement($taskId, $nextAction);
         }
@@ -70,27 +81,26 @@ final readonly class WorkflowHumanDecisionProjector
         return $this->genericDecision($taskId, $nextAction, $blockers);
     }
 
-    /** @return array<string, mixed> */
-    private function contractApproval(string $taskId, string $nextAction): array
-    {
-        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+    public function projectContractApprovalPresentation(
+        string $taskId,
+        string $nextAction,
+        string $nextActionKind,
+    ): ?WorkflowContractApprovalPresentation {
+        if (
+            $nextActionKind !== RunPolicyEvaluation::KIND_DECISION_REQUIRED
+            || !(new WorkflowHumanDecisionService($this->rootPath))
+                ->availableActions($taskId)
+                ->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)
+        ) {
+            return null;
+        }
 
-        return $this->decision(
-            'contract_approval',
-            $taskId,
-            $nextAction,
-            [
-                'contract_revision' => $contract->revision,
-                'goal' => $contract->goal,
-                'scope' => $contract->scope,
-                'non_goals' => $contract->nonGoals,
-                'acceptance_criteria' => $contract->acceptanceCriteria,
-                'validation' => $contract->validation,
-                'behavior_anchors' => $contract->behaviorAnchors,
-                'operating_prompts' => $contract->operatingPrompts,
-                'contract_path' => PathResolver::relativeTo($this->rootPath, $contract->path),
-            ],
-        );
+        $contracts = new TaskContractStore($this->rootPath);
+        $contract = $contracts->load($taskId);
+        $history = $contracts->supersededRevisions($taskId);
+        $previous = $history === [] ? null : $history[count($history) - 1];
+
+        return new WorkflowContractApprovalPresentation($contract, $previous, $nextAction);
     }
 
     /** @return array<string, mixed> */

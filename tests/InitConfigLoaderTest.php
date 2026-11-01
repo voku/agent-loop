@@ -74,7 +74,39 @@ final class InitConfigLoaderTest extends TestCase
         $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
 
         self::assertSame('ask', $config['interaction']['human_explanations']);
+        self::assertSame('cli', $config['interaction']['decision_presentation']);
         self::assertSame([], $config['warnings']);
+    }
+
+    public function testDecisionPresentationAcceptsHtmlAndNormalizesCase(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'interaction' => ['decision_presentation' => ' HTML '],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame('html', $config['interaction']['decision_presentation']);
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testInvalidDecisionPresentationWarnsAndFallsBackToCli(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'interaction' => ['decision_presentation' => 'browser'],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame('cli', $config['interaction']['decision_presentation']);
+        self::assertContains(
+            '[WARN] init config: interaction.decision_presentation must be cli or html',
+            $config['warnings'],
+        );
     }
 
     public function testControlPlaneDefaultsToDisabledLoopback(): void
@@ -240,6 +272,7 @@ final class InitConfigLoaderTest extends TestCase
         $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
 
         self::assertSame('ask', $config['interaction']['human_explanations']);
+        self::assertSame('cli', $config['interaction']['decision_presentation']);
         self::assertFalse($config['interaction']['control_plane']['enabled']);
         self::assertSame([], $config['warnings']);
     }

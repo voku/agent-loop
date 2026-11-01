@@ -51,17 +51,31 @@ Then obey the returned `next_action_kind` / `next_action` until `none` / complet
 
 ## Decision & Review Presentation
 
-Before asking for any `decision_required` action, surface the smallest complete developer-readable projection of the decision subject:
+Before asking for any `decision_required` action, present the smallest complete developer-readable projection of the decision subject. Use the task's configured `prompting.language` for explanatory prose. Read the normalized `prompting` projection from `agent-loop workflow context <task-id> --format=json` when needed; the default is `en`. Preserve exact source text, technical identifiers, paths, commands, citations, and machine-readable status tokens. For explanatory messages from pipeline Attention, translate the explanation for the developer while retaining the exact owner evidence.
+
+Apply this contract only when the current owner result says `decision_required`. Follow `command`, `command_template`, and `host_work` without turning them into confirmation questions. Ordinary review acknowledgement and Learning disposition remain agent work unless the owner explicitly marks a human decision as required.
+
+The message must make the human's choice clear:
+
+- Name the action and exact current subject from the owner projection, including the revision or digest where relevant.
+- Explain what each available choice changes or authorizes and its practical consequences. List only choices supported by current owner state or the user's stated intent; never invent an owner action. If there is no supported alternative, say what decision is required without manufacturing one.
+- Recommend an option only when verified evidence supports it. Label it as a recommendation and give the evidence-based reason. If the evidence does not support a preference, say that no option is recommended and name the unresolved fact or risk.
+- Keep advice separate from authority. A recommendation, a native dialog's preselected choice, or silence is never approval. Do not run or record the decision until the human explicitly chooses. Host tool-permission prompts remain separate from workflow decisions.
+- Make the same decision information visible in prose when the host has no blocking question dialog. A native dialog may render the choices, but it must not hide the subject, consequences, or recommendation rationale.
+
+Apply these details to common decisions:
+
 - **Contract Approval:** Show candidate Contract revision (goal, scope, non-goals, acceptance criteria, validation commands). Refresh context if needed via:
   ```bash
   vendor/bin/agent-loop workflow context <task-id> --format=json
   ```
-  Approval is the task-authority gate. Once approved, ordinary implementation, validation, review acknowledgement, Learning disposition, and closeout proceed without ceremonial re-approval.
-- **Review Acknowledgement:** Render the deterministic HTML review workbench or read the report:
+  Explain that approval authorizes work only within the stated scope and leaves the non-goals excluded. Ask whether to approve this revision or provide changes; do not present approval as the assumed choice. Once approved, ordinary implementation, validation, review acknowledgement, Learning disposition, and closeout proceed without ceremonial re-approval.
+- **Review Acknowledgement, when the owner requires a human decision:** Render the deterministic HTML review workbench or read the report:
   ```bash
   vendor/bin/agent-loop workflow review <task-id>
   ```
-  Surface the HTML path, review SHA-256, and findings before filling the review `command_template`.
+  Surface the HTML path, review SHA-256, status, and findings before filling the review `command_template`. Explain the acknowledgement's effect from current owner state; do not imply that acknowledgement waives findings or proves approval.
+- **Contract Revision, Clarification, Risk Acceptance, or Pipeline Attention:** State the exact owner-reported change, missing information, risk, or blocker; identify the affected stage or constraint and what resolving it would allow. Keep material unknowns visible. Recommend a response only when evidence supports it, and never imply that resolving pipeline Attention approves a code change or accepts a separate risk.
 
 ## Prompt Controls & Reflection
 

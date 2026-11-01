@@ -64,12 +64,12 @@ final readonly class HostFrontDoorCommand
     }
 
     /** @param list<string> $args */
-    public function run(string $command, array $args): int
+    public function run(string $command, array $args, bool $showDecisionPresentation = true): int
     {
         try {
             return match ($command) {
-                'enter' => $this->enter($args),
-                'finish' => $this->finish($args),
+                'enter' => $this->enter($args, $showDecisionPresentation),
+                'finish' => $this->finish($args, $showDecisionPresentation),
                 'quick' => $this->quick($args),
                 'repair' => (new WorkflowRepairCommand($this->rootPath))->run($args),
                 'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($args),
@@ -152,7 +152,7 @@ final readonly class HostFrontDoorCommand
      * @param list<string> $args
      * @SuppressWarnings("PHPMD.StaticAccess")
      */
-    private function enter(array $args): int
+    private function enter(array $args, bool $showDecisionPresentation): int
     {
         if ($this->helpRequested($args)) {
             echo "Usage: agent-loop enter <task-id> [--request TEXT] [--format text|json] [--max-lines N] [--max-bytes N]\n";
@@ -255,7 +255,7 @@ final readonly class HostFrontDoorCommand
             echo 'Mode: ' . $manifest->mode . "\n";
             echo 'State: ' . $policy->state . "\n";
             echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
-            $this->printCandidateApprovalSubject($taskId->value, $policy->nextActionKind);
+            $this->printHumanDecision($taskId->value, $policy, $showDecisionPresentation);
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
             if ($discovery !== null) {
@@ -319,25 +319,29 @@ final readonly class HostFrontDoorCommand
             && ($invocation->arguments[1] ?? null) === 'plan';
     }
 
-    private function printCandidateApprovalSubject(string $taskId, string $nextActionKind): void
-    {
-        if ($nextActionKind !== RunPolicyEvaluation::KIND_DECISION_REQUIRED) {
+    private function printHumanDecision(
+        string $taskId,
+        RunPolicyEvaluation $policy,
+        bool $showDecisionPresentation,
+    ): void {
+        if (!$showDecisionPresentation || $policy->nextActionKind !== RunPolicyEvaluation::KIND_DECISION_REQUIRED) {
             return;
         }
 
-        $available = (new WorkflowHumanDecisionService($this->rootPath))->availableActions($taskId);
-        if (!$available->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)) {
+        $decision = (new WorkflowHumanDecisionProjector($this->rootPath))->projectContractApprovalPresentation(
+            $taskId,
+            $policy->nextAction,
+            $policy->nextActionKind,
+        );
+        if ($decision === null) {
             return;
         }
 
-        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
-        echo "Approval subject:\n";
-        echo "  Contract revision: {$contract->revision}\n";
-        echo "  Goal:\n    {$contract->goal}\n";
+        echo "\n" . (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderContractApproval($decision);
     }
 
     /** @param list<string> $args */
-    private function finish(array $args): int
+    private function finish(array $args, bool $showDecisionPresentation): int
     {
         if ($this->helpRequested($args)) {
             echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning no_durable_learning --by ACTOR] [--learning-reason TEXT] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT]\n";
@@ -565,6 +569,7 @@ final readonly class HostFrontDoorCommand
             echo 'Run: ' . $manifest->runId . "\n";
             echo 'State: ' . $policy->state . "\n";
             echo 'Complete: ' . ($complete ? 'yes' : 'no') . "\n";
+            $this->printHumanDecision($taskId->value, $policy, $showDecisionPresentation);
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
             foreach ($hookResults as $hookResult) {

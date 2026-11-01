@@ -48,6 +48,23 @@ Present, in this order:
 
 Do not replace the subject with a generic question such as "continue?" or "approve?". Do not include routine agent-owned commands as choices merely because they happen next mechanically.
 
+For Contract approval, `agent-loop enter` renders the exact candidate, the
+scope of approval, and what the available responses do. It offers three
+distinct responses:
+approve the exact revision, request changes and keep it unapproved, or decline
+and leave the task blocked. The CLI does not invent a persistent rejection
+action when the lifecycle has none. A recommendation is not approval and must
+never be recorded as the human's choice.
+
+Projects may set `interaction.decision_presentation` to `cli` (the default) or
+`html` in `.agent-loop/init.json`. It prefers the existing agent-ui view for
+Contract approval when the control plane is enabled and reports ready. The
+current agent-ui decision labels are English, so a non-English configured
+language keeps the full overview in the CLI. If the control plane is disabled,
+missing, or unreachable, the CLI also shows the full decision overview. This
+preference changes only Contract approval presentation.
+`interaction.control_plane` continues to configure the local agent-ui endpoint.
+
 ### Example: approve durable task intent
 
 If the current decision is approval of a new or revised Contract, show the proposed authority-bearing intent rather than a shell command:
@@ -71,7 +88,7 @@ Changed since the approved revision:
 - Goal and acceptance are unchanged.
 
 Human decision:
-approve or reject this Contract revision.
+approve this revision, request changes, or decline while leaving it unapproved.
 ```
 
 The agent may explain why the revision is proposed, but it must not approve the revision itself.

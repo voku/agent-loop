@@ -93,6 +93,172 @@ final class HostHumanDecisionProjectionTest extends TestCase
         );
     }
 
+    public function testEnterTextShowsOptionsAndConfiguredGermanDecisionLabels(): void
+    {
+        if (!mkdir($this->root . '/.agent-loop', 0o775, true) && !is_dir($this->root . '/.agent-loop')) {
+            throw new RuntimeException('Unable to create config directory.');
+        }
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'prompting' => ['language' => 'de-DE'],
+            'interaction' => ['decision_presentation' => 'cli'],
+        ], JSON_THROW_ON_ERROR));
+        (new TaskContractStore($this->root))->create(
+            taskId: 'DECISION-DE',
+            goal: 'Den Status in der Oberfläche anzeigen.',
+            scope: ['src/Workflow'],
+            nonGoals: ['Keine automatische Freigabe.'],
+            validation: ['vendor/bin/phpunit'],
+            plannedBy: 'codex',
+            acceptanceCriteria: ['Die Freigabe gilt nur für diesen Scope.'],
+        );
+
+        $result = $this->runBinary(['enter', 'DECISION-DE']);
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertStringContainsString('Entscheidung erforderlich: Contract-Freigabe', $result['stdout']);
+        self::assertStringContainsString('Ziel:', $result['stdout']);
+        self::assertStringContainsString('Ausgeschlossen:', $result['stdout']);
+        self::assertStringContainsString('Abnahmekriterien:', $result['stdout']);
+        self::assertStringContainsString('Mögliche Entscheidungen:', $result['stdout']);
+        self::assertStringContainsString('Änderungen anfordern:', $result['stdout']);
+        self::assertStringContainsString('Es gibt keine separate Ablehnungsaktion', $result['stdout']);
+        self::assertStringContainsString('Freigabeaktion: agent-loop workflow approve DECISION-DE --revision 1 --by <named-actor>', $result['stdout']);
+    }
+
+    public function testRevisedContractShowsTheDifferenceFromThePreviouslyApprovedRevision(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'DECISION-REVISION',
+            'Keep the original goal.',
+            ['src/Original.php'],
+            ['Do not change tests.'],
+            ['vendor/bin/phpunit --testsuite unit'],
+            'planner',
+            acceptanceCriteria: ['Existing behavior remains stable.'],
+        );
+        $contracts->approve('DECISION-REVISION', 'project-owner', 1);
+        $contracts->revise(
+            'DECISION-REVISION',
+            'Update the goal and add regression coverage.',
+            ['src/Original.php', 'tests/OriginalTest.php'],
+            ['Do not add dependencies.'],
+            ['vendor/bin/phpunit'],
+            'planner',
+            acceptanceCriteria: ['Existing behavior remains stable.', 'The regression is covered.'],
+        );
+
+        $json = $this->runBinary(['enter', 'DECISION-REVISION', '--format=json']);
+        $payload = $this->json($json['stdout']);
+        $delta = $payload['human_decision']['subject']['revision_delta'] ?? null;
+        self::assertSame(1, $json['exit'], $json['stderr']);
+        self::assertSame(1, $delta['from_revision'] ?? null);
+        self::assertSame(2, $delta['to_revision'] ?? null);
+        self::assertSame('project-owner', $delta['previous_approved_by'] ?? null);
+        self::assertSame('Keep the original goal.', $delta['previous_goal'] ?? null);
+        self::assertSame(['tests/OriginalTest.php'], $delta['lists']['Scope']['added'] ?? null);
+        self::assertSame(['Do not change tests.'], $delta['lists']['Non-goals']['removed'] ?? null);
+        self::assertSame(['Do not add dependencies.'], $delta['lists']['Non-goals']['added'] ?? null);
+
+        $text = $this->runBinary(['enter', 'DECISION-REVISION']);
+
+        self::assertSame(1, $text['exit'], $text['stderr']);
+        self::assertStringContainsString('Changes since revision 1 (new revision 2):', $text['stdout']);
+        self::assertStringContainsString('Previous revision approved by: project-owner', $text['stdout']);
+        self::assertStringContainsString('Previous goal: Keep the original goal.', $text['stdout']);
+        self::assertStringContainsString('+ tests/OriginalTest.php', $text['stdout']);
+        self::assertStringContainsString('- Do not change tests.', $text['stdout']);
+        self::assertStringContainsString('+ Do not add dependencies.', $text['stdout']);
+    }
+
+    public function testHtmlPreferenceUsesExistingTaskOverviewWhenControlPlaneIsReady(): void
+    {
+        $this->writeConfig([
+            'interaction' => [
+                'decision_presentation' => 'html',
+                'control_plane' => ['enabled' => true, 'host' => 'localhost', 'port' => 8123],
+            ],
+        ]);
+        $binaryDirectory = $this->root . '/vendor/bin';
+        if (!mkdir($binaryDirectory, 0o775, true) && !is_dir($binaryDirectory)) {
+            throw new RuntimeException('Unable to create fake agent-ui binary directory.');
+        }
+        $binary = $binaryDirectory . '/agent-ui';
+        file_put_contents($binary, "#!/bin/sh\nprintf '%s\\n' '{\"status\":\"ready\",\"url\":\"http://localhost:8123/\",\"detail\":null}'\n");
+        chmod($binary, 0o755);
+        (new TaskContractStore($this->root))->create(
+            'DECISION-HTML',
+            'Render the task approval in the existing task page.',
+            ['src/Workflow'],
+            ['Do not continue without human approval.'],
+            ['vendor/bin/phpunit'],
+            'codex',
+        );
+
+        $result = $this->runBinary(['enter', 'DECISION-HTML']);
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertStringContainsString(
+            'Decision overview in agent-ui: http://localhost:8123/task/DECISION-HTML',
+            $result['stdout'],
+        );
+        self::assertStringNotContainsString('Decision required: Contract approval', $result['stdout']);
+        self::assertStringContainsString('Next: agent-loop workflow approve DECISION-HTML --revision 1 --by <named-actor>', $result['stdout']);
+    }
+
+    public function testHtmlPreferenceKeepsGermanDecisionInCliUntilTheViewIsLocalized(): void
+    {
+        $this->writeConfig([
+            'prompting' => ['language' => 'de'],
+            'interaction' => [
+                'decision_presentation' => 'html',
+                'control_plane' => ['enabled' => true, 'host' => 'localhost', 'port' => 8123],
+            ],
+        ]);
+        $binaryDirectory = $this->root . '/vendor/bin';
+        if (!mkdir($binaryDirectory, 0o775, true) && !is_dir($binaryDirectory)) {
+            throw new RuntimeException('Unable to create fake agent-ui binary directory.');
+        }
+        $binary = $binaryDirectory . '/agent-ui';
+        file_put_contents($binary, "#!/bin/sh\nprintf '%s\\n' '{\"status\":\"ready\",\"url\":\"http://localhost:8123/\",\"detail\":null}'\n");
+        chmod($binary, 0o755);
+        (new TaskContractStore($this->root))->create(
+            'DECISION-DE-HTML',
+            'Keep the German approval overview in the terminal.',
+            ['src/Workflow'],
+            [],
+            ['vendor/bin/phpunit'],
+            'codex',
+        );
+
+        $result = $this->runBinary(['enter', 'DECISION-DE-HTML']);
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertStringContainsString('Entscheidung erforderlich: Contract-Freigabe', $result['stdout']);
+        self::assertStringContainsString('die CLI zeigt die Übersicht auf Deutsch', $result['stdout']);
+        self::assertStringContainsString('Optionale englische agent-ui-Ansicht: http://localhost:8123/task/DECISION-DE-HTML', $result['stdout']);
+    }
+
+    public function testHtmlPreferenceFallsBackToFullCliDecisionWhenControlPlaneIsUnavailable(): void
+    {
+        $this->writeConfig(['interaction' => ['decision_presentation' => 'html']]);
+        (new TaskContractStore($this->root))->create(
+            'DECISION-FALLBACK',
+            'Show the approval details when the browser view is missing.',
+            ['src/Workflow'],
+            [],
+            ['vendor/bin/phpunit'],
+            'codex',
+        );
+
+        $result = $this->runBinary(['enter', 'DECISION-FALLBACK']);
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertStringContainsString('Decision required: Contract approval', $result['stdout']);
+        self::assertStringContainsString('agent-ui is unavailable; the full decision overview is shown in the CLI.', $result['stdout']);
+        self::assertStringContainsString('Request changes:', $result['stdout']);
+    }
+
     public function testFinishSurfacesReviewWhileDelegatingAcknowledgementAndLearning(): void
     {
         [$contract, $run, $session, $snapshot] = $this->prepareReviewDecision('DECISION-2');
@@ -246,6 +412,15 @@ final class HostHumanDecisionProjectionTest extends TestCase
             'stdout' => is_string($stdout) ? $stdout : '',
             'stderr' => is_string($stderr) ? $stderr : '',
         ];
+    }
+
+    /** @param array<string, mixed> $config */
+    private function writeConfig(array $config): void
+    {
+        if (!mkdir($this->root . '/.agent-loop', 0o775, true) && !is_dir($this->root . '/.agent-loop')) {
+            throw new RuntimeException('Unable to create config directory.');
+        }
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode($config, JSON_THROW_ON_ERROR));
     }
 
     /** @return array<string, mixed> */

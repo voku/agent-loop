@@ -4,7 +4,8 @@
     "learning_root": ".agent-loop/learning"
   },
   "interaction": {
-    "human_explanations": "ask"
+    "human_explanations": "ask",
+    "decision_presentation": "cli"
   },
   "workflow": {
     "future_work": {
