@@ -253,7 +253,9 @@ final readonly class WorkflowPipelineCommand
             $taskId,
             $acceptedOutcomes[0] ?? "completed",
             $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
-            $bundle->mayMutate ? ' --workspace "<workspace-with-edits>"' : '',
+            $bundle->kind === ExecutionStageKind::AGENT && $bundle->mayMutate
+                ? ' --workspace "<workspace-with-edits>"'
+                : '',
         );
 
         $payload = [

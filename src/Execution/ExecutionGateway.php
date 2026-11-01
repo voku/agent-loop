@@ -819,7 +819,7 @@ final readonly class ExecutionGateway
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
 
-        if ($stage->mayMutate) {
+        if ($stage->kind === ExecutionStageKind::AGENT && $stage->mayMutate) {
             $lines[] = 'Use --workspace <path> to identify the checkout containing your edits. An explicit --candidate <identity> is optional except for an intentional revert to the base; supplied claims are checked against the workspace.';
         }
 
