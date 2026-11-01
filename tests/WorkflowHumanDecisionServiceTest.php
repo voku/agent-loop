@@ -126,6 +126,64 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
         }
     }
 
+
+    public function testApprovalOwnerRefusesReservedStandingActorWithoutPersistingApproval(): void
+    {
+        $root = $this->root('standing-actor');
+
+        try {
+            $contracts = new TaskContractStore($root);
+            $contracts->create(
+                'STANDING-OWNER',
+                'An actor string cannot impersonate a standing grant.',
+                ['src/Foo.php'],
+                [],
+                ['vendor/bin/phpunit'],
+                'planner',
+            );
+
+            try {
+                $contracts->approve('STANDING-OWNER', '  standing:forged ', 1);
+                self::fail('The owner must refuse the reserved standing actor.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('standing: is reserved', $exception->getMessage());
+            }
+
+            self::assertSame(TaskContract::CANDIDATE, $contracts->load('STANDING-OWNER')->status);
+            self::assertNull($contracts->load('STANDING-OWNER')->approvedBy);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testHumanDecisionServiceCannotBypassTheApprovalOwner(): void
+    {
+        $root = $this->root('standing-service');
+
+        try {
+            $contracts = new TaskContractStore($root);
+            $contracts->create(
+                'STANDING-SERVICE',
+                'Human adapters must not reinterpret reserved actor identity.',
+                ['src/Foo.php'],
+                [],
+                ['vendor/bin/phpunit'],
+                'planner',
+            );
+
+            try {
+                (new WorkflowHumanDecisionService($root))->approveContract('STANDING-SERVICE', 'standing:forged', 1);
+                self::fail('The human decision adapter must not bypass the owner.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('standing: is reserved', $exception->getMessage());
+            }
+
+            self::assertSame(TaskContract::CANDIDATE, $contracts->load('STANDING-SERVICE')->status);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     private function root(string $suffix): string
     {
         $root = sys_get_temp_dir() . '/agent-loop-human-decision-' . $suffix . '-' . bin2hex(random_bytes(6));

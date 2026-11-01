@@ -158,6 +158,10 @@ final class TaskContractStore
 
     public function approve(string $taskId, string $by, int $expectedRevision): TaskContract
     {
+        if (str_starts_with(trim($by), 'standing:')) {
+            throw new RuntimeException('Actor prefix standing: is reserved for authorized standing approval.');
+        }
+
         return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision): TaskContract {
             $contract = $this->load($taskId);
             if ($expectedRevision !== $contract->revision) {
