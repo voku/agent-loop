@@ -1,8 +1,26 @@
 ## Unreleased
 
+## [0.20.76] - 2026-11-01
+
+### Added
+
+- Expose Recall 0.25.10's optional next-step reflection through the existing prompt dispatcher, with CLI subprocess and integration coverage. It remains advisory and does not become a lifecycle gate (#894).
+- Document an opt-in Evidence Lab convention for temporary task-local implementation probes using existing PHPUnit and Run/Session evidence; add candidate-export regression coverage for tracked symlinks and executable file modes. The workflow does not add a new CI stage or prove better independent agent review (#904).
+- Clarify when disposable task-local scratch checks are permitted during governed stages and how ignored versus explicitly scoped probes affect snapshot binding, cleanup and reviewer handoff. Scratch work is never implicit authorization outside an approved scope (#907, closes #906).
+
+### Fixed
+
+- Make retired Run state harder to accidentally bypass: reject invalid post-retirement close and pipeline entry, let explicitly approved successor Contracts proceed, reject stage-illegal third review results before opening Attention, and persist/show retirement projection evidence (#865, #869, #870, #871, #872).
+- Refresh agent-map after `composer.lock`-only dependency transitions so repository maps do not silently stay stale (#884).
+- Avoid leaking temporary scoped-verification exports when validation leaves unreadable directories; cleanup restores access before descending and remains best effort. The new end-to-end test reproduces the prior permission failure (#900, #859).
+- Include `--workspace` in mutating agent-stage submission guidance so builders identify the checkout containing edits; omit the hint for read-only and deterministic stages, matching the workspace actually observed by the candidate gateway. This fixes guidance only; remaining candidate-submission cases stay tracked in #852 (#905).
+
 ### Changed
 
+- Report bounded raw stdout as context when the front-door JSON-decoding test fails; this improves diagnostics but does not establish that the previously observed intermittent failure is fixed (#903).
 - `ExecutionGateway::observeStageCandidate()` returns immutable `ObservedStageCandidate` (`candidateRevision`, `changesOutsideScope`) instead of `string`; typed execution consumers must read `->candidateRevision`. Only the CLI emits the out-of-scope notice. The Execution output-boundary regression checks both ordinary and fully qualified PHP output calls (#899, #859).
+- Refresh agent-map / agent-graph release integration and routine locked PHP, Docker and development dependencies; compatibility is covered by the repository's installed-release-set dogfood and PHP CI matrix (#832, #882, #809, #816, #818, #821, #823, #829, #850, #873, #874).
+
 
 ## [0.20.75] - 2026-10-28
 
