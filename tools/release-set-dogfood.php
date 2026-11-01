@@ -91,6 +91,7 @@ final class ReleaseSetDogfood
             $this->step('install.resolve', fn () => $this->install());
             $this->step('install.focused-binaries', fn () => $this->focusedPackageBinaries());
             $this->step('workflow.scaffold', fn () => $this->scaffold());
+            $this->step('skills.composer-projection', fn () => $this->composerSkillsProjection());
             $this->step('workflow.ephemeral', fn () => $this->ephemeral());
             $this->step('workflow.plan', fn () => $this->plan());
             $this->step('workflow.approve', fn () => $this->approve());
@@ -139,6 +140,7 @@ final class ReleaseSetDogfood
         $packages = $this->resolvedPackages();
         foreach ([
             'voku/agent-loop',
+            'voku/agent-skills',
             'voku/agent-session',
             'voku/agent-recall-compiler',
             'voku/agent-learning',
@@ -149,6 +151,17 @@ final class ReleaseSetDogfood
                 throw new ReleaseSetFailure('Resolved consumer is missing ' . $package . '.');
             }
         }
+        $skills = $packages['voku/agent-skills'] ?? [];
+        if (($skills['version'] ?? null) !== 'v0.1.0'
+            || ($skills['source_type'] ?? null) === 'path'
+            || ($skills['reference'] ?? null) !== '4c27d9c12737c603db7ec600bcf2b2fac9711271') {
+            throw new ReleaseSetFailure('agent-skills did not resolve to the published Packagist release v0.1.0.');
+        }
+        $skillsRoot = $this->consumerRoot . '/vendor/voku/agent-skills/skills';
+        foreach (['engineering-codelight/SKILL.md', 'testing-best-practices/SKILL.md'] as $skill) {
+            $this->assertFile($skillsRoot . '/' . $skill);
+        }
+        $this->artifact($this->consumerRoot . '/vendor/voku/agent-skills/composer.json');
         foreach ($this->candidateSelection->packages() as $package) {
             if (($packages[$package]['source_type'] ?? null) !== 'path') {
                 throw new ReleaseSetFailure('Requested owner candidate did not resolve from a path repository: ' . $package);
@@ -248,6 +261,20 @@ final class ReleaseSetDogfood
         $nextAction = $entry['next_action'] ?? null;
         if (!is_string($nextAction) || !str_contains($nextAction, 'workflow plan DEMO-1')) {
             throw new ReleaseSetFailure('Unprepared host front door did not return the canonical plan prerequisite.');
+        }
+    }
+
+    private function composerSkillsProjection(): void
+    {
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'install-assets', '--agent=all']);
+        $skill = $this->consumerRoot . '/.codex/skills/engineering-codelight/SKILL.md';
+        $this->assertFile($skill);
+        $this->artifact($skill);
+        $before = $this->mustRun(['git', 'status', '--porcelain']);
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'install-assets', '--agent=all']);
+        $after = $this->mustRun(['git', 'status', '--porcelain']);
+        if ($before['stdout'] !== $after['stdout']) {
+            throw new ReleaseSetFailure('Repeated Composer skill projection did not converge.');
         }
     }
 
@@ -921,7 +948,7 @@ final class ReleaseSetDogfood
         $this->writeJson($this->consumerRoot . '/composer.json', [
             'name' => 'voku/release-set-consumer-fixture',
             'type' => 'project',
-            'require-dev' => ['voku/agent-loop' => 'dev-main'],
+            'require-dev' => ['voku/agent-loop' => 'dev-main', 'voku/agent-skills' => '^0.1'],
             'repositories' => $repositories,
             'autoload' => ['psr-4' => ['Fixture\\' => 'src/']],
             'scripts' => ['test' => 'php tests/run.php'],
@@ -971,6 +998,9 @@ final class ReleaseSetDogfood
                     'version' => is_string($row['version'] ?? null) ? $row['version'] : 'unknown',
                     'source_type' => $sourceType,
                     'source' => $sourceUrl,
+                    'reference' => is_string($dist['reference'] ?? null)
+                        ? $dist['reference']
+                        : (is_string($source['reference'] ?? null) ? $source['reference'] : 'unknown'),
                 ];
             }
         }

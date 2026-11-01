@@ -13,6 +13,18 @@ This document records the current declared boundary and one exact exercised
 release set. The machine-readable clean-consumer gate is authoritative for that
 run; this page is its human projection.
 
+## Portable engineering skills consumer
+
+The installed release-set dogfood now resolves optional `voku/agent-skills`
+through Packagist as a real stable package. The consumer configures
+`vendor/voku/agent-skills/skills` through the existing `extra_skills_roots`
+setting and projects it with the normal `init install-assets --agent=all`
+command. The exercised package is `v0.1.0`, source reference
+`4c27d9c12737c603db7ec600bcf2b2fac9711271`. The run records the resolved
+Composer lock and projected skill artifact. This proves package resolution and
+asset projection for that consumer; it does not prove host discovery, skill
+consumption, behavioral compliance, or engineering benefit.
+
 ## Current declared boundary
 
 `agent-loop` `dev-main` (`0.20.x-dev`) declares:

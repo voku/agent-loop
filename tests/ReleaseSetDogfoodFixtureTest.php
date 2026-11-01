@@ -65,6 +65,16 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         self::assertArrayNotHasKey('recall_root', $config['paths']);
     }
 
+    public function testFixtureUsesComposerInstalledSkillsAsAnAdditionalRoot(): void
+    {
+        $fixture = dirname(__DIR__) . '/tests/fixtures/release-set-consumer/.agent-loop/init.json';
+        $config = (new InitConfigLoader(dirname(__DIR__) . '/tests/fixtures/release-set-consumer'))->load('.agent-loop/init.json');
+
+        self::assertSame([], $config['warnings']);
+        self::assertSame(['vendor/voku/agent-skills/skills'], $config['extra_skills_roots']);
+        self::assertFileExists($fixture);
+    }
+
     public function testFixtureEditIsExactAndDeterministic(): void
     {
         $sourceRoot = dirname(__DIR__) . '/tests/fixtures/release-set-consumer';
