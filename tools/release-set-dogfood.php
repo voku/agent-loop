@@ -270,12 +270,37 @@ final class ReleaseSetDogfood
         $skill = $this->consumerRoot . '/.codex/skills/engineering-codelight/SKILL.md';
         $this->assertFile($skill);
         $this->artifact($skill);
-        $before = $this->mustRun(['git', 'status', '--porcelain']);
+        $before = $this->projectedSkillsSnapshot();
         $this->mustRun(['vendor/bin/agent-loop', 'init', 'install-assets', '--agent=all']);
-        $after = $this->mustRun(['git', 'status', '--porcelain']);
-        if ($before['stdout'] !== $after['stdout']) {
+        if ($before !== $this->projectedSkillsSnapshot()) {
             throw new ReleaseSetFailure('Repeated Composer skill projection did not converge.');
         }
+    }
+
+    /** @return array<string, string> */
+    private function projectedSkillsSnapshot(): array
+    {
+        $snapshot = [];
+        foreach (['.codex/skills', '.claude/skills', '.opencode/skills', '.github/skills', '.gemini/skills', '.agents/skills', '.cursor/skills'] as $relativeRoot) {
+            $root = $this->consumerRoot . '/' . $relativeRoot;
+            if (!is_dir($root)) {
+                continue;
+            }
+            foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS)) as $file) {
+                if (!$file->isFile()) {
+                    continue;
+                }
+                $relativePath = substr($file->getPathname(), strlen($this->consumerRoot) + 1);
+                $digest = hash_file('sha256', $file->getPathname());
+                if (!is_string($digest)) {
+                    throw new ReleaseSetFailure('Unable to hash projected skill asset: ' . $relativePath);
+                }
+                $snapshot[$relativePath] = $digest;
+            }
+        }
+        ksort($snapshot, SORT_STRING);
+
+        return $snapshot;
     }
 
     private function ephemeral(): void
