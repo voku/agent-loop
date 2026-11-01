@@ -16,7 +16,6 @@ use voku\AgentLoop\Execution\ExecutionStage;
 use voku\AgentLoop\Execution\ExecutionStageKind;
 use voku\AgentLoop\Execution\ExecutionState;
 use voku\AgentLoop\Execution\ExecutionStateStore;
-use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
@@ -125,10 +124,30 @@ final class WorkflowPipelineCommandTest extends TestCase
     {
         $taskId = "PIPE-DETERMINISTIC-WORKSPACE";
         $this->prepareSurgicalRun($taskId);
+        $this->persistDeterministicMutatingVerifyStage($taskId);
+        $command = new WorkflowPipelineCommand($this->root);
+
+        $investigate = $this->captureRun($command, ["submit", $taskId, "--outcome=completed"]);
+        self::assertSame(0, $investigate["exit"], $investigate["stdout"]);
+        $build = $this->captureRun($command, ["submit", $taskId, "--outcome=completed", "--context-id=ctx:build"]);
+        self::assertSame(0, $build["exit"], $build["stdout"]);
+        $review = $this->captureRun($command, ["submit", $taskId, "--outcome=pass", "--context-id=ctx:review"]);
+        self::assertSame(0, $review["exit"], $review["stdout"]);
+
+        $response = $this->captureRun($command, ["stage", $taskId, "--format=json"]);
+        self::assertSame(0, $response["exit"], $response["stdout"]);
+        $briefing = json_decode($response["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(ExecutionStageKind::DETERMINISTIC->value, $briefing["kind"]);
+        self::assertTrue($briefing["may_mutate"]);
+        self::assertStringNotContainsString("--workspace", $briefing["next_action"]);
+        self::assertStringNotContainsString("Use --workspace <path>", $briefing["prompt"]);
+    }
+
+    /** Persist a valid plan and its bound state with a deterministic stage marked mutating. */
+    private function persistDeterministicMutatingVerifyStage(string $taskId): void
+    {
         $planStore = new ExecutionPlanStore($this->root);
         $original = $planStore->load($taskId);
-
-        // Persisted deterministic stages may mutate without observing an external agent workspace.
         $stages = array_map(
             static fn (ExecutionStage $stage): ExecutionStage => $stage->id === "verify"
                 ? new ExecutionStage($stage->id, $stage->kind, $stage->roleId, true, $stage->requires, $stage->transitions, $stage->contextPolicy)
@@ -146,7 +165,7 @@ final class WorkflowPipelineCommandTest extends TestCase
             $stages,
             $original->preparedAt,
         );
-        self::assertNotFalse(file_put_contents($planStore->path($taskId), CanonicalJson::pretty($plan->toArray())));
+        self::assertNotFalse(file_put_contents($planStore->path($taskId), json_encode($plan->toArray(), JSON_THROW_ON_ERROR)));
 
         $stateStore = new ExecutionStateStore($this->root);
         $originalState = $stateStore->find($taskId);
@@ -163,23 +182,7 @@ final class WorkflowPipelineCommandTest extends TestCase
             $originalState->history,
             $originalState->recoveryHistory,
         );
-        self::assertNotFalse(file_put_contents($stateStore->path($taskId), CanonicalJson::pretty($state->toArray())));
-
-        $command = new WorkflowPipelineCommand($this->root);
-        $investigate = $this->captureRun($command, ["submit", $taskId, "--outcome=completed"]);
-        self::assertSame(0, $investigate["exit"], $investigate["stdout"]);
-        $build = $this->captureRun($command, ["submit", $taskId, "--outcome=completed", "--context-id=ctx:build"]);
-        self::assertSame(0, $build["exit"], $build["stdout"]);
-        $review = $this->captureRun($command, ["submit", $taskId, "--outcome=pass", "--context-id=ctx:review"]);
-        self::assertSame(0, $review["exit"], $review["stdout"]);
-
-        $response = $this->captureRun($command, ["stage", $taskId, "--format=json"]);
-        self::assertSame(0, $response["exit"], $response["stdout"]);
-        $briefing = json_decode($response["stdout"], true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(ExecutionStageKind::DETERMINISTIC->value, $briefing["kind"]);
-        self::assertTrue($briefing["may_mutate"]);
-        self::assertStringNotContainsString("--workspace", $briefing["next_action"]);
-        self::assertStringNotContainsString("Use --workspace <path>", $briefing["prompt"]);
+        self::assertNotFalse(file_put_contents($stateStore->path($taskId), json_encode($state->toArray(), JSON_THROW_ON_ERROR)));
     }
 
     public function testPipelineProgressionWithReviewFeedbackLoop(): void
