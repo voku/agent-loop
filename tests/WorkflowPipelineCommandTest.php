@@ -290,9 +290,16 @@ final class WorkflowPipelineCommandTest extends TestCase
             file_put_contents($workspace . "/.agent-loop/candidate-marker", "candidate worktree\n");
             $command = new WorkflowPipelineCommand($this->root);
 
-            $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed"]);
-            $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed", "--context-id=ctx:build-workspace"]);
-            $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=pass", "--context-id=ctx:review-workspace"]);
+            $investigate = $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed"]);
+            self::assertSame(0, $investigate["exit"], $investigate["stdout"]);
+            // The linked checkout holds only an ignored validation fixture; explicitly submit the unchanged owner.
+            $build = $this->captureRun($command, [
+                "submit", "PIPE-WORKSPACE", "--outcome=completed", "--context-id=ctx:build-workspace",
+                "--workspace", $this->root,
+            ]);
+            self::assertSame(0, $build["exit"], $build["stdout"]);
+            $review = $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=pass", "--context-id=ctx:review-workspace"]);
+            self::assertSame(0, $review["exit"], $review["stdout"]);
 
             $run = $this->captureRun($command, ["run", "PIPE-WORKSPACE", "--workspace", $workspace, "--format=json"]);
             self::assertSame(0, $run["exit"], $run["stdout"]);

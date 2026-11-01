@@ -153,6 +153,33 @@ final readonly class CandidateWorkspaceIdentity
         throw new RuntimeException('STALE_CANDIDATE: candidate workspace is not a registered linked worktree of the owner repository.');
     }
 
+    /**
+     * Whether another live, registered checkout shares the owner's Git repository.
+     *
+     * Registration alone is not evidence of task ownership. Do not read the other worktree or
+     * infer which checkout contains the intended implementation.
+     */
+    public function hasOtherRegisteredWorktree(string $ownerWorkspace): bool
+    {
+        $ownerRoot = realpath($ownerWorkspace);
+        if (!is_string($ownerRoot)) {
+            throw new RuntimeException('STALE_CANDIDATE: owner worktree cannot be resolved.');
+        }
+
+        $registered = $this->git($ownerWorkspace, ['worktree', 'list', '--porcelain', '-z'], [], false);
+        foreach (explode("\0", $registered) as $entry) {
+            if (!str_starts_with($entry, 'worktree ')) {
+                continue;
+            }
+            $root = realpath(substr($entry, strlen('worktree ')));
+            if (is_string($root) && $root !== $ownerRoot) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function expectedTree(string $workspace, string $baseCommit, string $candidateRevision): string
     {
         return hash_equals($baseCommit, $candidateRevision)

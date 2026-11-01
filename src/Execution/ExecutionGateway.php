@@ -150,6 +150,15 @@ final readonly class ExecutionGateway
                 throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: claimed candidate %s is not the unchanged workspace candidate %s.', $claimedCandidate, $observed));
             }
 
+            // The first build has no prior changed candidate to protect against an omitted --workspace.
+            // Other registered worktrees make an implicit unchanged owner checkout ambiguous, not authoritative.
+            if ($candidateWorkspace === null
+                && $claimedCandidate === null
+                && hash_equals($observed, $identity->normalize($workspace, (string) $bundle->baseCommit, (string) $bundle->baseCommit))
+                && $identity->hasOtherRegisteredWorktree($this->rootPath)) {
+                throw new RuntimeException('CANDIDATE_MISMATCH: unchanged implicit owner workspace is ambiguous while other Git worktrees are registered; pass --workspace for the intended checkout or explicitly claim the base with --candidate.');
+            }
+
             return new ObservedStageCandidate($bundle->candidateRevision, $changesOutsideScope);
         }
         if ($claimedCandidate !== null && !hash_equals($observed, $claimedCandidate)) {

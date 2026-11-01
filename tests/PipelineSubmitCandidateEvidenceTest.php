@@ -67,6 +67,63 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         exec('rm -rf ' . escapeshellarg($this->root) . ' ' . escapeshellarg($this->workspace));
     }
 
+    public function testInitialSubmitWithoutWorkspaceRefusesAmbiguousBaseCandidate(): void
+    {
+        $this->changeWorkspace();
+        $evidenceBefore = $this->evidenceFiles();
+
+        $result = $this->runCli([
+            'pipeline', 'submit', 'SUB-1', '--outcome', 'completed',
+            '--context-id', 'ctx:build', '--format=json',
+        ]);
+
+        self::assertNotSame(0, $result['exit'], $result['stdout']);
+        self::assertStringContainsString('CANDIDATE_MISMATCH', $result['stdout']);
+        self::assertStringContainsString('--workspace', $result['stdout']);
+        self::assertSame('build', $this->projection()->currentStageId);
+        self::assertSame($this->base, $this->projection()->candidateRevision);
+        self::assertSame($evidenceBefore, $this->evidenceFiles());
+    }
+
+    public function testInitialChangedOwnerWorkspaceStillAllowsImplicitSubmission(): void
+    {
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 1; }\n");
+        $expected = $this->scopedCandidate();
+        $result = $this->runCli([
+            'pipeline', 'submit', 'SUB-1', '--outcome', 'completed',
+            '--context-id', 'ctx:build', '--format=json',
+        ]);
+
+        self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame($expected, $this->projection()->candidateRevision);
+    }
+
+    public function testInitialUnchangedOwnerWorkspaceCanBeExplicitlySelected(): void
+    {
+        $result = $this->runCli([
+            'pipeline', 'submit', 'SUB-1', '--outcome', 'completed',
+            '--context-id', 'ctx:build', '--workspace', $this->root, '--format=json',
+        ]);
+
+        self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame($this->base, $this->projection()->candidateRevision);
+    }
+
+    public function testInitialImplicitOwnerWorkspaceRemainsValidWithoutAnotherWorktree(): void
+    {
+        $this->git($this->root, 'worktree', 'remove', '--force', $this->workspace);
+        $result = $this->runCli([
+            'pipeline', 'submit', 'SUB-1', '--outcome', 'completed',
+            '--context-id', 'ctx:build', '--format=json',
+        ]);
+
+        self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame($this->base, $this->projection()->candidateRevision);
+    }
+
     public function testChangedWorkspaceWithObservedCandidateIsRecordedAndAdvances(): void
     {
         $this->changeWorkspace();
