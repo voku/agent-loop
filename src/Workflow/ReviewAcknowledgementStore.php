@@ -30,6 +30,9 @@ final readonly class ReviewAcknowledgementStore
         if ($acknowledgedBy === '') {
             throw new RuntimeException('Review acknowledgement requires a named actor.');
         }
+        if (str_starts_with($acknowledgedBy, 'standing:')) {
+            throw new RuntimeException('The standing: actor prefix is reserved for owner-authorized standing approval.');
+        }
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $reportSha256) !== 1) {
             throw new RuntimeException('Review acknowledgement report identity must be a sha256 digest.');
         }
@@ -43,20 +46,25 @@ final readonly class ReviewAcknowledgementStore
         }
 
         $path = $this->path($run->taskId);
-        $existing = $this->find($run->taskId);
+        $existing = $this->load($run->taskId);
         if ($existing !== null) {
-            $sameBoundary = $existing->runId === $run->runId
-                && $existing->contractRevision === $contract->revision
-                && hash_equals($existing->implementationSnapshot, $implementation->digest)
-                && hash_equals($existing->reportSha256, $reportSha256);
-            if ($sameBoundary) {
-                if ($existing->acknowledgedBy !== $acknowledgedBy) {
-                    throw new RuntimeException(
-                        'The current review report is already acknowledged by ' . $existing->acknowledgedBy . '.',
-                    );
-                }
+            // A legacy reserved pseudo-actor has no acknowledgement authority.
+            // Archive it even when the evidence boundary is unchanged, then let
+            // a named reviewer record a new decision without erasing the audit.
+            if (!str_starts_with($existing->acknowledgedBy, 'standing:')) {
+                $sameBoundary = $existing->runId === $run->runId
+                    && $existing->contractRevision === $contract->revision
+                    && hash_equals($existing->implementationSnapshot, $implementation->digest)
+                    && hash_equals($existing->reportSha256, $reportSha256);
+                if ($sameBoundary) {
+                    if ($existing->acknowledgedBy !== $acknowledgedBy) {
+                        throw new RuntimeException(
+                            'The current review report is already acknowledged by ' . $existing->acknowledgedBy . '.',
+                        );
+                    }
 
-                return $existing;
+                    return $existing;
+                }
             }
 
             $this->archive($existing);
@@ -78,6 +86,16 @@ final readonly class ReviewAcknowledgementStore
     }
 
     public function find(string $taskId): ?ReviewAcknowledgement
+    {
+        $acknowledgement = $this->load($taskId);
+        if ($acknowledgement !== null && str_starts_with($acknowledgement->acknowledgedBy, 'standing:')) {
+            return null;
+        }
+
+        return $acknowledgement;
+    }
+
+    private function load(string $taskId): ?ReviewAcknowledgement
     {
         $path = $this->path($taskId);
         if (!is_file($path)) {

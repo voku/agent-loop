@@ -54,6 +54,21 @@ final class GovernedRunLearningBindingTest extends TestCase
         self::assertSame('no_durable_learning', $projected->references['learning']['decision'] ?? null);
     }
 
+    public function testLegacyReservedLearningActorIsNotProjectedAsCurrentAuthority(): void
+    {
+        $run = $this->prepareRun($this->root . '/learning-root');
+        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+            $run->runId,
+            RunLearningDecisionStatus::NO_DURABLE_LEARNING,
+            'standing:spoofed',
+            'Pre-upgrade untrusted actor must not retain authority.',
+        );
+
+        $projected = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertSame('invalid', $projected->references['learning']['state'] ?? null);
+        self::assertStringContainsString('standing:', (string) ($projected->references['learning']['reason'] ?? ''));
+    }
+
     public function testDecisionInTheLayoutDefaultIsNotAttributedToARunBoundElsewhere(): void
     {
         $run = $this->prepareRun($this->root . '/learning-root');

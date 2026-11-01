@@ -1048,6 +1048,16 @@ final class RunManifestProjector
         if ($decision === null) {
             return ['owner' => 'agent-learning', 'state' => 'missing', 'observation_mode' => 'checked', 'run_id' => $run->runId];
         }
+        if (str_starts_with($decision->decidedBy, 'standing:')) {
+            return [
+                'owner' => 'agent-learning',
+                'state' => 'invalid',
+                'observation_mode' => 'checked',
+                'run_id' => $run->runId,
+                'reason' => 'Persisted Learning decision uses an unverified reserved standing: actor.',
+                'source' => $this->artifact($decision->path),
+            ];
+        }
 
         $reference = [
             'owner' => 'agent-learning',

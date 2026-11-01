@@ -73,6 +73,9 @@ final readonly class WorkflowLearningRecorder
         if ($decidedBy === '') {
             throw new RuntimeException('Finish learning disposition requires --by.');
         }
+        if (str_starts_with($decidedBy, 'standing:')) {
+            throw new RuntimeException('The standing: actor prefix is reserved for owner-authorized standing approval.');
+        }
         if ($run->taskId !== $contract->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Finish learning disposition does not match the governed task lineage.');
         }
