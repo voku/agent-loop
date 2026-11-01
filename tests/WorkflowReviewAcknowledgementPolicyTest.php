@@ -108,6 +108,46 @@ final class WorkflowReviewAcknowledgementPolicyTest extends TestCase
         self::assertStringContainsString((string) $second['sha256'], $closeOutput);
     }
 
+    public function testLegacyReservedActorCannotAuthorizeReviewAndCanBeArchivedOnReacknowledgement(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('ACK-1', 'Revoke reserved legacy review actor.', ['src/Foo.php'], [], ['php -r "exit(0);"'], 'planner');
+        $contract = $contracts->approve('ACK-1', 'approver', 1);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ACK-1', by: 'agent');
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
+        $this->writeRecallMeta();
+        $this->writeReview(1, $snapshot->digest, []);
+
+        $reader = new WorkflowReviewReportReader($this->root);
+        $review = $reader->read('ACK-1');
+        self::assertIsString($review['sha256']);
+        $store = new ReviewAcknowledgementStore($this->root);
+        $store->record($run, $contract, $snapshot, $review['sha256'], 'real-reviewer');
+
+        $path = $store->path('ACK-1');
+        $contents = file_get_contents($path);
+        self::assertIsString($contents);
+        $legacy = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($legacy);
+        $legacy['acknowledged_by'] = 'standing:spoofed';
+        self::assertNotFalse(file_put_contents($path, json_encode($legacy, JSON_THROW_ON_ERROR)));
+
+        self::assertNull($store->find('ACK-1'));
+        self::assertSame('unacknowledged', $reader->read('ACK-1')['status']);
+
+        $replaced = $store->record($run, $contract, $snapshot, $review['sha256'], 'real-reviewer');
+        self::assertSame('real-reviewer', $replaced->acknowledgedBy);
+        self::assertSame('ok', $reader->read('ACK-1')['status']);
+
+        $archive = glob(dirname($path) . '/review-acknowledgements/archive/*.json');
+        self::assertIsArray($archive);
+        self::assertCount(1, $archive);
+        $archived = file_get_contents($archive[0]);
+        self::assertIsString($archived);
+        self::assertStringContainsString('standing:spoofed', $archived);
+    }
+
     private function writeRecallMeta(): void
     {
         $directory = $this->root . '/.agent-loop/recall/ACK-1';
