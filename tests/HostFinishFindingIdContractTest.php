@@ -189,6 +189,29 @@ final class HostFinishFindingIdContractTest extends TestCase
         );
     }
 
+
+    public function testFindingIdFinishRejectsSpoofedStandingActorBeforeWritingLearning(): void
+    {
+        [$run, $session, $reviewSha256] = $this->prepareReview('FINISH-STANDING-FINDING');
+        $findingId = $this->createFindings($run, $session, 1)[0];
+
+        $result = $this->finishJson('FINISH-STANDING-FINDING', [
+            '--reviewed-report-sha256', $reviewSha256,
+            '--by', 'standing:forged',
+            '--finding', $findingId,
+        ]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
+        self::assertStringContainsString(
+            'standing: is reserved',
+            (string) ($result['payload']['error']['message'] ?? ''),
+        );
+        self::assertNull(
+            (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($run->runId),
+        );
+    }
+
     /** @return array{0: GovernedRun, 1: Session, 2: string} */
     private function prepareReview(string $taskId): array
     {
