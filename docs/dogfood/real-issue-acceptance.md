@@ -233,13 +233,16 @@ Record:
 Then use `itp-context` only when the repository already has production
 annotations. These commands illustrate a consumer's isolated installation; use
 the path reported by `init tools`, and replace the example enum/file with real
-ones from the repository under test:
+ones from the repository under test. Run from the consumer project root after
+installing its Composer dependencies. `auto_prepend_file` loads the consumer's
+autoloader **before** the isolated tool's autoloader, so the tool can resolve
+the consumer's rule enums, owners, refs and proof metadata:
 
 ```bash
-tools/itp-context/vendor/bin/itp-context-validate 'Project\Context\ArchitectureRules'
-tools/itp-context/vendor/bin/itp-context-summarize src/Path/To/AnnotatedClass.php
-tools/itp-context/vendor/bin/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
-tools/itp-context/vendor/bin/itp-context-query var/itp-context --text='<issue concepts>'
+php -d auto_prepend_file=vendor/autoload.php tools/itp-context/vendor/bin/itp-context-validate 'Project\Context\ArchitectureRules'
+php -d auto_prepend_file=vendor/autoload.php tools/itp-context/vendor/bin/itp-context-summarize src/Path/To/AnnotatedClass.php
+php -d auto_prepend_file=vendor/autoload.php tools/itp-context/vendor/bin/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
+php -d auto_prepend_file=vendor/autoload.php tools/itp-context/vendor/bin/itp-context-query var/itp-context --text='<issue concepts>'
 ```
 
 The exact-file summary, not a broad keyword query, is the candidate for a
@@ -490,6 +493,8 @@ violation exposed the missing intent. That history explains their existence;
 it does not establish pre-edit host value. The rules now live in
 `tools/Context/ArchitectureRules.php` and `itp-context` lives in `require-dev`.
 None is a production `#[Rule]` target for the paired experiment.
+Pre-edit decision experiment: **`INCONCLUSIVE / NOT RUN`**; no eligible independent
+baseline/treatment pair has been executed.
 
 The bar for adding a rule is deliberately high: every one of the four was
 violated at least once by a change that passed review. A rule nobody has broken
