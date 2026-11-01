@@ -9,8 +9,13 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionPlan;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
+use voku\AgentLoop\Execution\ExecutionStage;
+use voku\AgentLoop\Execution\ExecutionStageKind;
+use voku\AgentLoop\Execution\ExecutionState;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
@@ -82,6 +87,102 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertFalse($stage["may_mutate"]);
         self::assertContains("completed", $stage["accepted_outcomes"]);
         self::assertStringContainsString("# Governed execution stage", $stage["prompt"]);
+    }
+
+    public function testMutatingStageGuidesSubmissionFromTheEditedWorkspace(): void
+    {
+        $this->prepareSurgicalRun("PIPE-WORKSPACE");
+        $command = new WorkflowPipelineCommand($this->root);
+
+        $readOnly = $this->captureRun($command, ["stage", "PIPE-WORKSPACE", "--format=json"]);
+        self::assertSame(0, $readOnly["exit"]);
+        $investigate = json_decode($readOnly["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse($investigate["may_mutate"]);
+        self::assertStringNotContainsString("--workspace", $investigate["next_action"]);
+        self::assertStringNotContainsString('Use --workspace <path> to identify the checkout containing your edits.', $investigate["prompt"]);
+
+        $submitted = $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed"]);
+        self::assertSame(0, $submitted["exit"]);
+        $result = $this->captureRun($command, ["stage", "PIPE-WORKSPACE", "--format=json"]);
+        self::assertSame(0, $result["exit"]);
+        $build = json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertTrue($build["may_mutate"]);
+        self::assertStringContainsString('--workspace "<workspace-with-edits>"', $build["next_action"]);
+        self::assertStringContainsString('--workspace <path>', $build["prompt"]);
+        self::assertStringContainsString('--candidate <identity>', $build["prompt"]);
+        self::assertStringContainsString('optional except for an intentional revert to the base', $build["prompt"]);
+        self::assertStringContainsString('checked against the workspace', $build["prompt"]);
+
+        $text = $this->captureRun($command, ["stage", "PIPE-WORKSPACE"]);
+        self::assertSame(0, $text["exit"]);
+        self::assertStringContainsString('--workspace "<workspace-with-edits>"', $text["stdout"]);
+        self::assertStringContainsString('--candidate <identity>', $text["stdout"]);
+    }
+
+    public function testDeterministicMutatingStageDoesNotSuggestUncheckedWorkspace(): void
+    {
+        $taskId = "PIPE-DETERMINISTIC-WORKSPACE";
+        $this->prepareSurgicalRun($taskId);
+        $this->persistDeterministicMutatingVerifyStage($taskId);
+        $command = new WorkflowPipelineCommand($this->root);
+
+        $investigate = $this->captureRun($command, ["submit", $taskId, "--outcome=completed"]);
+        self::assertSame(0, $investigate["exit"], $investigate["stdout"]);
+        $build = $this->captureRun($command, ["submit", $taskId, "--outcome=completed", "--context-id=ctx:build"]);
+        self::assertSame(0, $build["exit"], $build["stdout"]);
+        $review = $this->captureRun($command, ["submit", $taskId, "--outcome=pass", "--context-id=ctx:review"]);
+        self::assertSame(0, $review["exit"], $review["stdout"]);
+
+        $response = $this->captureRun($command, ["stage", $taskId, "--format=json"]);
+        self::assertSame(0, $response["exit"], $response["stdout"]);
+        $briefing = json_decode($response["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(ExecutionStageKind::DETERMINISTIC->value, $briefing["kind"]);
+        self::assertTrue($briefing["may_mutate"]);
+        self::assertStringNotContainsString("--workspace", $briefing["next_action"]);
+        self::assertStringNotContainsString("Use --workspace <path>", $briefing["prompt"]);
+    }
+
+    /** Persist a valid plan and its bound state with a deterministic stage marked mutating. */
+    private function persistDeterministicMutatingVerifyStage(string $taskId): void
+    {
+        $planStore = new ExecutionPlanStore($this->root);
+        $original = $planStore->load($taskId);
+        $stages = array_map(
+            static fn (ExecutionStage $stage): ExecutionStage => $stage->id === "verify"
+                ? new ExecutionStage($stage->id, $stage->kind, $stage->roleId, true, $stage->requires, $stage->transitions, $stage->contextPolicy)
+                : $stage,
+            $original->stages,
+        );
+        $plan = new ExecutionPlan(
+            $original->taskId,
+            $original->runId,
+            $original->contractRevision,
+            $original->contractSource,
+            $original->baseCommit,
+            $original->profile,
+            $original->roles,
+            $stages,
+            $original->preparedAt,
+        );
+        self::assertNotFalse(file_put_contents($planStore->path($taskId), json_encode($plan->toArray(), JSON_THROW_ON_ERROR)));
+
+        $stateStore = new ExecutionStateStore($this->root);
+        $originalState = $stateStore->find($taskId);
+        self::assertNotNull($originalState);
+        $state = new ExecutionState(
+            $originalState->taskId,
+            $originalState->runId,
+            $originalState->contractRevision,
+            $plan->digest(),
+            $originalState->currentStageId,
+            $originalState->currentAttempt,
+            $originalState->candidateRevision,
+            $originalState->attention,
+            $originalState->history,
+            $originalState->recoveryHistory,
+        );
+        self::assertNotFalse(file_put_contents($stateStore->path($taskId), json_encode($state->toArray(), JSON_THROW_ON_ERROR)));
     }
 
     public function testPipelineProgressionWithReviewFeedbackLoop(): void
