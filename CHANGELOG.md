@@ -1,5 +1,16 @@
 ## Unreleased
 
+## [0.20.77] - 2026-11-01
+
+### Changed
+
+- Show how a disposable `Evidence.php` file can run explicitly with PHPUnit outside the normal test suite. PHPUnit reports its executable method as a test; the evidence file remains a temporary implementation probe (#908).
+
+### Tests
+
+- Protect intentional returns to the governed Git base and verify that auto-verify observes changed candidate content in an explicitly selected workspace (#908, #852).
+- Protect fail-closed candidate submission when a persisted external plan has no Git base. The covered null-base plan is deliberately constructed; no historical occurrence is claimed (#909, #852).
+
 ## [0.20.76] - 2026-11-01
 
 ### Added
