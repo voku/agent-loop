@@ -145,7 +145,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertSame(1, $result['exit']);
         self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
         self::assertStringContainsString('standing:', (string) ($result['payload']['error']['message'] ?? ''));
-        self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($run->runId));
+        self::assertNull((new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId));
     }
 
     public function testJsonFinishRefusesMissingFindingId(): void
