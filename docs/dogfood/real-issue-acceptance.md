@@ -82,6 +82,7 @@ tools/
 
 ```bash
 vendor/bin/agent-loop init sync-tools
+composer install --working-dir=tools/itp-context
 composer install --working-dir=tools/slop-scan
 vendor/bin/agent-loop init tools --refresh
 ```
@@ -235,10 +236,10 @@ the path reported by `init tools`, and replace the example enum/file with real
 ones from the repository under test:
 
 ```bash
-tools/agent-loop/vendor/bin/itp-context-validate 'Project\Context\ArchitectureRules'
-tools/agent-loop/vendor/bin/itp-context-summarize src/Path/To/AnnotatedClass.php
-tools/agent-loop/vendor/bin/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
-tools/agent-loop/vendor/bin/itp-context-query var/itp-context --text='<issue concepts>'
+tools/itp-context/vendor/bin/itp-context-validate 'Project\Context\ArchitectureRules'
+tools/itp-context/vendor/bin/itp-context-summarize src/Path/To/AnnotatedClass.php
+tools/itp-context/vendor/bin/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
+tools/itp-context/vendor/bin/itp-context-query var/itp-context --text='<issue concepts>'
 ```
 
 The exact-file summary, not a broad keyword query, is the candidate for a
