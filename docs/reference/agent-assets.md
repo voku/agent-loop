@@ -39,7 +39,21 @@ vendor/bin/agent-loop init install-assets --agent=all
 vendor/bin/agent-loop init host-status --format=json
 ```
 
-A separately pinned `voku/agent-skills` checkout can be projected beside package workflow skills:
+Portable engineering skills can be installed as an optional Composer development dependency and projected through the existing additional-root configuration:
+
+```bash
+composer require --dev voku/agent-skills:^0.1
+```
+
+```json
+{
+  "extra_skills_roots": ["vendor/voku/agent-skills/skills"]
+}
+```
+
+Then run `vendor/bin/agent-loop init install-assets --agent=all`. Update the version constraint through Composer when adopting a newer catalog release. The package is optional: projects can continue to omit it or use another local catalog root. Projection proves that assets were installed for supported hosts; it does not prove a host discovered or followed a skill, nor that the skill improved engineering outcomes.
+
+For development against an unreleased catalog candidate, an explicitly pinned checkout can still be projected:
 
 ```bash
 vendor/bin/agent-loop init install-assets \
