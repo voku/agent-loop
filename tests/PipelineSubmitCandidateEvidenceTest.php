@@ -85,6 +85,20 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         self::assertSame($evidenceBefore, $this->evidenceFiles());
     }
 
+    public function testInitialChangedOwnerWorkspaceStillAllowsImplicitSubmission(): void
+    {
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 1; }\n");
+        $expected = $this->scopedCandidate();
+        $result = $this->runCli([
+            'pipeline', 'submit', 'SUB-1', '--outcome', 'completed',
+            '--context-id', 'ctx:build', '--format=json',
+        ]);
+
+        self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame($expected, $this->projection()->candidateRevision);
+    }
+
     public function testInitialUnchangedOwnerWorkspaceCanBeExplicitlySelected(): void
     {
         $result = $this->runCli([
