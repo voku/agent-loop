@@ -216,6 +216,42 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertStringContainsString('Changes since revision 1 (new revision 3):', $text['stdout']);
     }
 
+    public function testLatestOfTwoNamedApprovalsIsTheRevisionDeltaBaseline(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $taskId = 'DECISION-TWO-APPROVALS';
+        $contracts->create($taskId, 'Revision one.', ['src/A.php'], [], ['vendor/bin/phpunit'], 'planner');
+        $contracts->approve($taskId, 'first-owner', 1);
+        $contracts->revise(
+            $taskId,
+            'Revision two.',
+            ['src/A.php', 'src/B.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+        $contracts->approve($taskId, 'second-owner', 2);
+        $contracts->revise(
+            $taskId,
+            'Current candidate.',
+            ['src/A.php', 'src/B.php', 'tests/CTest.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+
+        $result = $this->runBinary(['enter', $taskId, '--format=json']);
+        $payload = $this->json($result['stdout']);
+        $delta = $payload['human_decision']['subject']['revision_delta'] ?? null;
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertSame(2, $delta['from_revision'] ?? null);
+        self::assertSame(3, $delta['to_revision'] ?? null);
+        self::assertSame('second-owner', $delta['previous_approved_by'] ?? null);
+        self::assertSame('Revision two.', $delta['previous_goal'] ?? null);
+        self::assertSame(['tests/CTest.php'], $delta['lists']['Scope']['added'] ?? null);
+    }
+
     public function testLegacyReservedStandingApprovalDoesNotHideChangesSinceLastNamedApproval(): void
     {
         $contracts = new TaskContractStore($this->root);
