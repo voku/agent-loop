@@ -171,6 +171,69 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertStringContainsString('+ Do not add dependencies.', $text['stdout']);
     }
 
+    public function testUnapprovedIntermediateRevisionsCompareToLastApprovedContract(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'DECISION-MULTI',
+            'Original approved goal.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+        $contracts->approve('DECISION-MULTI', 'project-owner', 1);
+        $contracts->revise(
+            'DECISION-MULTI',
+            'First draft.',
+            ['src/A.php', 'src/B.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+        $contracts->revise(
+            'DECISION-MULTI',
+            'Current draft.',
+            ['src/A.php', 'src/B.php', 'tests/CTest.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+
+        $result = $this->runBinary(['enter', 'DECISION-MULTI', '--format=json']);
+        $payload = $this->json($result['stdout']);
+        $delta = $payload['human_decision']['subject']['revision_delta'] ?? null;
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertSame(1, $delta['from_revision'] ?? null);
+        self::assertSame(3, $delta['to_revision'] ?? null);
+        self::assertSame('project-owner', $delta['previous_approved_by'] ?? null);
+        self::assertSame('Original approved goal.', $delta['previous_goal'] ?? null);
+        self::assertSame(['src/B.php', 'tests/CTest.php'], $delta['lists']['Scope']['added'] ?? null);
+
+        $text = $this->runBinary(['enter', 'DECISION-MULTI']);
+        self::assertSame(1, $text['exit'], $text['stderr']);
+        self::assertStringContainsString('Changes since revision 1 (new revision 3):', $text['stdout']);
+    }
+
+    public function testWithoutApprovedRevisionDeltaUsesMostRecentDraft(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('DECISION-DRAFTS', 'First draft.', ['src/A.php'], [], ['vendor/bin/phpunit'], 'planner');
+        $contracts->revise('DECISION-DRAFTS', 'Second draft.', ['src/A.php', 'src/B.php'], [], ['vendor/bin/phpunit'], 'planner');
+        $contracts->revise('DECISION-DRAFTS', 'Third draft.', ['src/A.php', 'src/B.php', 'src/C.php'], [], ['vendor/bin/phpunit'], 'planner');
+
+        $result = $this->runBinary(['enter', 'DECISION-DRAFTS', '--format=json']);
+        $payload = $this->json($result['stdout']);
+        $delta = $payload['human_decision']['subject']['revision_delta'] ?? null;
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertSame(2, $delta['from_revision'] ?? null);
+        self::assertSame(3, $delta['to_revision'] ?? null);
+        self::assertNull($delta['previous_approved_by'] ?? null);
+        self::assertSame(['src/C.php'], $delta['lists']['Scope']['added'] ?? null);
+    }
+
     public function testHtmlPreferenceUsesExistingTaskOverviewWhenControlPlaneIsReady(): void
     {
         $this->writeConfig([
