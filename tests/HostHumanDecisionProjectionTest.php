@@ -216,6 +216,65 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertStringContainsString('Changes since revision 1 (new revision 3):', $text['stdout']);
     }
 
+    public function testLegacyReservedStandingApprovalDoesNotHideChangesSinceLastNamedApproval(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $taskId = 'DECISION-LEGACY-STANDING';
+        $contracts->create(
+            $taskId,
+            'Original human-approved goal.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+        $contracts->approve($taskId, 'project-owner', 1);
+        $contracts->revise(
+            $taskId,
+            'Legacy pseudo-approved draft.',
+            ['src/A.php', 'src/B.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+
+        // Model a persisted pre-reservation approval. Today's approve() must
+        // reject standing: actors, so deliberately create historical evidence.
+        $path = $contracts->path($taskId);
+        $legacy = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($legacy);
+        $legacy['status'] = 'approved';
+        $legacy['approved_by'] = ' standing:legacy-actor ';
+        $legacy['approved_at'] = '2026-10-31T12:00:00+00:00';
+        self::assertNotFalse(file_put_contents(
+            $path,
+            json_encode($legacy, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        ));
+
+        $contracts->revise(
+            $taskId,
+            'Current candidate.',
+            ['src/A.php', 'src/B.php', 'tests/CTest.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+        $history = $contracts->supersededRevisions($taskId);
+        self::assertCount(2, $history);
+        self::assertSame('standing:legacy-actor', $history[1]->approvedBy);
+
+        $result = $this->runBinary(['enter', $taskId, '--format=json']);
+        $payload = $this->json($result['stdout']);
+        $delta = $payload['human_decision']['subject']['revision_delta'] ?? null;
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertSame(1, $delta['from_revision'] ?? null);
+        self::assertSame(3, $delta['to_revision'] ?? null);
+        self::assertSame('project-owner', $delta['previous_approved_by'] ?? null);
+        self::assertSame('Original human-approved goal.', $delta['previous_goal'] ?? null);
+        self::assertSame(['src/B.php', 'tests/CTest.php'], $delta['lists']['Scope']['added'] ?? null);
+    }
+
     public function testWithoutApprovedRevisionDeltaUsesMostRecentDraft(): void
     {
         $contracts = new TaskContractStore($this->root);
