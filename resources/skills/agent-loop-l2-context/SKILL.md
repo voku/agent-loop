@@ -22,7 +22,7 @@ description: Use agent-loop to compile, inspect, and govern task-scoped Recall/L
 | Persist Governed Contract | `vendor/bin/agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>` | Transitions status to ready for implementation |
 | Exact-symbol Architecture Intent | `<itp-path>/itp-context-summarize <file>` | After repository-appropriate navigation identifies an annotated edit target, summarize it before the first edit |
 | Concept Architecture Search | `<itp-path>/itp-context-query var/itp-context --text='<concepts>'` | Search exported architecture intent when the relevant symbol is not yet known |
-| PHPStan Repair Context | `composer phpstan` | Agent Format adds advisory ITP notices for diagnosed annotated files; a green run emits no ITP notice |
+| PHPStan Repair Context | `composer phpstan` | Standard PHPStan diagnostics. Advisory ITP notices require separately configured Agent Format and ITP integration; a green run does not supply pre-edit rule context. |
 | Scoped Method Edit | `vendor/bin/agent-loop edit '<Class>::<method>' --runner=auto --replace-old='<old>' --replace-new='<new>' -- '<purpose>'` | Deterministic mechanical edit |
 
 Use the repository-appropriate navigation method to identify the likely source
