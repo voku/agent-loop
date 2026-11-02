@@ -238,18 +238,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
             'planner',
         );
 
-        // Model a persisted pre-reservation approval. Today's approve() must
-        // reject standing: actors, so deliberately create historical evidence.
-        $path = $contracts->path($taskId);
-        $legacy = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-        self::assertIsArray($legacy);
-        $legacy['status'] = 'approved';
-        $legacy['approved_by'] = ' standing:legacy-actor ';
-        $legacy['approved_at'] = '2026-10-31T12:00:00+00:00';
-        self::assertNotFalse(file_put_contents(
-            $path,
-            json_encode($legacy, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
-        ));
+        $this->persistLegacyReservedApproval($contracts, $taskId);
 
         $contracts->revise(
             $taskId,
@@ -501,6 +490,22 @@ final class HostHumanDecisionProjectionTest extends TestCase
         );
 
         return [$contract, $run, $session, $snapshot];
+    }
+
+    private function persistLegacyReservedApproval(TaskContractStore $contracts, string $taskId): void
+    {
+        // A pre-reservation artifact must not be created through today's
+        // approve() owner, which correctly refuses standing: identities.
+        $path = $contracts->path($taskId);
+        $legacy = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($legacy);
+        $legacy['status'] = 'approved';
+        $legacy['approved_by'] = ' standing:legacy-actor ';
+        $legacy['approved_at'] = '2026-10-31T12:00:00+00:00';
+        self::assertNotFalse(file_put_contents(
+            $path,
+            json_encode($legacy, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        ));
     }
 
     /**
