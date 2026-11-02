@@ -503,7 +503,7 @@ final class TaskContractStore
         if ($status === TaskContract::CANDIDATE && ($approvedBy !== null || $approvedAt !== null)) {
             throw new RuntimeException('Candidate Contract contains stale approval metadata in ' . $path . '.');
         }
-        if ($status === TaskContract::APPROVED && $approvedBy !== null && str_starts_with(trim($approvedBy), 'standing:')) {
+        if ($status === TaskContract::APPROVED && str_starts_with(trim($approvedBy), 'standing:')) {
             // A pre-upgrade pseudo-actor cannot authorize a current approval.
             // Keep the original artifact and actor metadata readable for audit and revise(),
             // but expose a non-approved state to all direct status consumers.
