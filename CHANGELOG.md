@@ -1,5 +1,15 @@
 ## Unreleased
 
+## [0.20.80] - 2026-11-02
+
+### Added
+
+- Attach source-linked ITP architecture guidance to workflow actor validation and expose advisory ITP context through the normal PHPStan Agent Format path. The existing L2 skill requests exact-symbol context before editing annotated targets; no runtime dependency or behavior change is introduced (#926).
+
+### Tests
+
+- Verify actor-attribution rule metadata, the dev-only Agent Format configuration, and the pre-edit L2 context instructions (#926).
+
 ## [0.20.79] - 2026-11-02
 
 ### Fixed
