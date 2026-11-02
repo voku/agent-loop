@@ -182,6 +182,7 @@ final class WorkflowContextCommandTest extends TestCase
         );
         self::assertIsArray($repositoryConfig);
         self::assertSame('discover', $repositoryConfig['workflow']['future_work']['mode'] ?? null);
+        self::assertArrayNotHasKey('max_follow_up_slices', $repositoryConfig['workflow']['future_work']);
 
         file_put_contents(
             $this->root . '/.agent-loop/init.json',
@@ -192,7 +193,7 @@ final class WorkflowContextCommandTest extends TestCase
 
         self::assertSame([
             'mode' => 'discover',
-            'max_follow_up_slices' => 2,
+            'max_follow_up_slices' => 1,
             'current_contract_scope_expansion' => 'forbidden',
             'follow_up_authority' => 'separate_contract_required',
         ], $context['future_work']);
