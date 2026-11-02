@@ -28,10 +28,30 @@ final readonly class WorkflowContractApprovalPresentation
             'acceptance_criteria' => $this->contract->acceptanceCriteria,
             'validation' => $this->contract->validation,
             'behavior_anchors' => $this->contract->behaviorAnchors,
+            'operating_prompt_manifest' => $this->contract->operatingPromptManifest,
             'operating_prompts' => $this->contract->operatingPrompts,
             'revision_delta' => $this->revisionDelta(),
             'contract_path' => $contractPath,
         ];
+    }
+
+    /**
+     * @param list<array{id: string, arguments: array<string, bool|int|string>}> $prompts
+     * @return list<string>
+     */
+    public function operatingPromptSummaries(array $prompts): array
+    {
+        $summaries = [];
+        foreach ($prompts as $prompt) {
+            $arguments = $prompt['arguments'];
+            ksort($arguments, SORT_STRING);
+            $summaries[] = $prompt['id'] . ($arguments === [] ? '' : ' ' . json_encode(
+                $arguments,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+            ));
+        }
+
+        return $summaries;
     }
 
     /**
@@ -57,6 +77,15 @@ final readonly class WorkflowContractApprovalPresentation
             'Validation' => [$this->previousRevision->validation, $this->contract->validation],
             'Non-goals' => [$this->previousRevision->nonGoals, $this->contract->nonGoals],
             'Acceptance criteria' => [$this->previousRevision->acceptanceCriteria, $this->contract->acceptanceCriteria],
+            'Behavior anchors' => [$this->previousRevision->behaviorAnchors, $this->contract->behaviorAnchors],
+            'Operating prompt manifest' => [
+                $this->previousRevision->operatingPromptManifest === null ? [] : [$this->previousRevision->operatingPromptManifest],
+                $this->contract->operatingPromptManifest === null ? [] : [$this->contract->operatingPromptManifest],
+            ],
+            'Operating prompts' => [
+                $this->operatingPromptSummaries($this->previousRevision->operatingPrompts),
+                $this->operatingPromptSummaries($this->contract->operatingPrompts),
+            ],
         ] as $label => [$before, $after]) {
             $added = array_values(array_diff($after, $before));
             $removed = array_values(array_diff($before, $after));

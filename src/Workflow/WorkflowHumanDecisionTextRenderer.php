@@ -35,7 +35,19 @@ final readonly class WorkflowHumanDecisionTextRenderer
         $this->appendList($lines, $german ? 'Abnahmekriterien' : 'Acceptance criteria', $contract->acceptanceCriteria, $german);
         $this->appendList($lines, $german ? 'Validierung' : 'Validation', $contract->validation, $german);
         $this->appendList($lines, $german ? 'Verhaltensanker' : 'Behavior anchors', $contract->behaviorAnchors, $german);
-        $this->appendRevisionDelta($lines, $decision->previousRevision, $contract, $german);
+        $this->appendList(
+            $lines,
+            $german ? 'Operating-Prompt-Manifest' : 'Operating prompt manifest',
+            $contract->operatingPromptManifest === null ? [] : [$contract->operatingPromptManifest],
+            $german,
+        );
+        $this->appendList(
+            $lines,
+            $german ? 'Operating-Prompts' : 'Operating prompts',
+            $decision->operatingPromptSummaries($contract->operatingPrompts),
+            $german,
+        );
+        $this->appendRevisionDelta($lines, $decision, $german);
         $lines[] = '';
         $lines[] = $german
             ? 'Was die Freigabe erlaubt: Arbeit ausschließlich innerhalb des im Contract festgelegten Scope. Sie genehmigt weder die Implementierung noch Validierungsergebnisse oder Learning.'
@@ -92,13 +104,14 @@ final readonly class WorkflowHumanDecisionTextRenderer
     /** @param list<string> $lines */
     private function appendRevisionDelta(
         array &$lines,
-        ?TaskContract $previous,
-        TaskContract $current,
+        WorkflowContractApprovalPresentation $decision,
         bool $german,
     ): void {
+        $previous = $decision->previousRevision;
         if ($previous === null) {
             return;
         }
+        $current = $decision->contract;
 
         $lines[] = $german
             ? sprintf('Änderungen seit Revision %d (neue Revision %d):', $previous->revision, $current->revision)
@@ -132,11 +145,29 @@ final readonly class WorkflowHumanDecisionTextRenderer
             $previous->acceptanceCriteria,
             $current->acceptanceCriteria,
         ) || $changesExist;
+        $changesExist = $this->appendChanges(
+            $lines,
+            $german ? 'Verhaltensanker' : 'Behavior anchors',
+            $previous->behaviorAnchors,
+            $current->behaviorAnchors,
+        ) || $changesExist;
+        $changesExist = $this->appendChanges(
+            $lines,
+            $german ? 'Operating-Prompt-Manifest' : 'Operating prompt manifest',
+            $previous->operatingPromptManifest === null ? [] : [$previous->operatingPromptManifest],
+            $current->operatingPromptManifest === null ? [] : [$current->operatingPromptManifest],
+        ) || $changesExist;
+        $changesExist = $this->appendChanges(
+            $lines,
+            $german ? 'Operating-Prompts' : 'Operating prompts',
+            $decision->operatingPromptSummaries($previous->operatingPrompts),
+            $decision->operatingPromptSummaries($current->operatingPrompts),
+        ) || $changesExist;
 
         if (!$changesExist && $previous->goal === $current->goal) {
             $lines[] = '  ' . ($german
-                ? 'Ziel, Scope, Validierung, Ausschlüsse und Abnahmekriterien sind unverändert.'
-                : 'Goal, scope, validation, non-goals, and acceptance criteria are unchanged.');
+                ? 'Ziel, Scope, Validierung, Ausschlüsse, Abnahmekriterien, Verhaltensanker und Operating-Prompts sind unverändert.'
+                : 'Goal, scope, validation, non-goals, acceptance criteria, behavior anchors, and operating prompts are unchanged.');
         }
     }
 
