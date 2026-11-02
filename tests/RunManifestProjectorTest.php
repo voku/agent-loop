@@ -436,6 +436,8 @@ MD,
         self::assertSame('incomplete', $manifest->state);
         self::assertSame('host_work', $manifest->nextActionKind);
         self::assertStringContainsString('workflow plan ABC-123', $manifest->nextAction);
+        self::assertStringContainsString('--scope <scope-entry-1> --scope <scope-entry-2>', $manifest->nextAction);
+        self::assertStringContainsString('preserving every current Contract scope entry', $manifest->nextAction);
         self::assertStringContainsString('--supersede', $manifest->nextAction);
         self::assertStringNotContainsString('workflow approve', $manifest->nextAction);
     }

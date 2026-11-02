@@ -542,7 +542,8 @@ final class RunManifestProjector
                 'reason' => 'Persisted Contract approval uses an unverified reserved standing: actor.',
                 'repair_action' => 'reconcile the invalid Contract approval for ' . $contract->taskId
                     . ': use agent-loop workflow plan ' . $contract->taskId
-                    . ' --by <planner> --file <path> --goal <goal> --validation <command> --supersede,'
+                    . ' --by <planner> --file <task-context-file> --scope <scope-entry-1> --scope <scope-entry-2> ...'
+                    . ' --goal <goal> --validation <command> --supersede, preserving every current Contract scope entry,'
                     . ' then obtain explicit named-actor approval of the new revision',
                 'source' => $this->artifact($contract->path),
             ];
