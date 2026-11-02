@@ -1,5 +1,11 @@
 ## Unreleased
 
+## [0.20.79] - 2026-11-02
+
+### Fixed
+
+- Reject caller-controlled `standing:` actors across Contract approval, review acknowledgement, Learning decisions, and Finding-ID finish boundaries; invalidate legacy pseudo-actor authority and preserve auditable recovery. A named Learning decision can replace a bound legacy reserved decision at the same complete evidence boundary using agent-learning 0.18.39, while ordinary same-binding decisions remain immutable. This does not introduce a standing-approval grant (#879, #919).
+
 ## [0.20.78] - 2026-11-01
 
 ### Added
