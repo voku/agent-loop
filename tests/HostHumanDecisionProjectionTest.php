@@ -273,56 +273,48 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertStringContainsString('- old-anchor', $text['stdout']);
     }
 
-    public function testApprovalDeltaShowsOperatingPromptOrderChanges(): void
+    public function testPromptReorderingIsVisibleToTheHumanApprover(): void
     {
         $contracts = new TaskContractStore($this->root);
-        $taskId = 'DECISION-PROMPT-ORDER';
+        $id = 'DECISION-PROMPT-ORDER';
+        $first = [
+            ['id' => 'lint', 'arguments' => []],
+            ['id' => 'audit', 'arguments' => []],
+        ];
         $contracts->create(
-            $taskId,
-            'Approve ordered prompts.',
+            $id,
+            'Keep prompt constraints.',
             ['src/A.php'],
             [],
             ['vendor/bin/phpunit'],
             'planner',
-            operatingPromptManifest: 'prompts/ordered.json',
-            operatingPrompts: [
-                ['id' => 'first-prompt', 'arguments' => []],
-                ['id' => 'second-prompt', 'arguments' => []],
-            ],
+            operatingPromptManifest: 'prompts/catalog.json',
+            operatingPrompts: $first,
         );
-        $contracts->approve($taskId, 'project-owner', 1);
+        $contracts->approve($id, 'owner', 1);
         $contracts->revise(
-            $taskId,
-            'Approve ordered prompts.',
+            $id,
+            'Keep prompt constraints.',
             ['src/A.php'],
             [],
             ['vendor/bin/phpunit'],
             'planner',
-            operatingPromptManifest: 'prompts/ordered.json',
-            operatingPrompts: [
-                ['id' => 'second-prompt', 'arguments' => []],
-                ['id' => 'first-prompt', 'arguments' => []],
-            ],
+            operatingPromptManifest: 'prompts/catalog.json',
+            operatingPrompts: [$first[1], $first[0]],
         );
 
-        $json = $this->runBinary(['enter', $taskId, '--format=json']);
+        $json = $this->runBinary(['enter', $id, '--format=json']);
         $delta = $this->json($json['stdout'])['human_decision']['subject']['revision_delta'] ?? null;
-
         self::assertSame(1, $json['exit'], $json['stderr']);
-        self::assertSame(
-            ['1. second-prompt', '2. first-prompt'],
-            $delta['lists']['Operating prompts']['added'] ?? null,
-        );
-        self::assertSame(
-            ['1. first-prompt', '2. second-prompt'],
-            $delta['lists']['Operating prompts']['removed'] ?? null,
-        );
+        self::assertSame(['audit -> lint'], $delta['lists']['Operating prompt order']['added'] ?? null);
+        self::assertSame(['lint -> audit'], $delta['lists']['Operating prompt order']['removed'] ?? null);
         self::assertFalse($delta['empty'] ?? true);
 
-        $text = $this->runBinary(['enter', $taskId]);
+        $text = $this->runBinary(['enter', $id]);
         self::assertSame(1, $text['exit'], $text['stderr']);
-        self::assertStringContainsString('+ 1. second-prompt', $text['stdout']);
-        self::assertStringContainsString('- 1. first-prompt', $text['stdout']);
+        self::assertStringContainsString('Operating prompt order:', $text['stdout']);
+        self::assertStringContainsString('+ audit -> lint', $text['stdout']);
+        self::assertStringContainsString('- lint -> audit', $text['stdout']);
     }
 
     public function testLatestOfTwoNamedApprovalsIsTheRevisionDeltaBaseline(): void
