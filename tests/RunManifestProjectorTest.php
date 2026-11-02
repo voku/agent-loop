@@ -364,7 +364,8 @@ MD,
         ));
 
         $legacy = $contracts->load('ABC-123');
-        self::assertSame(TaskContract::APPROVED, $legacy->status);
+        self::assertSame(TaskContract::SUPERSEDED, $legacy->status);
+        self::assertSame('approved', $persisted['status'], 'The original persisted artifact must not be rewritten.');
         self::assertSame('standing:spoofed', $legacy->approvedBy);
         self::assertFalse($legacy->hasNonReservedApproval());
 

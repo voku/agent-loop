@@ -503,7 +503,7 @@ final class RunManifestProjector
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'missing', 'observation_mode' => 'checked'];
         }
-        if ($contract->status === TaskContract::APPROVED && !$contract->hasNonReservedApproval()) {
+        if ($contract->approvedBy !== null && str_starts_with(trim($contract->approvedBy), 'standing:')) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'invalid',
@@ -533,7 +533,7 @@ final class RunManifestProjector
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'unavailable', 'observation_mode' => 'checked'];
         }
-        if ($contract->status === TaskContract::APPROVED && !$contract->hasNonReservedApproval()) {
+        if ($contract->approvedBy !== null && str_starts_with(trim($contract->approvedBy), 'standing:')) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'invalid',
