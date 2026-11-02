@@ -171,6 +171,11 @@ final class TaskContractStore
                     $contract->revision,
                 ));
             }
+            if ($contract->status === TaskContract::APPROVED && !$contract->hasNonReservedApproval()) {
+                throw new RuntimeException(
+                    'Persisted Contract approval uses a reserved standing: actor; revise the Contract before named approval.',
+                );
+            }
             if ($contract->status === TaskContract::APPROVED && $contract->approvedBy !== null && $contract->approvedAt !== null) {
                 return $contract;
             }

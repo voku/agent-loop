@@ -503,6 +503,17 @@ final class RunManifestProjector
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'missing', 'observation_mode' => 'checked'];
         }
+        if ($contract->status === TaskContract::APPROVED && !$contract->hasNonReservedApproval()) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'invalid',
+                'observation_mode' => 'checked',
+                'revision' => $contract->revision,
+                'run_revision' => $run?->contractRevision,
+                'reason' => 'Persisted Contract approval uses an unverified reserved standing: actor.',
+                'source' => $this->artifact($contract->path),
+            ];
+        }
 
         return [
             'owner' => 'agent-loop',
@@ -521,6 +532,16 @@ final class RunManifestProjector
     {
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'unavailable', 'observation_mode' => 'checked'];
+        }
+        if ($contract->status === TaskContract::APPROVED && !$contract->hasNonReservedApproval()) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'invalid',
+                'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'reason' => 'Persisted Contract approval uses an unverified reserved standing: actor.',
+                'source' => $this->artifact($contract->path),
+            ];
         }
         if ($contract->status !== TaskContract::APPROVED || $contract->approvedBy === null || $contract->approvedAt === null) {
             $reference = [
