@@ -95,6 +95,16 @@ final readonly class WorkflowContractApprovalPresentation
 
             $lists[$label] = ['added' => $added, 'removed' => $removed];
         }
+        $beforePrompts = $this->operatingPromptSummaries($this->previousRevision->operatingPrompts);
+        $afterPrompts = $this->operatingPromptSummaries($this->contract->operatingPrompts);
+        if ($beforePrompts !== $afterPrompts && array_count_values($beforePrompts) == array_count_values($afterPrompts)) {
+            // Identical prompts can still carry different sequential intent.
+            $lists['Operating prompt order'] = [
+                'added' => [implode(' -> ', $afterPrompts)],
+                'removed' => [implode(' -> ', $beforePrompts)],
+            ];
+        }
+
         $previousGoal = $this->previousRevision->goal === $this->contract->goal
             ? null
             : $this->previousRevision->goal;

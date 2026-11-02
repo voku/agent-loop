@@ -273,6 +273,41 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertStringContainsString('- old-anchor', $text['stdout']);
     }
 
+    public function testPromptReorderingIsVisibleToTheHumanApprover(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $id = 'DECISION-PROMPT-ORDER';
+        $first = [
+            ['id' => 'lint', 'arguments' => []],
+            ['id' => 'audit', 'arguments' => []],
+        ];
+        $contracts->create(
+            $id, 'Keep prompt constraints.', ['src/A.php'], [],
+            ['vendor/bin/phpunit'], 'planner',
+            operatingPromptManifest: 'prompts/catalog.json', operatingPrompts: $first,
+        );
+        $contracts->approve($id, 'owner', 1);
+        $contracts->revise(
+            $id, 'Keep prompt constraints.', ['src/A.php'], [],
+            ['vendor/bin/phpunit'], 'planner',
+            operatingPromptManifest: 'prompts/catalog.json',
+            operatingPrompts: [$first[1], $first[0]],
+        );
+
+        $json = $this->runBinary(['enter', $id, '--format=json']);
+        $delta = $this->json($json['stdout'])['human_decision']['subject']['revision_delta'] ?? null;
+        self::assertSame(1, $json['exit'], $json['stderr']);
+        self::assertSame(['audit -> lint'], $delta['lists']['Operating prompt order']['added'] ?? null);
+        self::assertSame(['lint -> audit'], $delta['lists']['Operating prompt order']['removed'] ?? null);
+        self::assertFalse($delta['empty'] ?? true);
+
+        $text = $this->runBinary(['enter', $id]);
+        self::assertSame(1, $text['exit'], $text['stderr']);
+        self::assertStringContainsString('Operating prompt order:', $text['stdout']);
+        self::assertStringContainsString('+ audit -> lint', $text['stdout']);
+        self::assertStringContainsString('- lint -> audit', $text['stdout']);
+    }
+
     public function testLatestOfTwoNamedApprovalsIsTheRevisionDeltaBaseline(): void
     {
         $contracts = new TaskContractStore($this->root);

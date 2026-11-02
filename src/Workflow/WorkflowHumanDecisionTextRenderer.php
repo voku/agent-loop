@@ -182,6 +182,16 @@ final readonly class WorkflowHumanDecisionTextRenderer
             $decision->operatingPromptSummaries($current->operatingPrompts),
         ) || $changed;
 
+        $order = $decision->revisionDelta()['lists']['Operating prompt order'] ?? null;
+        if ($order !== null) {
+            $changed = $this->appendChanges(
+                $lines,
+                $german ? 'Operating-Prompt-Reihenfolge' : 'Operating prompt order',
+                $order['removed'],
+                $order['added'],
+            ) || $changed;
+        }
+
         return $changed;
     }
 
