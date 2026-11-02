@@ -400,9 +400,9 @@ MD,
         self::assertSame('current', (new RunManifestProjector($this->root))->project('ABC-123')->references['approval']['state']);
     }
 
-    public function testLegacyReservedContractCannotPrepareAnotherGovernedRun(): void
+    public function testLegacyReservedContractCannotPassGovernedRunPreparation(): void
     {
-        $this->preparedRun('ok', withReceipt: false);
+        [, $session] = $this->preparedRun('ok', withReceipt: false);
 
         $contracts = new TaskContractStore($this->root);
         $path = $contracts->path('ABC-123');
@@ -415,7 +415,6 @@ MD,
         ));
 
         $legacy = $contracts->load('ABC-123');
-        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', slug: 'additional', by: 'lars');
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('non-reserved approved Contract');
