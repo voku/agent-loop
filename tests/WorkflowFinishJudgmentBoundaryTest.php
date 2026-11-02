@@ -212,7 +212,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         );
         $run = (new GovernedRunStore($this->root))->find('FINISH-CONTRADICTION');
         self::assertNotNull($run);
-        self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId));
+        self::assertNull((new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($runId));
     }
 
     public function testFindingAndFollowUpEvidenceCannotBeCombined(): void
@@ -249,7 +249,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-STANDING-REVIEW'));
         $run = (new GovernedRunStore($this->root))->find('FINISH-STANDING-REVIEW');
         self::assertNotNull($run);
-        self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId));
+        self::assertNull((new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($runId));
     }
 
     public function testFinishRefusesReservedStandingActorForLearningAfterHumanAcknowledgement(): void
