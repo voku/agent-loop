@@ -11,6 +11,7 @@ use voku\AgentLoop\PHPStan\Rules\NoFocusedPackageCliInWorkflowRule;
 use voku\AgentLoop\Tests\AgentFacingPathGuidanceTest;
 use voku\AgentLoop\Tests\InitToolsCommandTest;
 use voku\AgentLoop\Tests\ProjectLayoutOwnershipTest;
+use voku\AgentLoop\Tests\ProductionDevDependencyBoundaryTest;
 use voku\AgentLoop\Tests\RealIssueEvidenceToolBoundaryTest;
 use voku\AgentLoop\Tests\WorkflowCloseCommandTest;
 
@@ -31,6 +32,7 @@ enum ArchitectureRules implements RuleIdentifier
     case TypedPackageApisInsideWorkflow;
     case EvidenceIsNotAuthority;
     case ExternalToolsStayOptional;
+    case WorkflowActorIsAttribution;
 
     public function getDefinition(): RuleDef
     {
@@ -74,6 +76,18 @@ enum ArchitectureRules implements RuleIdentifier
                     . 'have not adopted the tooling yet.',
                 verifiedBy: [RealIssueEvidenceToolBoundaryTest::class, InitToolsCommandTest::class],
                 refs: ['docs/dogfood/real-issue-acceptance.md'],
+            ),
+            self::WorkflowActorIsAttribution => new RuleDef(
+                statement: 'Workflow actor strings record attribution; they do not authenticate the named person.',
+                tier: Tier::Important,
+                owner: 'voku/agent-loop',
+                rationale: 'A caller-supplied --by value can describe who a decision is attributed to, but a string check '
+                    . 'cannot prove who supplied it. The repository and its write boundary remain the trust boundary; '
+                    . 'reserved-prefix checks enforce workflow consistency only.',
+                verifiedBy: [ProductionDevDependencyBoundaryTest::class],
+                refs: ['docs/workflow/learning-boundary.md', 'src/Workflow/WorkflowLearningRecorder.php'],
+                changeGuidance: 'Do not describe --by or its reserved-prefix check as authentication or a security boundary. '
+                    . 'Inspect the command inputs and repository write assumptions before expanding its guarantees.',
             ),
         };
     }

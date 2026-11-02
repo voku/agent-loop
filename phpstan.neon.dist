@@ -1,5 +1,11 @@
+includes:
+  - vendor/voku/phpstan-agent-format/extension.neon
+
 parameters:
+  errorFormat: agent
   level: 8
+  agentFormat:
+    itpContext: true
   paths:
     - src
     - tests
