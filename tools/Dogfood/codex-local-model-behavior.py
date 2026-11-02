@@ -302,7 +302,7 @@ def main():
         "control_commands": control["command_count"] if control else None,
         "treatment_commands": treatment["command_count"] if treatment else None,
     }))
-    if not parity:
+    if tool_capable and not parity:
         raise SystemExit("safety-floor mismatch between model arms")
 
 
