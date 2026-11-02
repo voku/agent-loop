@@ -112,7 +112,6 @@ final readonly class WorkflowHumanDecisionTextRenderer
             return;
         }
         $current = $decision->contract;
-
         $lines[] = $german
             ? sprintf('Änderungen seit Revision %d (neue Revision %d):', $previous->revision, $current->revision)
             : sprintf('Changes since revision %d (new revision %d):', $previous->revision, $current->revision);
@@ -125,7 +124,6 @@ final readonly class WorkflowHumanDecisionTextRenderer
         if ($previous->goal !== $current->goal) {
             $lines[] = '  ' . ($german ? 'Vorheriges Ziel: ' : 'Previous goal: ') . $previous->goal;
         }
-
         $changesExist = $this->appendChanges($lines, 'Scope', $previous->scope, $current->scope);
         $changesExist = $this->appendChanges(
             $lines,
@@ -145,30 +143,46 @@ final readonly class WorkflowHumanDecisionTextRenderer
             $previous->acceptanceCriteria,
             $current->acceptanceCriteria,
         ) || $changesExist;
-        $changesExist = $this->appendChanges(
-            $lines,
-            $german ? 'Verhaltensanker' : 'Behavior anchors',
-            $previous->behaviorAnchors,
-            $current->behaviorAnchors,
-        ) || $changesExist;
-        $changesExist = $this->appendChanges(
-            $lines,
-            $german ? 'Operating-Prompt-Manifest' : 'Operating prompt manifest',
-            $previous->operatingPromptManifest === null ? [] : [$previous->operatingPromptManifest],
-            $current->operatingPromptManifest === null ? [] : [$current->operatingPromptManifest],
-        ) || $changesExist;
-        $changesExist = $this->appendChanges(
-            $lines,
-            $german ? 'Operating-Prompts' : 'Operating prompts',
-            $decision->operatingPromptSummaries($previous->operatingPrompts),
-            $decision->operatingPromptSummaries($current->operatingPrompts),
-        ) || $changesExist;
+        $changesExist = $this->appendPromptConstraintChanges($lines, $decision, $german) || $changesExist;
 
         if (!$changesExist && $previous->goal === $current->goal) {
             $lines[] = '  ' . ($german
                 ? 'Ziel, Scope, Validierung, Ausschlüsse, Abnahmekriterien, Verhaltensanker und Operating-Prompts sind unverändert.'
                 : 'Goal, scope, validation, non-goals, acceptance criteria, behavior anchors, and operating prompts are unchanged.');
         }
+    }
+
+    /** @param list<string> $lines */
+    private function appendPromptConstraintChanges(
+        array &$lines,
+        WorkflowContractApprovalPresentation $decision,
+        bool $german,
+    ): bool {
+        $previous = $decision->previousRevision;
+        if ($previous === null) {
+            return false;
+        }
+        $current = $decision->contract;
+        $changed = $this->appendChanges(
+            $lines,
+            $german ? 'Verhaltensanker' : 'Behavior anchors',
+            $previous->behaviorAnchors,
+            $current->behaviorAnchors,
+        );
+        $changed = $this->appendChanges(
+            $lines,
+            $german ? 'Operating-Prompt-Manifest' : 'Operating prompt manifest',
+            $previous->operatingPromptManifest === null ? [] : [$previous->operatingPromptManifest],
+            $current->operatingPromptManifest === null ? [] : [$current->operatingPromptManifest],
+        ) || $changed;
+        $changed = $this->appendChanges(
+            $lines,
+            $german ? 'Operating-Prompts' : 'Operating prompts',
+            $decision->operatingPromptSummaries($previous->operatingPrompts),
+            $decision->operatingPromptSummaries($current->operatingPrompts),
+        ) || $changed;
+
+        return $changed;
     }
 
     /**
