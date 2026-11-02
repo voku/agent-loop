@@ -1,8 +1,10 @@
-# Closed-Loop Learning Ladder: End-to-End Lineage from Real Work to Deterministic Enforcement
+# Closed-Loop Learning Ladder: Historical Implementation Lineage (Causal Impact Unproven)
 
 ## Context and Purpose
 
-This receipt documents the canonical closed-loop learning architecture across `voku/agent-loop` and `voku/agent-learning`, resolving the architectural boundary discussed in `voku/agent-loop#457`, `voku/agent-learning#107`, and `voku/agent-learning#73`.
+This retrospective documents the intended closed-loop architecture and historical implementation evidence across `voku/agent-loop` and `voku/agent-learning`, including the architectural boundary discussed in `voku/agent-loop#457`, `voku/agent-learning#107`, and `voku/agent-learning#73`.
+
+**Evidence status (2026-11-02):** The stages below were implemented or observed in different historical contexts; they do **not** constitute a single independently validated causal chain. Issue [#457](https://github.com/voku/agent-loop/issues/457) remains open because no independent real Task B has demonstrated that the selected precedent changed a later engineering decision. The [real-host handoff receipt](2026-09-13-gh-457-task-b-host-handoff.md) proves L2-to-L1 delivery but explicitly records behavioral attribution as `WITHHELD`. Do not combine distinct precedents, independent tasks, or self-reported usage counts into an invented end-to-end success.
 
 ### The Anti-Pattern vs. The Canonical Ladder
 
@@ -68,9 +70,9 @@ The canonical owner flow cleanly decouples the **Evidence Loop** from the **Prom
 
 ---
 
-## Real Production Proof: A Downstream Consumer Trace
+## Historical Production Trace: Evidence of Components, Not a Causal Task-B Proof
 
-To prove this ladder is not theoretical prose, we trace the full lineage of an actual production pattern from a private downstream consumer's learning records:
+This downstream-consumer example illustrates real observations, precedent capture, tooling correction, and deterministic enforcement. The private repository's records are not independently reproduced here, and this retrospective does not prove that Recall improved a later independently specified agent task:
 
 ### 1. Real Work & Initial Finding (`finding.2026-07-06.002`)
 - **Task**: `TODO@agent-learning/phpstan-bump-cleanup` in `lib/framework/system/helper/TypeHelper.php`.
@@ -90,13 +92,14 @@ To prove this ladder is not theoretical prose, we trace the full lineage of an a
 
 ### 3. Recall & Subsequent Task Injection
 - When subsequent tasks touched PHP files in `lib/` or `modules/`, Recall matched the pattern key and scope tags, projecting the precedent into the task's `facts.json` and L2 prompt envelope.
-- As demonstrated in `GH-457-Task-B` (`compilation.GH-457-Task-B.2026-09-13-084517.7b131090`), the precedent is rendered into `system.md` alongside the execution dispatch recipe, and the host binds a concrete L1 contract before editing.
+- The separate `GH-457-Task-B` receipt (`compilation.GH-457-Task-B.2026-09-13-084517.7b131090`) establishes mechanical Recall -> L2 -> bound L1 -> host delivery for **a different** LearningNote (`workflow.closed_loop_requires_real_precedent_handoff`). It does **not** prove that this PHPStan precedent was injected in that task, or that either precedent improved the host's decision. Its causal outcome was `WITHHELD`.
 
 ### 4. Observable Decision & Second Finding (`finding.2026-07-06.006`)
 - In subsequent cleanup work, the agent attempted to fix 9 occurrences discovered across the codebase (e.g. `JiraConnector.php`, `RemoApiGateway.php`).
 - **Surprise Root Cause Discovered**: Running `make apply-php-cs-fixer` revealed that the repository's own `phpdoc_to_comment` rule in `phpcs.php_cs` was silently demoting `/** @var */` back into `/* @var */`!
 - The second finding captured this critical interaction:
   `tooling.autofixer_reverts_or_corrupts_correct_code`.
+- These observed repairs establish the configuration defect and a useful hard-rule lineage. They do not isolate whether Recall, rather than the original task, existing rules, or the developer's own diagnosis, caused the decision.
 - Fixing `phpcs.php_cs` to add `ignored_tags => ['var', 'phpstan-var']` solved the systemic issue at the tool configuration level.
 
 ### 5. Repeated Pattern & Dream Synthesis
@@ -168,7 +171,7 @@ final class ItPortalInlineVarWrongDelimiterRule implements Rule
 - Wired into `composer ci` and pre-commit hooks.
 
 ### 9. Guidance Retirement & Outcome Verification
-- Outcome telemetry in `history/outcomes.jsonl` logged **101 evaluations**:
+- Historical outcome telemetry in `history/outcomes.jsonl` recorded **101 evaluations** (reported classifications, not an independent causal experiment):
   - 13 helpful
   - 36 not_used
   - 48 irrelevant
@@ -184,6 +187,6 @@ final class ItPortalInlineVarWrongDelimiterRule implements Rule
 
 1. **No Premature Bureaucracy**: A single problem produces a Finding and optionally a LearningNote. It never pollutes the global proposal queue.
 2. **Precedent Is Not Policy**: LearningNotes are read-only precedents. They provide context when recalled, but are not active enforcement rules.
-3. **Causal Attribution Discipline**: When evaluating an agent's run under a precedent, if the task prompt already required the behavior, attribute `WITHHELD`, not `DEMONSTRATED_VALUE`.
+3. **Causal Attribution Discipline**: When evaluating an agent's run under a precedent, if the task prompt already required the behavior, attribute `WITHHELD`, not `DEMONSTRATED_VALUE`. A selected precedent, valid L1 delivery, or historical `helpful` count alone cannot substitute for a later, independent behavior comparison.
 4. **Mechanical Supremacy**: If a constraint is checkable by AST, compiler, linter, or test, implement it as code. LLMs must not be treated as fragile linters when compilers exist.
 5. **Traceable Lineage**: Every deterministic gate links back to an approved constraint, which links back to a proposal, which links back to the originating findings and git commits.
