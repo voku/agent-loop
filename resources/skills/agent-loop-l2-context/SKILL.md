@@ -20,8 +20,23 @@ description: Use agent-loop to compile, inspect, and govern task-scoped Recall/L
 | Standalone Compile | `vendor/bin/agent-loop recall compile --task <task-id> --file <f1> --file <f2>` | Generates `system.md`, `facts.json`, `recall.bundle.json` |
 | Plan with L2 Recipe | `vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file <f1> --goal '<goal>' --validation '<cmd>' --operating-prompt-manifest vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json --operating-prompt '{"id":"<recipe>","arguments":{}}'` | References Recall's canonical manifest |
 | Persist Governed Contract | `vendor/bin/agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>` | Transitions status to ready for implementation |
-| Architecture Intent | `<itp-path>/itp-context-query var/itp-context --text='<concepts>'` | Query declared architecture intent when available |
+| Exact-symbol Architecture Intent | `<itp-path>/itp-context-summarize <file>` | After repository-appropriate navigation identifies an annotated edit target, summarize it before the first edit |
+| Concept Architecture Search | `<itp-path>/itp-context-query var/itp-context --text='<concepts>'` | Search exported architecture intent when the relevant symbol is not yet known |
+| PHPStan Repair Context | `composer phpstan` | Agent Format adds advisory ITP notices for diagnosed annotated files; a green run emits no ITP notice |
 | Scoped Method Edit | `vendor/bin/agent-loop edit '<Class>::<method>' --runner=auto --replace-old='<old>' --replace-new='<new>' -- '<purpose>'` | Deterministic mechanical edit |
+
+Use the repository-appropriate navigation method to identify the likely source
+target; use Map when structural navigation adds value. Before proposing the
+first edit to a target with a relevant `#[Rule]`, run
+`itp-context-summarize <file>` and read its references/change guidance. Do not
+summarize the whole repository or add an annotation only to populate context.
+No ITP result means that target has no declared rule; it does not prove the
+code has no architectural constraints. These rules are advisory context, not
+approval or correctness evidence.
+
+Use `composer phpstan` for later PHPStan repair feedback. Agent Format only
+adds ITP notices when PHPStan reports an issue in an annotated file, so a green
+run does not replace the pre-edit symbol summary.
 
 ### Bad vs Good Context Construction
 

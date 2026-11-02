@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b1b52161e88ce763022cdd06433bf625",
+    "content-hash": "a0e82f686ef3c8efa92257f21b955481",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -422,16 +422,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.6",
+            "version": "2.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e"
+                "reference": "af8e840551031d254cfdb3a18a62c3470a309c10"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/1427af4647235b4a73b13940b1f1258d3584f36e",
-                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/af8e840551031d254cfdb3a18a62c3470a309c10",
+                "reference": "af8e840551031d254cfdb3a18a62c3470a309c10",
                 "shasum": ""
             },
             "require": {
@@ -463,9 +463,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.6"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.4.1"
             },
-            "time": "2026-09-27T20:07:45+00:00"
+            "time": "2026-10-30T19:36:28+00:00"
         },
         {
             "name": "psr/simple-cache",
@@ -6199,6 +6199,56 @@
                 "source": "https://github.com/voku/itp-context"
             },
             "time": "2026-10-14T21:35:41+00:00"
+        },
+        {
+            "name": "voku/phpstan-agent-format",
+            "version": "0.3.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/voku/phpstan-agent-format.git",
+                "reference": "441d1ff0c816cbafecbedbf08bfc73ea3d89f650"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/voku/phpstan-agent-format/zipball/441d1ff0c816cbafecbedbf08bfc73ea3d89f650",
+                "reference": "441d1ff0c816cbafecbedbf08bfc73ea3d89f650",
+                "shasum": ""
+            },
+            "require": {
+                "helgesverre/toon": "^3.1.0",
+                "php": "^8.2",
+                "phpstan/phpstan": "^2.1",
+                "voku/simple-php-code-parser": "^0.22"
+            },
+            "require-dev": {
+                "phpstan/phpstan-strict-rules": "^2.0"
+            },
+            "suggest": {
+                "voku/itp-context": "^0.4, required for agentFormat.itpContext: adds the architecture rules of the files with PHPStan issues to the report"
+            },
+            "type": "library",
+            "extra": {
+                "phpstan": {
+                    "includes": [
+                        "extension.neon"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Voku\\PhpstanAgentFormat\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "PHPStan custom error formatter optimized for coding-agent repair loops.",
+            "support": {
+                "issues": "https://github.com/voku/phpstan-agent-format/issues",
+                "source": "https://github.com/voku/phpstan-agent-format/tree/0.3.1"
+            },
+            "time": "2026-10-14T23:03:43+00:00"
         }
     ],
     "aliases": [],

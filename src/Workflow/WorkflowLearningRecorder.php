@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use ItpContext\Attribute\Rule;
 use InvalidArgumentException;
 use RuntimeException;
+use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\RunLearningDecision;
@@ -48,6 +50,7 @@ final readonly class WorkflowLearningRecorder
         return $explicit ?? $implied;
     }
 
+    #[Rule(ArchitectureRules::WorkflowActorIsAttribution)]
     public static function assertAllowedActor(string $actor): string
     {
         $actor = trim($actor);

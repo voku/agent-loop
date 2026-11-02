@@ -169,6 +169,16 @@ agent-loop memory review --file MEMORY.md
 promotion state. It reports entries that still need promotion review; it does
 not approve, rewrite, or auto-promote durable memory.
 
+## Workflow actor strings are attribution
+
+Values supplied through `--by` identify the actor label recorded in workflow
+artifacts. They are not authenticated identities. A reserved-prefix check such
+as `standing:` prevents an ambiguous or unsupported workflow value; it does not
+prove who supplied the value or create a security boundary. The trust boundary
+is the repository and the authority that can change its source and workflow
+state. Do not describe these checks as authentication or protection against a
+writer who can change those inputs.
+
 ## Non-goals
 
 - No automatic durable-memory promotion.

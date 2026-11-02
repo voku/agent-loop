@@ -34,14 +34,22 @@ The planes complement each other and none of them substitutes for another:
   deliberately downstream of implementation, and **a heuristic finding is not
   automatically a correctness failure.**
 
-`itp-context` validates this repository's *development-only* architecture rules.
-`ArchitectureRules` lives in `tools/Context/`, is loaded through `autoload-dev`,
-and is not attached to production symbols with `#[Rule]` attributes. A passing
-`context:validate` therefore establishes that the rule definitions are valid,
-**not** that an acting agent has received source-targeted intent before an edit.
-An installed consumer may separately provide its own annotated production code;
-the consumer's actual annotations, not this repository's dev enum, decide whether
-per-symbol context exists. `voku/slop-scan` stays an isolated external tool.
+`itp-context` validates this repository's architecture rules. The rule enum
+`ArchitectureRules` lives in `tools/Context/` and is loaded through
+`autoload-dev`; source files may carry a small number of `#[Rule]` annotations
+that point to those repository-owned definitions. A passing `context:validate`
+establishes that the rule definitions are valid, **not** that an acting agent
+received source-targeted intent before an edit. An installed consumer does not
+receive this repository's dev enum and should use its own annotated source and
+rule definitions when it needs per-symbol context. `voku/slop-scan` stays an
+isolated external tool.
+
+The project's `composer phpstan` command uses `voku/phpstan-agent-format` with
+`agentFormat.itpContext: true`. Its notices are repair context for PHPStan
+diagnostics in annotated files; a green PHPStan run emits none. For pre-edit
+intent, use `itp-context-summarize` on the relevant symbol even when PHPStan is
+green. These outputs are advisory context, not evidence that an implementation
+is correct or that an agent followed a rule.
 
 `itp-context` is designed for a small number of high-signal annotations. Coating
 a repository in attributes to raise a coverage number produces noise, not
