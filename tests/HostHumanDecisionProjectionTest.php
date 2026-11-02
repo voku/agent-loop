@@ -282,14 +282,23 @@ final class HostHumanDecisionProjectionTest extends TestCase
             ['id' => 'audit', 'arguments' => []],
         ];
         $contracts->create(
-            $id, 'Keep prompt constraints.', ['src/A.php'], [],
-            ['vendor/bin/phpunit'], 'planner',
-            operatingPromptManifest: 'prompts/catalog.json', operatingPrompts: $first,
+            $id,
+            'Keep prompt constraints.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+            operatingPromptManifest: 'prompts/catalog.json',
+            operatingPrompts: $first,
         );
         $contracts->approve($id, 'owner', 1);
         $contracts->revise(
-            $id, 'Keep prompt constraints.', ['src/A.php'], [],
-            ['vendor/bin/phpunit'], 'planner',
+            $id,
+            'Keep prompt constraints.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
             operatingPromptManifest: 'prompts/catalog.json',
             operatingPrompts: [$first[1], $first[0]],
         );
