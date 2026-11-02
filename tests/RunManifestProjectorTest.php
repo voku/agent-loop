@@ -400,6 +400,46 @@ MD,
         self::assertSame('current', (new RunManifestProjector($this->root))->project('ABC-123')->references['approval']['state']);
     }
 
+    public function testLegacyReservedContractRecoveryOffersRevisionInsteadOfUnusableApproval(): void
+    {
+        $this->preparedRun('ok', withReceipt: false);
+
+        $contracts = new TaskContractStore($this->root);
+        $contractPath = $contracts->path('ABC-123');
+        $contract = json_decode((string) file_get_contents($contractPath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($contract);
+        $contract['approved_by'] = 'standing:spoofed';
+        self::assertNotFalse(file_put_contents(
+            $contractPath,
+            json_encode($contract, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        ));
+
+        // Model an existing Run originally bound to this exact, pre-upgrade
+        // pseudo-actor approval. A stale digest would hide the recovery defect.
+        $runPath = (new GovernedRunStore($this->root))->path('ABC-123');
+        $run = json_decode((string) file_get_contents($runPath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($run);
+        self::assertIsArray($run['contract_source'] ?? null);
+        $digest = hash_file('sha256', $contractPath);
+        self::assertIsString($digest);
+        $run['contract_source']['sha256'] = 'sha256:' . $digest;
+        self::assertNotFalse(file_put_contents(
+            $runPath,
+            json_encode($run, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        ));
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame([], $manifest->disagreements);
+        self::assertSame('invalid', $manifest->references['contract']['state']);
+        self::assertSame('invalid', $manifest->references['approval']['state']);
+        self::assertSame('incomplete', $manifest->state);
+        self::assertSame('host_work', $manifest->nextActionKind);
+        self::assertStringContainsString('workflow plan ABC-123', $manifest->nextAction);
+        self::assertStringContainsString('--supersede', $manifest->nextAction);
+        self::assertStringNotContainsString('workflow approve', $manifest->nextAction);
+    }
+
     public function testLegacyReservedContractCannotPassGovernedRunPreparation(): void
     {
         [, $session] = $this->preparedRun('ok', withReceipt: false);
