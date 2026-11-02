@@ -230,14 +230,26 @@ final class HostHumanDecisionProjectionTest extends TestCase
         $contracts = new TaskContractStore($this->root);
         $taskId = 'DECISION-PROMPT-CHANGE';
         $contracts->create(
-            $taskId, 'Approve prompt constraints.', ['src/A.php'], [], ['vendor/bin/phpunit'], 'planner',
-            behaviorAnchors: ['old-anchor'], operatingPromptManifest: 'prompts/old.json',
+            $taskId,
+            'Approve prompt constraints.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+            behaviorAnchors: ['old-anchor'],
+            operatingPromptManifest: 'prompts/old.json',
             operatingPrompts: [['id' => 'safety-check', 'arguments' => ['mode' => 'before']]],
         );
         $contracts->approve($taskId, 'owner', 1);
         $contracts->revise(
-            $taskId, 'Approve prompt constraints.', ['src/A.php'], [], ['vendor/bin/phpunit'], 'planner',
-            behaviorAnchors: ['new-anchor'], operatingPromptManifest: 'prompts/new.json',
+            $taskId,
+            'Approve prompt constraints.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+            behaviorAnchors: ['new-anchor'],
+            operatingPromptManifest: 'prompts/new.json',
             operatingPrompts: [['id' => 'safety-check', 'arguments' => ['mode' => 'after']]],
         );
 
