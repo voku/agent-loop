@@ -40,6 +40,9 @@ final readonly class WorkflowHumanDecisionService
                 null,
             );
         }
+        if (!$contract->hasNonReservedApproval()) {
+            return new WorkflowHumanDecisionProjection($task->value, [], null);
+        }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($task->value);
         $reviewState = $manifest->references['review']['state'] ?? null;

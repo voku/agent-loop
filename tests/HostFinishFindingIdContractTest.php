@@ -12,9 +12,11 @@ use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionService;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -122,6 +124,40 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertStringContainsString('standing:', (string) ($result['payload']['error']['message'] ?? ''));
         self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-879-FINDING'));
         self::assertNull((new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId));
+    }
+
+    public function testLegacyReservedContractDoesNotOfferHumanReviewAction(): void
+    {
+        $taskId = 'FINISH-879-LEGACY-ACTION';
+        [$run] = $this->prepareReview($taskId);
+        $contracts = new TaskContractStore($this->root);
+        $contract = $contracts->load($taskId);
+        $contractData = json_decode((string) file_get_contents($contract->path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($contractData);
+        $contractData['approved_by'] = 'standing:legacy-spoof';
+        self::assertNotFalse(file_put_contents(
+            $contract->path,
+            json_encode($contractData, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        ));
+
+        $contractDigest = hash_file('sha256', $contract->path);
+        self::assertIsString($contractDigest);
+        $runData = json_decode((string) file_get_contents($run->path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($runData);
+        self::assertIsArray($runData['contract_source'] ?? null);
+        $runData['contract_source']['sha256'] = 'sha256:' . $contractDigest;
+        self::assertNotFalse(file_put_contents(
+            $run->path,
+            json_encode($runData, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        ));
+
+        $manifest = (new RunManifestProjector($this->root))->project($taskId);
+        self::assertSame('warn', $manifest->references['review']['state']);
+        $review = (new WorkflowReviewReportReader($this->root))->read($taskId);
+        self::assertTrue($review['exists']);
+        self::assertSame('warn', $review['report_status']);
+        self::assertSame('warn', $review['status']);
+        self::assertSame([], (new WorkflowHumanDecisionService($this->root))->availableActions($taskId)->actions);
     }
 
     public function testLearningDispositionRefusesReservedStandingActorAfterOrdinaryReviewAck(): void
