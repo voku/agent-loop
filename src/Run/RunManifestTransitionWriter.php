@@ -58,7 +58,7 @@ final readonly class RunManifestTransitionWriter
     private function prepareExecutionPlan(string $taskId): void
     {
         $contract = (new TaskContractStore($this->rootPath))->find($taskId);
-        if (!$contract instanceof TaskContract || $contract->status !== TaskContract::APPROVED) {
+        if (!$contract instanceof TaskContract || !$contract->hasNonReservedApproval()) {
             return;
         }
 

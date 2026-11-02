@@ -158,6 +158,10 @@ final class TaskContractStore
 
     public function approve(string $taskId, string $by, int $expectedRevision): TaskContract
     {
+        if (str_starts_with(trim($by), 'standing:')) {
+            throw new RuntimeException('The standing: actor prefix is reserved and cannot approve a Task Contract.');
+        }
+
         return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision): TaskContract {
             $contract = $this->load($taskId);
             if ($expectedRevision !== $contract->revision) {
@@ -166,6 +170,11 @@ final class TaskContractStore
                     $expectedRevision,
                     $contract->revision,
                 ));
+            }
+            if ($contract->approvedBy !== null && str_starts_with(trim($contract->approvedBy), 'standing:')) {
+                throw new RuntimeException(
+                    'Persisted Contract approval uses a reserved standing: actor; revise the Contract before named approval.',
+                );
             }
             if ($contract->status === TaskContract::APPROVED && $contract->approvedBy !== null && $contract->approvedAt !== null) {
                 return $contract;
@@ -491,8 +500,19 @@ final class TaskContractStore
         if ($status === TaskContract::APPROVED && ($approvedBy === null || $approvedAt === null)) {
             throw new RuntimeException('Approved Contract is missing approval metadata in ' . $path . '.');
         }
+        if ($status === TaskContract::APPROVED && str_starts_with($approvedBy, 'standing:')) {
+            // Keep the artifact readable for audit and revise(), but make the
+            // persisted pseudo-actor incapable of authorizing current work.
+            $status = TaskContract::SUPERSEDED;
+        }
         if ($status === TaskContract::CANDIDATE && ($approvedBy !== null || $approvedAt !== null)) {
             throw new RuntimeException('Candidate Contract contains stale approval metadata in ' . $path . '.');
+        }
+        if ($status === TaskContract::APPROVED && str_starts_with(trim($approvedBy), 'standing:')) {
+            // A pre-upgrade pseudo-actor cannot authorize a current approval.
+            // Keep the original artifact and actor metadata readable for audit and revise(),
+            // but expose a non-approved state to all direct status consumers.
+            $status = TaskContract::SUPERSEDED;
         }
 
         return new TaskContract(

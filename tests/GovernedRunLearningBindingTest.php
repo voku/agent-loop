@@ -54,6 +54,33 @@ final class GovernedRunLearningBindingTest extends TestCase
         self::assertSame('no_durable_learning', $projected->references['learning']['decision'] ?? null);
     }
 
+    public function testLegacyReservedLearningActorIsNotProjectedAsCurrentAuthority(): void
+    {
+        $run = $this->prepareRun($this->root . '/learning-root');
+        $learning = new RunLearningDecisionStore($this->root . '/learning-root');
+        $path = $learning->path($run->runId);
+        mkdir(dirname($path), 0o775, true);
+        self::assertNotFalse(file_put_contents($path, json_encode([
+            'schema_version' => '1.0',
+            'kind' => 'run_learning_decision',
+            'run_id' => $run->runId,
+            'decision' => RunLearningDecisionStatus::NO_DURABLE_LEARNING->value,
+            'decided_by' => 'standing:spoofed',
+            'decided_at' => '2026-11-02T00:00:00+00:00',
+            'reason' => 'Pre-upgrade untrusted actor must not retain authority.',
+            'finding_ids' => [],
+            'follow_up_ref' => null,
+            'contract_revision' => null,
+            'implementation_snapshot' => null,
+            'validation_evidence_sha256' => null,
+            'review_evidence_sha256' => null,
+        ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n"));
+
+        $projected = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertSame('invalid', $projected->references['learning']['state'] ?? null);
+        self::assertStringContainsString('standing:', (string) ($projected->references['learning']['reason'] ?? ''));
+    }
+
     public function testDecisionInTheLayoutDefaultIsNotAttributedToARunBoundElsewhere(): void
     {
         $run = $this->prepareRun($this->root . '/learning-root');

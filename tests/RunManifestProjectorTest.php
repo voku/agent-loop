@@ -17,6 +17,7 @@ use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
+use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentMap\Index\AgentMapIndex;
@@ -345,6 +346,121 @@ MD,
         self::assertSame([], $manifest->disagreements);
         self::assertSame('none', $manifest->nextAction);
         self::assertSame('none', $manifest->nextActionKind);
+    }
+
+    public function testLegacyReservedContractApprovalCannotAuthorizeACompletedRunAndCanBeRecovered(): void
+    {
+        [$sessions, $session] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $contracts = new TaskContractStore($this->root);
+        $path = $contracts->path('ABC-123');
+        $persisted = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($persisted);
+        $persisted['approved_by'] = 'standing:spoofed';
+        self::assertNotFalse(file_put_contents(
+            $path,
+            json_encode($persisted, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        ));
+
+        $legacy = $contracts->load('ABC-123');
+        self::assertSame(TaskContract::SUPERSEDED, $legacy->status);
+        self::assertSame('approved', $persisted['status'], 'The original persisted artifact must not be rewritten.');
+        self::assertSame('standing:spoofed', $legacy->approvedBy);
+        self::assertFalse($legacy->hasNonReservedApproval());
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertSame('invalid', $manifest->references['contract']['state']);
+        self::assertSame('invalid', $manifest->references['approval']['state']);
+        self::assertNotSame('complete', $manifest->state);
+        self::assertNotSame('ready_to_close', $manifest->state);
+        self::assertStringContainsString('standing:', (string) ($manifest->references['approval']['reason'] ?? ''));
+
+        try {
+            $contracts->approve('ABC-123', 'named-reviewer', $legacy->revision);
+            self::fail('A named approval must not reuse the legacy forged approval.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('revise', $exception->getMessage());
+        }
+
+        $revised = $contracts->revise(
+            'ABC-123',
+            $legacy->goal,
+            $legacy->scope,
+            $legacy->nonGoals,
+            $legacy->validation,
+            'named-reviewer',
+        );
+        self::assertSame(TaskContract::CANDIDATE, $revised->status);
+        self::assertSame($legacy->revision + 1, $revised->revision);
+        self::assertSame('standing:spoofed', $contracts->supersededRevisions('ABC-123')[0]->approvedBy);
+
+        $approved = $contracts->approve('ABC-123', 'named-reviewer', $revised->revision);
+        self::assertTrue($approved->hasNonReservedApproval());
+        self::assertSame('current', (new RunManifestProjector($this->root))->project('ABC-123')->references['approval']['state']);
+    }
+
+    public function testLegacyReservedContractRecoveryOffersRevisionInsteadOfUnusableApproval(): void
+    {
+        $this->preparedRun('ok', withReceipt: false);
+
+        $contracts = new TaskContractStore($this->root);
+        $contractPath = $contracts->path('ABC-123');
+        $contract = json_decode((string) file_get_contents($contractPath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($contract);
+        $contract['approved_by'] = 'standing:spoofed';
+        self::assertNotFalse(file_put_contents(
+            $contractPath,
+            json_encode($contract, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        ));
+
+        // Model an existing Run originally bound to this exact, pre-upgrade
+        // pseudo-actor approval. A stale digest would hide the recovery defect.
+        $runPath = (new GovernedRunStore($this->root))->path('ABC-123');
+        $run = json_decode((string) file_get_contents($runPath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($run);
+        self::assertIsArray($run['contract_source'] ?? null);
+        $digest = hash_file('sha256', $contractPath);
+        self::assertIsString($digest);
+        $run['contract_source']['sha256'] = 'sha256:' . $digest;
+        self::assertNotFalse(file_put_contents(
+            $runPath,
+            json_encode($run, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        ));
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame([], $manifest->disagreements);
+        self::assertSame('invalid', $manifest->references['contract']['state']);
+        self::assertSame('invalid', $manifest->references['approval']['state']);
+        self::assertSame('incomplete', $manifest->state);
+        self::assertSame('host_work', $manifest->nextActionKind);
+        self::assertStringContainsString('workflow plan ABC-123', $manifest->nextAction);
+        self::assertStringContainsString('--scope <scope-entry-1> --scope <scope-entry-2>', $manifest->nextAction);
+        self::assertStringContainsString('preserving every current Contract scope entry', $manifest->nextAction);
+        self::assertStringContainsString('--supersede', $manifest->nextAction);
+        self::assertStringNotContainsString('workflow approve', $manifest->nextAction);
+    }
+
+    public function testLegacyReservedContractCannotPassGovernedRunPreparation(): void
+    {
+        [, $session] = $this->preparedRun('ok', withReceipt: false);
+
+        $contracts = new TaskContractStore($this->root);
+        $path = $contracts->path('ABC-123');
+        $persisted = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($persisted);
+        $persisted['approved_by'] = 'standing:spoofed';
+        self::assertNotFalse(file_put_contents(
+            $path,
+            json_encode($persisted, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        ));
+
+        $legacy = $contracts->load('ABC-123');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('non-reserved approved Contract');
+        (new GovernedRunStore($this->root))->prepare($legacy, $session, $this->root . '/.agent-loop/learning');
     }
 
     public function testFailedReviewCannotProduceCompletedRunOrCloseAction(): void

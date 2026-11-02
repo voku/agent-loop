@@ -26,8 +26,8 @@ final class GovernedRunStore
      */
     public function prepare(TaskContract $contract, Session $session, string $learningRoot): GovernedRun
     {
-        if ($contract->status !== TaskContract::APPROVED) {
-            throw new RuntimeException('A governed Run requires an approved Contract.');
+        if (!$contract->hasNonReservedApproval()) {
+            throw new RuntimeException('A governed Run requires a non-reserved approved Contract.');
         }
         if ($session->taskId !== $contract->taskId) {
             throw new RuntimeException('Session task does not match approved Contract task.');
