@@ -159,7 +159,7 @@ final class TaskContractStore
     public function approve(string $taskId, string $by, int $expectedRevision): TaskContract
     {
         if (str_starts_with(trim($by), 'standing:')) {
-            throw new RuntimeException('Actor prefix standing: is reserved for authorized standing approval.');
+            throw new RuntimeException('The standing: actor prefix is reserved and cannot approve a Task Contract.');
         }
 
         return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision): TaskContract {
@@ -499,6 +499,11 @@ final class TaskContractStore
         $approvedAt = $this->optionalStringField($data, 'approved_at', $path);
         if ($status === TaskContract::APPROVED && ($approvedBy === null || $approvedAt === null)) {
             throw new RuntimeException('Approved Contract is missing approval metadata in ' . $path . '.');
+        }
+        if ($status === TaskContract::APPROVED && str_starts_with($approvedBy, 'standing:')) {
+            // Keep the artifact readable for audit and revise(), but make the
+            // persisted pseudo-actor incapable of authorizing current work.
+            $status = TaskContract::SUPERSEDED;
         }
         if ($status === TaskContract::CANDIDATE && ($approvedBy !== null || $approvedAt !== null)) {
             throw new RuntimeException('Candidate Contract contains stale approval metadata in ' . $path . '.');

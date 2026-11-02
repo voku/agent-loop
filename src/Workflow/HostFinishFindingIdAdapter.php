@@ -60,7 +60,7 @@ final readonly class HostFinishFindingIdAdapter
                 throw new InvalidArgumentException('A learning decision requires --by <actor>.');
             }
             if (str_starts_with(trim($by), 'standing:')) {
-                throw new InvalidArgumentException('Actor prefix standing: is reserved for authorized standing approval.');
+                throw new InvalidArgumentException('The standing: actor prefix is reserved and cannot authorize a Finding-ID finish.');
             }
 
             $command = new HostFrontDoorCommand($this->rootPath);

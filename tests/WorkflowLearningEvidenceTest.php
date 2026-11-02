@@ -106,6 +106,52 @@ final class WorkflowLearningEvidenceTest extends TestCase
         self::assertNull($decision->reason, 'A learning decision needs no prose.');
     }
 
+    public function testWorkflowLearnRejectsReservedActorBeforePersistingDecision(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('LEARN-STANDING-1', 'Reject reserved actors at the direct workflow learn boundary.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
+        $contract = $contracts->approve('LEARN-STANDING-1', 'fixture', $contracts->load('LEARN-STANDING-1')->revision);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'LEARN-STANDING-1', by: 'fixture');
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
+
+        (new ValidationEvidenceStore())->record(
+            $session,
+            $contract->revision,
+            'php -l src/Foo.php',
+            ValidationStatus::PASSED,
+            0,
+            10,
+            'fixture',
+            implementationSnapshot: $snapshot->digest,
+        );
+        $reviewRoot = $this->root . '/.agent-loop/recall/LEARN-STANDING-1/reviews';
+        mkdir($reviewRoot, 0o775, true);
+        file_put_contents(
+            $reviewRoot . '/LEARN-STANDING-1.blindspots.json',
+            json_encode([
+                'version' => 2,
+                'task_id' => 'LEARN-STANDING-1',
+                'status' => 'ok',
+                'contract_revision' => $contract->revision,
+                'implementation_snapshot' => $snapshot->digest,
+                'findings' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+
+        $exit = (new WorkflowLearningCommand($this->root))->run([
+            'LEARN-STANDING-1',
+            '--status', 'no_durable_learning',
+            '--by', 'standing:spoofed',
+        ]);
+
+        self::assertSame(1, $exit, 'The public workflow learn command must reject the reserved actor.');
+        self::assertNull(
+            (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId),
+            'A rejected reserved actor must not persist a Learning decision.',
+        );
+    }
+
     private function removeDirectory(string $directory): void
     {
         if (!is_dir($directory)) {

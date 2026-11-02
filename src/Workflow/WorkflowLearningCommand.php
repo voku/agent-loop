@@ -25,6 +25,7 @@ final readonly class WorkflowLearningCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parse(array_slice($args, 1));
+            WorkflowLearningRecorder::assertAllowedActor($options['by']);
             $contract = (new TaskContractStore($this->rootPath))->load($taskId->value);
             if ($contract->status !== TaskContract::APPROVED) {
                 throw new RuntimeException('Learning requires the current durable Task Contract to be approved.');
