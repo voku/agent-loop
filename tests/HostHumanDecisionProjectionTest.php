@@ -91,6 +91,15 @@ final class HostHumanDecisionProjectionTest extends TestCase
             'blind-spot-analysis',
             $payload['human_decision']['subject']['operating_prompts'][0]['id'] ?? null,
         );
+        self::assertSame(
+            'skills/operational-prompting/operating-prompts.json',
+            $payload['human_decision']['subject']['operating_prompt_manifest'] ?? null,
+        );
+        $text = $this->runBinary(['enter', 'DECISION-1']);
+        self::assertSame(1, $text['exit'], $text['stderr']);
+        self::assertStringContainsString('Operating prompt manifest:', $text['stdout']);
+        self::assertStringContainsString('skills/operational-prompting/operating-prompts.json', $text['stdout']);
+        self::assertStringContainsString('blind-spot-analysis {"mode":"before-implementation"}', $text['stdout']);
     }
 
     public function testEnterTextShowsOptionsAndConfiguredGermanDecisionLabels(): void
@@ -214,6 +223,54 @@ final class HostHumanDecisionProjectionTest extends TestCase
         $text = $this->runBinary(['enter', 'DECISION-MULTI']);
         self::assertSame(1, $text['exit'], $text['stderr']);
         self::assertStringContainsString('Changes since revision 1 (new revision 3):', $text['stdout']);
+    }
+
+    public function testApprovalDeltaShowsChangedOperatingPromptAuthority(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $taskId = 'DECISION-PROMPT-CHANGE';
+        $contracts->create(
+            $taskId,
+            'Approve prompt constraints.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+            behaviorAnchors: ['old-anchor'],
+            operatingPromptManifest: 'prompts/old.json',
+            operatingPrompts: [['id' => 'safety-check', 'arguments' => ['mode' => 'before']]],
+        );
+        $contracts->approve($taskId, 'owner', 1);
+        $contracts->revise(
+            $taskId,
+            'Approve prompt constraints.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+            behaviorAnchors: ['new-anchor'],
+            operatingPromptManifest: 'prompts/new.json',
+            operatingPrompts: [['id' => 'safety-check', 'arguments' => ['mode' => 'after']]],
+        );
+
+        $json = $this->runBinary(['enter', $taskId, '--format=json']);
+        $delta = $this->json($json['stdout'])['human_decision']['subject']['revision_delta'] ?? null;
+        self::assertSame(1, $json['exit'], $json['stderr']);
+        self::assertSame(['new-anchor'], $delta['lists']['Behavior anchors']['added'] ?? null);
+        self::assertSame(['old-anchor'], $delta['lists']['Behavior anchors']['removed'] ?? null);
+        self::assertSame(['prompts/new.json'], $delta['lists']['Operating prompt manifest']['added'] ?? null);
+        self::assertSame(['prompts/old.json'], $delta['lists']['Operating prompt manifest']['removed'] ?? null);
+        self::assertSame(['safety-check {"mode":"after"}'], $delta['lists']['Operating prompts']['added'] ?? null);
+        self::assertSame(['safety-check {"mode":"before"}'], $delta['lists']['Operating prompts']['removed'] ?? null);
+        self::assertFalse($delta['empty'] ?? true);
+
+        $text = $this->runBinary(['enter', $taskId]);
+        self::assertSame(1, $text['exit'], $text['stderr']);
+        self::assertStringContainsString('Operating prompts:', $text['stdout']);
+        self::assertStringContainsString('+ safety-check {"mode":"after"}', $text['stdout']);
+        self::assertStringContainsString('- safety-check {"mode":"before"}', $text['stdout']);
+        self::assertStringContainsString('+ new-anchor', $text['stdout']);
+        self::assertStringContainsString('- old-anchor', $text['stdout']);
     }
 
     public function testLatestOfTwoNamedApprovalsIsTheRevisionDeltaBaseline(): void
