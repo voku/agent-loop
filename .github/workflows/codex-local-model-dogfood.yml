@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/codex-local-model-dogfood.yml'
       - 'tools/Dogfood/codex-local-model-behavior.py'
+      - 'tools/Dogfood/test_codex_local_model_behavior.py'
   workflow_dispatch:
 
 permissions:
@@ -27,6 +28,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Test Codex JSONL accounting without inference
+        run: python3 tools/Dogfood/test_codex_local_model_behavior.py
 
       - uses: shivammathur/setup-php@v2
         with:

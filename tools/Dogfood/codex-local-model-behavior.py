@@ -52,6 +52,33 @@ def sha(path: Path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+
+def summarize_command_executions(events):
+    """Count distinct Codex command item IDs, never JSONL lifecycle events."""
+    attempts = {}
+    for event in events:
+        if event.get("type") not in ("item.started", "item.completed"):
+            continue
+        item = event.get("item")
+        if not isinstance(item, dict) or item.get("type") != "command_execution":
+            continue
+        identifier = item.get("id")
+        command = item.get("command")
+        if not isinstance(identifier, str) or not identifier or not isinstance(command, str):
+            continue
+        flags = attempts.setdefault(identifier, {
+            "enter": False, "finish": False, "php_test": False, "succeeded": False,
+        })
+        flags["enter"] |= "agent-loop enter " in command
+        flags["finish"] |= "agent-loop finish " in command
+        flags["php_test"] |= "php test.php" in command
+        flags["succeeded"] |= (
+            event["type"] == "item.completed"
+            and item.get("status") == "completed"
+            and item.get("exit_code") == 0
+        )
+    return list(attempts.values())
+
 def run(argv, directory, *, timeout=120, env=None):
     return subprocess.run(
         argv, cwd=directory, env=env, check=False, capture_output=True,
@@ -161,7 +188,7 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt
     elapsed = round(time.monotonic() - start, 3)
     after = run(["php", "test.php"], project).returncode
 
-    commands = []
+    events = []
     message_count = 0
     event_types = {}
     item_types = {}
@@ -171,6 +198,9 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt
             event = json.loads(line)
         except ValueError:
             continue
+        if not isinstance(event, dict):
+            continue
+        events.append(event)
         event_kind = event.get("type")
         if isinstance(event_kind, str):
             event_types[event_kind] = event_types.get(event_kind, 0) + 1
@@ -194,16 +224,10 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt
                         error_kinds.append("tool_error")
                     else:
                         error_kinds.append("other_error")
-            if item.get("type") == "command_execution":
-                command = item.get("command", "")
-                commands.append({
-                    "enter": "agent-loop enter " in command,
-                    "finish": "agent-loop finish " in command,
-                    "php_test": "php test.php" in command,
-                })
-            elif item.get("type") == "agent_message" and event.get("type") == "item.completed":
+            if item.get("type") == "agent_message" and event.get("type") == "item.completed":
                 message_count += 1
 
+    commands = summarize_command_executions(events)
     source = project / "src/user_id.php"
     source_changed = not source.exists() or (
         sha(source) != hashlib.sha256(PHP_SOURCE.encode()).hexdigest()
@@ -225,6 +249,7 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt
         "router_present": (project / "AGENTS.md").exists(),
         "hard_policy_sha256": sha(project / ".codex/rules/agent-loop.rules"),
         "command_count": len(commands),
+        "successful_command_count": sum(int(c["succeeded"]) for c in commands),
         "event_type_counts": event_types,
         "item_type_counts": item_types,
         "error_kinds": error_kinds,
@@ -251,7 +276,7 @@ def main():
         consumer = root / "consumer"
         prepare_consumer(args.repository.resolve(), consumer)
         canary = run_arm(consumer, root, "canary", args.model_port, CANARY_TASK)
-        tool_capable = canary["codex_process_succeeded"] and canary["command_count"] > 0
+        tool_capable = canary["codex_process_succeeded"] and canary["successful_command_count"] > 0
         control = run_arm(consumer, root, "control", args.model_port, TASK) if tool_capable else None
         treatment = run_arm(consumer, root, "treatment", args.model_port, TASK) if tool_capable else None
 
