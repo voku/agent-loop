@@ -1,0 +1,123 @@
+name: ITP real-consumer pre-edit context proof
+
+# Opt-in evidence run: verifies the documented isolated CLI path against
+# existing annotations in a real, immutable consumer checkout.
+# This is NOT an acting-agent A/B experiment and grants no approval authority.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/itp-real-consumer-preedit.yml'
+      - 'tools/itp-context/composer.json'
+      - 'tools/itp-context/composer.lock'
+
+permissions:
+  contents: read
+
+jobs:
+  consumer-preedit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout agent-loop's pinned isolated tool manifest
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Checkout real annotated consumer at a fixed source SHA
+        uses: actions/checkout@v7
+        with:
+          repository: voku/itp-context
+          ref: a2bd9535fe88d92589b29d087ba9515958ac1afc
+          path: build/itp-context-consumer
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install the consumer and the separately locked evidence tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install --working-dir=build/itp-context-consumer --no-interaction --prefer-dist --no-progress
+          mkdir -p build/itp-context-consumer/tools
+          cp -a tools/itp-context build/itp-context-consumer/tools/itp-context
+          composer install --working-dir=build/itp-context-consumer/tools/itp-context --no-interaction --prefer-dist --no-progress
+
+      - name: Establish a green static-analysis baseline
+        working-directory: build/itp-context-consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer phpstan
+
+      - name: Execute the real pre-edit intent path and preserve receipts
+        working-directory: build/itp-context-consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$GITHUB_WORKSPACE/build/itp-preedit-evidence"
+          mkdir -p "$evidence"
+
+          # Critical cross-project contract: load the consumer's classes and
+          # rule enums BEFORE the isolated ITP package's Composer autoloader.
+          php -d auto_prepend_file=vendor/autoload.php \
+            tools/itp-context/vendor/bin/itp-context-validate \
+            'ItpContext\Context\PackageRules' > "$evidence/validate.txt"
+          php -d auto_prepend_file=vendor/autoload.php \
+            tools/itp-context/vendor/bin/itp-context-summarize \
+            src/Service/ContextReader.php > "$evidence/summary.md"
+          grep -Fq '# Context: ContextReader' "$evidence/summary.md"
+          grep -Fq 'PackageRules::DegradedDiscovery' "$evidence/summary.md"
+          grep -Fq -- '- **Owner:** Team-ItpContext' "$evidence/summary.md"
+          grep -Fq -- '- **Proof:** ItpContext\Tests\ContextReaderTest' "$evidence/summary.md"
+          grep -Fq -- '- **When changing:** Context for annotated symbols' "$evidence/summary.md"
+
+          php -d auto_prepend_file=vendor/autoload.php \
+            tools/itp-context/vendor/bin/itp-context-export \
+            build/itp-export src --exclude=vendor --exclude=tests \
+            > "$evidence/export.txt"
+          grep -RFq 'verified_by:' build/itp-export
+          php -d auto_prepend_file=vendor/autoload.php \
+            tools/itp-context/vendor/bin/itp-context-query \
+            build/itp-export '--rule-id=ItpContext\Context\PackageRules::DegradedDiscovery' \
+            > "$evidence/query.txt"
+          grep -Fq 'ContextReader' "$evidence/query.txt"
+          grep -Fq 'Team-ItpContext' "$evidence/query.txt"
+
+          # The consumer and the tool manifests remain byte-for-byte unchanged.
+          git diff --exit-code --quiet
+          tool_version="$(jq -r '.packages[] | select(.name == "voku/itp-context") | .version' tools/itp-context/composer.lock)"
+          test "$tool_version" = '0.4.0'
+          jq -n \
+            --arg consumer_sha "$(git rev-parse HEAD)" \
+            --arg tool_version "$tool_version" \
+            --arg tool_lock_sha256 "$(sha256sum tools/itp-context/composer.lock | cut -d' ' -f1)" \
+            --arg summary_sha256 "$(sha256sum "$evidence/summary.md" | cut -d' ' -f1)" \
+            '{
+              schema_version: "1.0",
+              kind: "itp-real-consumer-preedit-readiness",
+              consumer_repository: "voku/itp-context",
+              consumer_sha: $consumer_sha,
+              annotated_target: "src/Service/ContextReader.php",
+              isolated_tool_version: $tool_version,
+              isolated_tool_lock_sha256: $tool_lock_sha256,
+              exact_symbol_summary_sha256: $summary_sha256,
+              verified: ["consumer_phpstan_green", "real_enum_resolves", "rule_owner", "rule_proof", "change_guidance", "export_metadata", "query_index", "source_unchanged"],
+              agent_decision_experiment: "INCONCLUSIVE / NOT RUN",
+              authority: "read-only evidence; no workflow approval"
+            }' > "$evidence/report.json"
+          jq -e '.consumer_sha == "a2bd9535fe88d92589b29d087ba9515958ac1afc" and (.verified | length) == 8' \
+            "$evidence/report.json" >/dev/null
+
+      - name: Publish executable cross-consumer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: itp-preedit-real-consumer
+          if-no-files-found: warn
+          path: build/itp-preedit-evidence/
