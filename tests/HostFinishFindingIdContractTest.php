@@ -15,7 +15,6 @@ use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
-use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -55,7 +54,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertTrue($result['payload']['complete'] ?? false);
         self::assertSame('accepted', $result['payload']['mutation_status'] ?? null);
 
-        $decision = (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($run->runId);
+        $decision = (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId);
         self::assertNotNull($decision);
         self::assertSame($findingIds, $decision->findingIds);
     }
@@ -84,7 +83,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertSame(0, $exit, $stdout);
         self::assertStringContainsString('Complete: yes', $stdout);
 
-        $decision = (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($run->runId);
+        $decision = (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId);
         self::assertNotNull($decision);
         self::assertSame($findingIds, $decision->findingIds);
     }
@@ -239,7 +238,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         ?string $taskId = null,
     ): array {
         $creator = new FindingCreator();
-        $root = WorkflowLearningRoot::forRun($this->root, $run);
+        $root = $this->root . '/.agent-loop/learning';
         $ids = [];
         for ($index = 1; $index <= $count; ++$index) {
             $created = $creator->createValidated(
