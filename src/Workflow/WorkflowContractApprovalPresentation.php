@@ -116,7 +116,7 @@ final readonly class WorkflowContractApprovalPresentation
             }
         }
 
-        $orderChange = $this->promptOrderChange($beforePrompts, $afterPrompts);
+        $orderChange = $this->promptOrderChange($previous->operatingPrompts, $this->contract->operatingPrompts, $beforePrompts, $afterPrompts);
         if ($orderChange !== null) {
             $changes['Operating prompt order'] = $orderChange;
         }
@@ -125,21 +125,25 @@ final readonly class WorkflowContractApprovalPresentation
     }
 
     /**
+     * @param list<array{id: string, arguments: array<string, bool|int|string>}> $beforePrompts
+     * @param list<array{id: string, arguments: array<string, bool|int|string>}> $afterPrompts
      * @param list<string> $before
      * @param list<string> $after
      * @return array{added: list<string>, removed: list<string>}|null
      */
-    private function promptOrderChange(array $before, array $after): ?array
+    private function promptOrderChange(array $beforePrompts, array $afterPrompts, array $before, array $after): ?array
     {
         if ($before === $after) {
             return null;
         }
 
-        $beforeSorted = $before;
-        $afterSorted = $after;
-        sort($beforeSorted, SORT_STRING);
-        sort($afterSorted, SORT_STRING);
-        if ($beforeSorted !== $afterSorted) {
+        $beforeIds = array_column($beforePrompts, 'id');
+        $afterIds = array_column($afterPrompts, 'id');
+
+        // Added/removed or reconfigured prompts must not mask reordered shared prompts.
+        $sharedBefore = array_values(array_intersect($beforeIds, $afterIds));
+        $sharedAfter = array_values(array_intersect($afterIds, $beforeIds));
+        if ($sharedBefore === $sharedAfter) {
             return null;
         }
 
