@@ -165,7 +165,6 @@ final class ManagedAssetPortableProvenanceTest extends TestCase
         self::assertNull(ManagedAssetSource::resolvePersistedPath('project', 'src/Init/ManagedAssetSource.php', null));
     }
 
-
     #[DataProvider('malformedDigestProvider')]
     public function testManagedProjectionRejectsMalformedDigest(string $field, string $invalidDigest): void
     {
