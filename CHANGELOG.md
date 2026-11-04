@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [0.20.81] - 2026-11-04
+
 ### Fixed
 
 - Reconcile stale validation and review evidence during `finish` while preserving current failures and refusing Learning until validation passes.
