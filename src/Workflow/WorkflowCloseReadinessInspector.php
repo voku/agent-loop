@@ -93,11 +93,21 @@ final readonly class WorkflowCloseReadinessInspector
             $nonWaivable[] = ['gate' => 'execution_review', 'detail' => $executionReviewFailure];
         }
 
+        $validation = $this->validationSnapshot($contract, $boundary);
         if ($nonWaivable !== []) {
-            return new WorkflowCloseReadiness($boundary, $nonWaivable, [], [], []);
+            foreach ($validation['obligations'] as $obligation) {
+                if ($obligation['status'] === 'failed' && !$recoveredExecutionPending) {
+                    array_unshift($nonWaivable, [
+                        'gate' => 'validation',
+                        'detail' => $validation['detail'] ?? 'current validation failed',
+                    ]);
+                    break;
+                }
+            }
+
+            return new WorkflowCloseReadiness($boundary, $nonWaivable, [], $validation['obligations'], $validation['passed_messages']);
         }
 
-        $validation = $this->validationSnapshot($contract, $boundary);
         $failures = [];
         $passedMessages = $validation['passed_messages'];
 

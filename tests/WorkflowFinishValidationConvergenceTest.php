@@ -9,9 +9,12 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowReviewPreparer;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
@@ -114,6 +117,144 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
         self::assertSame(7, $after[0]->exitCode);
     }
 
+    public function testFinishReconcilesStaleValidationWithCurrentAcknowledgedReview(): void
+    {
+        $taskId = 'FINISH-STALE';
+        $session = $this->prepareRun($taskId);
+        $first = $this->finish($taskId, []);
+        $oldReview = $first['payload']['manifest']['references']['review']['source']['sha256'] ?? null;
+        self::assertIsString($oldReview);
+        $this->finish($taskId, ['--reviewed-report-sha256', $oldReview, '--by', 'fixture-reviewer']);
+        self::assertCount(1, (new ValidationEvidenceStore())->all($session));
+
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'changed';\n");
+        $contract = (new TaskContractStore($this->root))->load($taskId);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        $currentReview = (new WorkflowReviewPreparer($this->root))->prepare($contract);
+        self::assertIsString($currentReview['sha256']);
+        $this->finish($taskId, ['--reviewed-report-sha256', $currentReview['sha256'], '--by', 'fixture-reviewer']);
+        $result = $this->finish($taskId, []);
+
+        $evidence = (new ValidationEvidenceStore())->all($session);
+        self::assertCount(2, $evidence, 'finish must rerun stale validation for the new implementation.');
+        self::assertSame(ValidationStatus::PASSED, $evidence[1]->status);
+        self::assertSame($snapshot->digest, $evidence[1]->implementationSnapshot);
+        $review = (new WorkflowReviewReportReader($this->root))->read($taskId);
+        self::assertSame($snapshot->digest, $review['implementation_snapshot']);
+        self::assertNotSame($oldReview, $review['sha256']);
+        self::assertSame($currentReview['sha256'], $review['sha256']);
+        self::assertStringContainsString('--learning', (string) ($result['payload']['next_action'] ?? ''));
+        self::assertFalse($result['payload']['complete'] ?? true);
+    }
+
+    public function testStaleRevalidationFailureDoesNotRecordLearningOrRetryCurrentFailure(): void
+    {
+        $taskId = 'FINISH-STALE-FAIL';
+        $session = $this->prepareRun($taskId, 'php -l src/Foo.php');
+        $first = $this->finish($taskId, []);
+        $oldReview = $first['payload']['manifest']['references']['review']['source']['sha256'] ?? null;
+        self::assertIsString($oldReview);
+        $this->finish($taskId, ['--reviewed-report-sha256', $oldReview, '--by', 'fixture-reviewer']);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nthis is invalid php\n");
+        $contract = (new TaskContractStore($this->root))->load($taskId);
+        $review = (new WorkflowReviewPreparer($this->root))->prepare($contract);
+        self::assertIsString($review['sha256']);
+        $result = $this->finish($taskId, ['--reviewed-report-sha256', $review['sha256'], '--by', 'fixture-reviewer']);
+        ob_start();
+        $exit = (new HostFrontDoorApplication($this->root))->run('finish', [$taskId, '--format=json', '--learning', 'no_durable_learning', '--by', 'fixture-reviewer']);
+        $payload = json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(1, $exit);
+        self::assertSame('refused', $payload['mutation_status'] ?? null);
+        $result = ['payload' => $payload];
+
+        $evidence = (new ValidationEvidenceStore())->all($session);
+        self::assertCount(2, $evidence);
+        self::assertSame(ValidationStatus::FAILED, $evidence[1]->status);
+        self::assertSame('host_work', $result['payload']['next_action_kind'] ?? null);
+        self::assertNotSame('decided', $result['payload']['manifest']['references']['learning']['state'] ?? null);
+        $this->finish($taskId, []);
+        self::assertCount(2, (new ValidationEvidenceStore())->all($session), 'Current failed validation must not be retried automatically.');
+    }
+
+    public function testCurrentFailureIsNotRetriedWhenAnotherValidationIsStale(): void
+    {
+        $taskId = 'FINISH-MIXED';
+        $commands = ['php -l src/Foo.php', 'php -r "exit(0);"'];
+        $session = $this->prepareRun($taskId, $commands);
+        $first = $this->finish($taskId, []);
+        $oldReview = $first['payload']['manifest']['references']['review']['source']['sha256'] ?? null;
+        self::assertIsString($oldReview);
+        $this->finish($taskId, ['--reviewed-report-sha256', $oldReview, '--by', 'fixture-reviewer']);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'changed';\n");
+        $contract = (new TaskContractStore($this->root))->load($taskId);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        (new ValidationEvidenceStore())->record($session, $contract->revision, $commands[0], ValidationStatus::FAILED, 1, recordedBy: 'fixture', implementationSnapshot: $snapshot->digest);
+        $review = (new WorkflowReviewPreparer($this->root))->prepare($contract);
+        self::assertIsString($review['sha256']);
+        $this->finish($taskId, ['--reviewed-report-sha256', $review['sha256'], '--by', 'fixture-reviewer']);
+        $result = $this->finish($taskId, ['--learning', 'no_durable_learning', '--by', 'fixture-reviewer']);
+
+        self::assertCount(3, (new ValidationEvidenceStore())->all($session));
+        self::assertSame('host_work', $result['payload']['next_action_kind'] ?? null);
+        self::assertNotSame('decided', $result['payload']['manifest']['references']['learning']['state'] ?? null);
+    }
+
+    public function testCurrentValidationWithStaleReviewRequiresNewAcknowledgement(): void
+    {
+        $taskId = 'FINISH-STALE-REVIEW';
+        $session = $this->prepareRun($taskId);
+        $first = $this->finish($taskId, []);
+        $oldReview = $first['payload']['manifest']['references']['review']['source']['sha256'] ?? null;
+        self::assertIsString($oldReview);
+        $this->finish($taskId, ['--reviewed-report-sha256', $oldReview, '--by', 'fixture-reviewer']);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'changed';\n");
+        $contract = (new TaskContractStore($this->root))->load($taskId);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        (new ValidationEvidenceStore())->record($session, $contract->revision, 'php -r "exit(0);"', ValidationStatus::PASSED, 0, recordedBy: 'fixture', implementationSnapshot: $snapshot->digest);
+
+        $result = $this->finish($taskId, []);
+        $review = (new WorkflowReviewReportReader($this->root))->read($taskId);
+        self::assertSame($snapshot->digest, $review['implementation_snapshot']);
+        self::assertNotSame($oldReview, $review['sha256']);
+        self::assertStringContainsString('--reviewed-report-sha256', (string) ($result['payload']['next_action'] ?? ''));
+        self::assertCount(2, (new ValidationEvidenceStore())->all($session));
+    }
+
+    public function testCurrentFailureIsNotRetriedWhileReviewIsStale(): void
+    {
+        $taskId = 'FINISH-MIXED-STALE-REVIEW';
+        $commands = ['php -l src/Foo.php', 'php -r "exit(0);"'];
+        $session = $this->prepareRun($taskId, $commands);
+        $first = $this->finish($taskId, []);
+        $review = $first['payload']['manifest']['references']['review']['source']['sha256'] ?? null;
+        self::assertIsString($review);
+        $this->finish($taskId, ['--reviewed-report-sha256', $review, '--by', 'fixture-reviewer']);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'changed';\n");
+        $contract = (new TaskContractStore($this->root))->load($taskId);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        (new ValidationEvidenceStore())->record($session, $contract->revision, $commands[0], ValidationStatus::FAILED, 1, recordedBy: 'fixture', implementationSnapshot: $snapshot->digest);
+
+        $result = $this->finish($taskId, []);
+        self::assertCount(3, (new ValidationEvidenceStore())->all($session));
+        self::assertSame('host_work', $result['payload']['next_action_kind'] ?? null);
+        self::assertFalse($result['payload']['complete'] ?? true);
+    }
+
+    public function testInvalidReviewIsNotReplacedWhenValidationIsStale(): void
+    {
+        $taskId = 'FINISH-INVALID-REVIEW';
+        $this->prepareRun($taskId);
+        $this->finish($taskId, []);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'changed';\n");
+        $path = $this->root . '/.agent-loop/recall/' . $taskId . '/reviews/' . $taskId . '.blindspots.json';
+        file_put_contents($path, '{invalid');
+
+        $result = $this->finish($taskId, []);
+        self::assertSame('{invalid', file_get_contents($path));
+        self::assertFalse($result['payload']['complete'] ?? true);
+        self::assertSame('invalid', $result['payload']['manifest']['references']['review']['state'] ?? null);
+    }
+
     public function testFinishWithActiveCardLeavesRunCompleteWhileRequiringBoardReconciliation(): void
     {
         mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
@@ -148,7 +289,8 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
         self::assertStringContainsString('agent-kanban', (string) ($learned['payload']['next_action'] ?? ''));
     }
 
-    private function prepareRun(string $taskId, string $validation = 'php -r "exit(0);"'): Session
+    /** @param string|list<string> $validation */
+    private function prepareRun(string $taskId, string|array $validation = 'php -r "exit(0);"'): Session
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create(
@@ -156,7 +298,7 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
             'Keep finish validation reconciliation independent of review ordering.',
             ['src/Foo.php'],
             [],
-            [$validation],
+            is_array($validation) ? $validation : [$validation],
             'fixture-planner',
         );
         $contract = $contracts->approve($taskId, 'fixture-approver', $contracts->load($taskId)->revision);

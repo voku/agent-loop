@@ -363,7 +363,7 @@ final readonly class HostFrontDoorCommand
 
         if ($policy->state !== 'complete') {
             try {
-                if ($policy->mutationAllowed || $this->needsValidationReconciliation($manifest)) {
+                if (($policy->mutationAllowed || $this->needsValidationReconciliation($manifest)) && !$this->hasCurrentFailedValidation($manifest)) {
                     [$contract, $run, $session] = $this->currentRunContext($taskId->value);
                     (new WorkflowValidationRunner($this->rootPath))->run($contract, $run, $session);
                     $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
@@ -468,6 +468,9 @@ final readonly class HostFrontDoorCommand
                     }
 
                     if ($options['learning'] !== null) {
+                        if (!$this->validationComplete($boundary)) {
+                            throw new RuntimeException('Learning disposition requires passing current validation evidence.');
+                        }
                         if ($options['by'] === null) {
                             throw new RuntimeException('A learning decision requires --by <actor>.');
                         }
@@ -654,9 +657,36 @@ final readonly class HostFrontDoorCommand
 
         $verification = $manifest->references['verification'] ?? [];
 
-        return ($verification['state'] ?? null) === 'blocked'
-            && ($verification['gate'] ?? null) === 'validation'
-            && ($verification['validation_failed'] ?? false) !== true;
+        if (($verification['state'] ?? null) !== 'blocked') {
+            return false;
+        }
+        if (($verification['gate'] ?? null) === 'validation') {
+            return ($verification['validation_failed'] ?? false) !== true;
+        }
+        if (($verification['gate'] ?? null) !== 'integrity') {
+            return false;
+        }
+
+        [$contract, , $session] = $this->currentRunContext($manifest->taskId);
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+        return $boundary->staleValidationCommands !== []
+            || ($boundary->review['exists'] && !$boundary->review['invalid'] && $boundary->reviewEvidenceSha256() === null);
+    }
+
+    private function hasCurrentFailedValidation(RunManifest $manifest): bool
+    {
+        if (!$this->hasCurrentFinishBoundary($manifest)) {
+            return false;
+        }
+        [$contract, , $session] = $this->currentRunContext($manifest->taskId);
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+        foreach ($boundary->validationEvidence as $evidence) {
+            if ($evidence !== null && $evidence->status !== ValidationStatus::PASSED) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function needsPreparation(RunManifest $manifest): bool
