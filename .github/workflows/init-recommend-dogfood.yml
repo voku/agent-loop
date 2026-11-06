@@ -56,7 +56,7 @@ jobs:
           jq -e --arg head "$EXPECTED_HEAD_SHA" '
             .result == "passed"
             and .exact_head == $head
-            and (.cases | length == 4)
+            and (.cases | length == 5)
           ' build/init-recommend-dogfood/proof.json
       - name: Upload proof and JSON reports
         if: always()
