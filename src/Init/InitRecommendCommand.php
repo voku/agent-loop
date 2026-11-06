@@ -116,6 +116,11 @@ final readonly class InitRecommendCommand
             }
         }
 
+        if ($initPath !== null) {
+            // InitConfigLoader owns the effective semantics; validate the same
+            // input's size and repository boundary before delegating to it.
+            $this->readBounded($initPath);
+        }
         $config = (new InitConfigLoader($root))->load($initPath);
         array_push($warnings, ...$config['warnings']);
         $language = $config['prompting']['language'];
@@ -169,25 +174,54 @@ final readonly class InitRecommendCommand
     private function firstExisting(array $candidates): ?string
     {
         foreach ($candidates as $candidate) {
-            if (is_file(rtrim($this->rootPath, '/') . '/' . $candidate)) {
-                return $candidate;
+            $absolute = rtrim($this->rootPath, '/') . '/' . $candidate;
+            if (is_link($absolute)) {
+                throw new RuntimeException('Symlinked project config is not supported: ' . $candidate);
             }
+            if (!file_exists($absolute)) {
+                continue;
+            }
+            // Keep a colliding directory from silently selecting a fallback.
+            $this->safeConfigPath($candidate);
+
+            return $candidate;
         }
 
         return null;
     }
 
+    /**
+     * Resolve repository-owned evidence only. This also rejects parent-directory
+     * symlinks (for example .agent-loop -> /outside) and dangling inputs.
+     */
+    private function safeConfigPath(string $path): string
+    {
+        $root = realpath($this->rootPath);
+        if ($root === false) {
+            throw new RuntimeException('Project root does not exist.');
+        }
+
+        $absolute = rtrim($root, '/') . '/' . $path;
+        $resolved = realpath($absolute);
+        if ($resolved === false || !is_file($resolved) || !str_starts_with($resolved, rtrim($root, '/') . '/')) {
+            throw new RuntimeException('Config must be a readable repository file: ' . $path);
+        }
+
+        return $resolved;
+    }
+
     private function readBounded(string $path): string
     {
-        $absolute = rtrim($this->rootPath, '/') . '/' . $path;
+        $absolute = $this->safeConfigPath($path);
+        clearstatcache(true, $absolute);
         $size = filesize($absolute);
         if ($size === false || $size > self::MAX_CONFIG_BYTES) {
             throw new RuntimeException('Config is unreadable or too large: ' . $path);
         }
 
         $content = file_get_contents($absolute);
-        if (!is_string($content)) {
-            throw new RuntimeException('Cannot read config: ' . $path);
+        if (!is_string($content) || strlen($content) > self::MAX_CONFIG_BYTES) {
+            throw new RuntimeException('Config is unreadable or too large: ' . $path);
         }
 
         return $content;
@@ -220,9 +254,11 @@ final readonly class InitRecommendCommand
 
         $inParameters = false;
         $inList = false;
+        $entryIndent = 4;
         $values = [];
+
         foreach ($lines as $line) {
-            if (preg_match('/^parameters:\s*$/', $line) === 1) {
+            if ($line === 'parameters:') {
                 $inParameters = true;
                 $inList = false;
 
@@ -237,20 +273,39 @@ final readonly class InitRecommendCommand
             }
             if (preg_match('/^  ' . preg_quote($key, '/') . ':\s*$/', $line) === 1) {
                 $inList = true;
+                $entryIndent = 4;
+                $values = [];
 
                 continue;
             }
-            if (!$inList) {
+            if (!$inList || trim($line) === '' || str_starts_with(ltrim($line), '#')) {
                 continue;
             }
-            if (preg_match('/^ {4,6}-\s+([a-zA-Z0-9_.*\/-]+)\s*(?:#.*)?$/', $line, $matches) === 1) {
+
+            // A new sibling parameter ends the requested literal list.
+            if (preg_match('/^ {0,2}\S/', $line) === 1) {
+                $inList = false;
+
+                continue;
+            }
+
+            if ($key === 'excludePaths' && $entryIndent === 4
+                && preg_match('/^ {4}(?:analyse|analyseAndScan):\s*$/', $line) === 1
+            ) {
+                $entryIndent = 6;
+
+                continue;
+            }
+
+            if (preg_match('/^ {' . $entryIndent . '}-\s+([a-zA-Z0-9_.*\/-]+)\s*(?:#.*)?$/', $line, $matches) === 1) {
                 $values[] = $matches[1];
 
                 continue;
             }
-            if (trim($line) !== '' && !str_starts_with(ltrim($line), '#') && preg_match('/^ {4,}/', $line) !== 1) {
-                $inList = false;
-            }
+
+            // Unexpected nesting or dynamic NEON syntax is ambiguous. Never
+            // infer a map scope from its child list or partially accept values.
+            return [];
         }
 
         return array_values(array_unique($values));
