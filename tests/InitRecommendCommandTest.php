@@ -67,7 +67,9 @@ final class InitRecommendCommandTest extends TestCase
     {
         mkdir($this->root . '/src', 0o775, true);
         mkdir($this->root . '/tests', 0o775, true);
-        file_put_contents($this->root . '/phpstan.neon.dist', <<<'NEON'
+        file_put_contents(
+            $this->root . '/phpstan.neon.dist',
+            <<<'NEON'
 includes:
   - vendor/project/extension.neon
 parameters:
@@ -79,13 +81,15 @@ parameters:
     - vendor
   excludePaths:
     - tests/fixtures/*
-NEON
+NEON,
         );
-        file_put_contents($this->root . '/.php-cs-fixer.dist.php', <<<'PHP'
+        file_put_contents(
+            $this->root . '/.php-cs-fixer.dist.php',
+            <<<'PHP'
 <?php
 file_put_contents(__DIR__ . '/pwned', 'unexpected execution');
 return (new PhpCsFixer\Config())->setFinder(PhpCsFixer\Finder::create()->exclude('fixtures'));
-PHP
+PHP,
         );
 
         $report = (new InitRecommendCommand($this->root))->inspect();
