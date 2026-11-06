@@ -196,8 +196,9 @@ final readonly class InitRecommendCommand
     /** @return array<string, mixed> */
     private function readJson(string $path): array
     {
-        $decoded = json_decode($this->readBounded($path), true, 512, JSON_THROW_ON_ERROR);
-        if (!is_array($decoded) || array_is_list($decoded)) {
+        $content = $this->readBounded($path);
+        $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($decoded) || !str_starts_with(ltrim($content), '{')) {
             throw new RuntimeException('Config must be a JSON object: ' . $path);
         }
 
@@ -242,7 +243,7 @@ final readonly class InitRecommendCommand
             if (!$inList) {
                 continue;
             }
-            if (preg_match('/^    -\s+([a-zA-Z0-9_.*\/-]+)\s*(?:#.*)?$/', $line, $matches) === 1) {
+            if (preg_match('/^ {4,6}-\s+([a-zA-Z0-9_.*\/-]+)\s*(?:#.*)?$/', $line, $matches) === 1) {
                 $values[] = $matches[1];
 
                 continue;
