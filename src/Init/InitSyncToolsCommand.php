@@ -74,8 +74,8 @@ final readonly class InitSyncToolsCommand
             return 0;
         }
 
-        $toolsDir = trim(OptionTokens::value($tokens, 'tools-dir') ?? self::DEFAULT_TOOLS_DIR, '/');
-        if ($toolsDir === '' || str_contains($toolsDir, '..')) {
+        $toolsDir = OptionTokens::value($tokens, 'tools-dir') ?? self::DEFAULT_TOOLS_DIR;
+        if (!$this->isConfinedTargetPath($toolsDir)) {
             fwrite(\STDERR, "The --tools-dir value must be a relative path inside the repository.\n");
 
             return 1;
@@ -86,12 +86,31 @@ final readonly class InitSyncToolsCommand
         $force = OptionTokens::hasFlag($tokens, 'force');
         $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
+        // Validate every destination before reading a manifest or writing a file.
+        // In particular, neither --force nor --adopt-existing may follow links.
+        foreach ([InitSyncManifest::fileName(), ...$entries] as $entry) {
+            if (!$this->isConfinedTargetPath($toolsDir . '/' . $entry)) {
+                fwrite(\STDERR, '[FAIL] sync tools: unsafe target path ' . $toolsDir . '/' . $entry . "\n");
+
+                return 1;
+            }
+        }
+
         try {
             $manifest = InitSyncManifest::load($targetRoot, 'tools', 'evidence');
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
             return 1;
+        }
+
+        $staleEntries = $manifest->staleEntries($entries);
+        foreach ($staleEntries as $stale) {
+            if (!$this->isConfinedTargetPath($toolsDir . '/' . $stale)) {
+                fwrite(\STDERR, '[FAIL] sync tools: unsafe managed target path ' . $toolsDir . '/' . $stale . "\n");
+
+                return 1;
+            }
         }
 
         $adopted = [];
@@ -134,7 +153,7 @@ final readonly class InitSyncToolsCommand
             echo '[OK] sync tools: wrote ' . $toolsDir . '/' . $entry . "\n";
         }
 
-        foreach ($manifest->staleEntries($entries) as $stale) {
+        foreach ($staleEntries as $stale) {
             $stalePath = $targetRoot . '/' . $stale;
             if (!is_file($stalePath)) {
                 continue;
@@ -234,6 +253,38 @@ final readonly class InitSyncToolsCommand
         sort($entries);
 
         return $entries;
+    }
+
+    /**
+     * Reject traversal and all existing symlink components, including a
+     * symlink at the target itself, before any managed file is read or written.
+     */
+    private function isConfinedTargetPath(string $relative): bool
+    {
+        if ($relative === '' || str_starts_with($relative, '/') || str_contains($relative, '\\')) {
+            return false;
+        }
+
+        $root = realpath($this->rootPath);
+        if ($root === false) {
+            return false;
+        }
+
+        $cursor = $root;
+        foreach (explode('/', $relative) as $component) {
+            if ($component === '' || $component === '.' || $component === '..'
+                || preg_match('/[\x00-\x1F\x7F]/', $component) === 1
+            ) {
+                return false;
+            }
+
+            $cursor .= '/' . $component;
+            if (is_link($cursor)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
