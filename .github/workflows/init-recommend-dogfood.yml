@@ -5,6 +5,8 @@ on:
     paths:
       - 'src/Init/**'
       - 'tests/InitRecommendCommandTest.php'
+      - 'tests/InitSyncToolsCommandTest.php'
+      - 'src/PackageResources.php'
       - 'tools/init-recommend-dogfood.sh'
       - '.github/workflows/init-recommend-dogfood.yml'
   workflow_dispatch:
@@ -40,7 +42,7 @@ jobs:
         run: |
           php -l src/Init/InitRecommendCommand.php
           php -l tests/InitRecommendCommandTest.php
-          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
+          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
       - name: Exercise actual CLI against isolated projects
         shell: bash
         env:
