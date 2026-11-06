@@ -59,6 +59,22 @@ jq -e '
 ' "$evidence/phpstan.json" >/dev/null
 test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
 
+# Install the *real* Slop Scan tooling in the disposable consumer using the
+# existing owner command, then run the installed scanner. Composer is an
+# explicit CI opt-in, never an implicit action of init recommend.
+(
+  cd "$work/phpstan"
+  php "$root/bin/agent-loop" init sync-tools --tools-root="$root/resources/tools" --dry-run > "$evidence/install-preview.txt"
+  test ! -e tools/slop-scan/composer.json
+  php "$root/bin/agent-loop" init sync-tools --tools-root="$root/resources/tools" > "$evidence/install-tools.txt"
+  test -f tools/slop-scan/composer.json
+  test -f tools/slop-scan/slop-scan.php
+  composer install --working-dir=tools/slop-scan --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress > "$evidence/composer-install.txt"
+  test -f tools/slop-scan/vendor/autoload.php
+  php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --ignore 'tools/**' --json > "$evidence/slop-scan.json"
+)
+test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
+
 # B. Incorrectly nested PHPStan scope must use Composer instead.
 mkdir -p "$work/nested/src" "$work/nested/app"
 printf 'parameters:\n  paths:\n    unexpected:\n      - src\n' > "$work/nested/phpstan.neon"
