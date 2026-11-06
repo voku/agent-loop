@@ -328,7 +328,7 @@ final readonly class InitRecommendCommand
                 // a guessed list of directories. The caller must confirm it.
                 return ['.'];
             }
-            if ($path === '' || preg_match('/\A[a-zA-Z0-9_.\/-]+\z/', $path) !== 1 || in_array('..', explode('/', $path), true)) {
+            if ($path === '' || str_starts_with($path, '/') || preg_match('/\A[a-zA-Z0-9_.\/-]+\z/', $path) !== 1 || in_array('..', explode('/', $path), true)) {
                 continue;
             }
             $resolved = realpath($root . '/' . $path);
