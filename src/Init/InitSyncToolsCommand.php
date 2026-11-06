@@ -74,8 +74,9 @@ final readonly class InitSyncToolsCommand
             return 0;
         }
 
-        $toolsDir = OptionTokens::value($tokens, 'tools-dir') ?? self::DEFAULT_TOOLS_DIR;
-        if (!$this->isConfinedTargetPath($toolsDir)) {
+        $requestedToolsDir = OptionTokens::value($tokens, 'tools-dir') ?? self::DEFAULT_TOOLS_DIR;
+        $toolsDir = rtrim($requestedToolsDir, '/');
+        if (str_starts_with($requestedToolsDir, '/') || !$this->isConfinedTargetPath($toolsDir)) {
             fwrite(\STDERR, "The --tools-dir value must be a relative path inside the repository.\n");
 
             return 1;
@@ -261,7 +262,9 @@ final readonly class InitSyncToolsCommand
      */
     private function isConfinedTargetPath(string $relative): bool
     {
-        if ($relative === '' || str_starts_with($relative, '/') || str_contains($relative, '\\')) {
+        if ($relative === '' || str_starts_with($relative, '/') || str_contains($relative, '\\')
+            || preg_match('/\\A[a-zA-Z]:/', $relative) === 1
+        ) {
             return false;
         }
 
