@@ -23,7 +23,16 @@ The PHPStan path extractor intentionally recognizes only a simple literal `param
 
 PHPStan `excludePaths`, PHP-CS-Fixer Finder exclusions, slop-scan glob ignores and agent-map regular expressions have different meanings. In particular, excluding test fixtures from a coding-style fixer does **not** mean security/slop findings from those fixtures should be hidden. Interpret these as evidence and ask for confirmation before generating a config diff.
 
-`init sync-tools --dry-run` previews the isolated slop-scan project installation files; it does not install Composer dependencies. Continue through the existing owner commands, not a new hidden installer.
+In an installed Composer consumer, `init sync-tools --dry-run` now finds bundled tool templates when the project has no `resources/tools` directory. An explicitly configured `paths.tools_root` or `--tools-root` remains authoritative and fails if it is missing. Preview first, then opt into installing the tool files and their dependencies:
+
+```bash
+vendor/bin/agent-loop init sync-tools --dry-run
+vendor/bin/agent-loop init sync-tools
+composer install --working-dir=tools/slop-scan --no-scripts --no-plugins
+php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --lint
+```
+
+`init recommend` never executes any of these mutation or network steps. The [exact-head dogfood workflow](../../.github/workflows/init-recommend-dogfood.yml) verifies both dry-run and actual tool-file projection in a disposable consumer, then installs and runs the real Slop Scan package. Its JSON proof is uploaded as a GitHub Actions artifact bound to the PR head.
 
 ## Next slices
 
