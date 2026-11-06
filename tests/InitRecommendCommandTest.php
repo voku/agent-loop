@@ -1,0 +1,158 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop\Tests;
+
+use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use RuntimeException;
+use voku\AgentLoop\Init\InitRecommendCommand;
+
+/** @internal */
+final class InitRecommendCommandTest extends TestCase
+{
+    private string $root;
+
+    protected function setUp(): void
+    {
+        $this->root = sys_get_temp_dir() . '/agent-loop-init-recommend-' . bin2hex(random_bytes(6));
+        mkdir($this->root, 0o775, true);
+    }
+
+    protected function tearDown(): void
+    {
+        if (!is_dir($this->root)) {
+            return;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($iterator as $item) {
+            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+        }
+        rmdir($this->root);
+    }
+
+    public function testNoToolConfigurationDoesNotInventProjectScopeOrLanguage(): void
+    {
+        $command = new InitRecommendCommand($this->root);
+        $report = $command->inspect();
+
+        self::assertSame(1, $report['schema_version']);
+        self::assertSame([], $report['map']['paths']);
+        self::assertNull($report['map']['command']);
+        self::assertSame('en', $report['prompting']['language']);
+        self::assertSame('default', $report['prompting']['source']);
+        self::assertSame(3, $report['review']['human_attention_every_changes_required']);
+        self::assertFalse($report['review']['configurable_by_setup']);
+        self::assertSame(['agent-loop init sync-tools --dry-run'], $report['next_actions']);
+
+        ob_start();
+        try {
+            $exit = $command->run(['--format=json']);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+        self::assertSame(0, $exit);
+        self::assertSame($report, json_decode($output, true, 512, JSON_THROW_ON_ERROR));
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
+    public function testPhpstanPathsAreProposalsButExcludesAreNotCopiedToSlop(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/tests', 0o775, true);
+        file_put_contents($this->root . '/phpstan.neon.dist', <<<'NEON'
+includes:
+  - vendor/project/extension.neon
+parameters:
+  level: 8
+  paths:
+    - src
+    - tests
+    - ../external
+    - vendor
+  excludePaths:
+    - tests/fixtures/*
+NEON
+        );
+        file_put_contents($this->root . '/.php-cs-fixer.dist.php', <<<'PHP'
+<?php
+file_put_contents(__DIR__ . '/pwned', 'unexpected execution');
+return (new PhpCsFixer\Config())->setFinder(PhpCsFixer\Finder::create()->exclude('fixtures'));
+PHP
+        );
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src', 'tests'], $report['map']['paths']);
+        self::assertSame('phpstan.neon.dist', $report['map']['source']);
+        self::assertSame('agent-loop map build --paths=src,tests', $report['map']['command']);
+        self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
+        self::assertSame([], $report['exclusions']['slop']);
+        self::assertTrue($report['map']['requires_confirmation']);
+        self::assertSame('.php-cs-fixer.dist.php', $report['sources']['php_cs_fixer']);
+        self::assertFileDoesNotExist($this->root . '/pwned');
+        self::assertFileDoesNotExist($this->root . '/slop-scan.config.json');
+    }
+
+    public function testExistingUserPreferencesAndSlopRulesAreReportedNotOverwritten(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"version":1,"prompting":{"language":"de-DE"}}');
+        file_put_contents($this->root . '/slop-scan.config.json', '{"ignores":["**/vendor/**","**/generated/**"],"rules":{"php.magic-numbers":{"enabled":false}}}');
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame('de-de', $report['prompting']['language']);
+        self::assertSame('.agent-loop/init.json', $report['prompting']['source']);
+        self::assertSame(['**/vendor/**', '**/generated/**'], $report['exclusions']['slop']);
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame('directory-presence', $report['map']['source']);
+        self::assertSame([], $report['warnings']);
+    }
+
+    public function testComposerPsr4ScopeIsFallbackWhenPhpstanScopeCannotBeReadStatically(): void
+    {
+        mkdir($this->root . '/app', 0o775, true);
+        mkdir($this->root . '/lib', 0o775, true);
+        file_put_contents($this->root . '/phpstan.neon', "includes:\n  - other.neon\nparameters:\n  paths: %dynamicPath%\n");
+        file_put_contents($this->root . '/composer.json', json_encode([
+            'autoload' => ['psr-4' => ['Acme\\' => ['app/', 'lib/'], 'Outside\\' => '../outside']],
+        ], JSON_THROW_ON_ERROR));
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['app', 'lib'], $report['map']['paths']);
+        self::assertSame('composer.json', $report['map']['source']);
+        self::assertSame('phpstan.neon', $report['sources']['phpstan']);
+    }
+
+    public function testMalformedSlopConfigurationFailsClosed(): void
+    {
+        file_put_contents($this->root . '/slop-scan.config.json', '{ broken');
+
+        $this->expectException(\JsonException::class);
+        (new InitRecommendCommand($this->root))->inspect();
+    }
+
+    public function testLargeConfigFailsClosedWithoutExecutingIt(): void
+    {
+        file_put_contents($this->root . '/phpstan.neon', str_repeat(' ', 1048577));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('too large');
+        (new InitRecommendCommand($this->root))->inspect();
+    }
+
+    public function testUnknownArgumentsDoNotCreateSetupFiles(): void
+    {
+        self::assertSame(1, (new InitRecommendCommand($this->root))->run(['--apply']));
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/init.json');
+    }
+}
