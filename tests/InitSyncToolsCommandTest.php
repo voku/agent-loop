@@ -184,6 +184,48 @@ final class InitSyncToolsCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
     }
 
+    public function testSymlinkedToolTargetIsNotFollowedEvenWithForce(): void
+    {
+        $outside = sys_get_temp_dir() . '/agent-loop-tools-outside-' . bin2hex(random_bytes(6));
+        mkdir($outside, 0o775, true);
+        mkdir($this->root . '/tools', 0o775, true);
+        file_put_contents($outside . '/composer.json', 'sentinel');
+        symlink($outside, $this->root . '/tools/slop-scan');
+
+        try {
+            $result = $this->runSync(['--force']);
+
+            self::assertSame(1, $result['exit']);
+            self::assertSame('sentinel', file_get_contents($outside . '/composer.json'));
+            self::assertFileDoesNotExist($this->root . '/tools/.agent-loop-manifest.json');
+        } finally {
+            unlink($this->root . '/tools/slop-scan');
+            unlink($outside . '/composer.json');
+            rmdir($outside);
+        }
+    }
+
+    public function testUnsafeStaleManifestEntryCannotDeleteOutsideTools(): void
+    {
+        mkdir($this->root . '/tools', 0o775, true);
+        file_put_contents($this->root . '/sentinel.txt', 'untouched');
+        file_put_contents($this->root . '/tools/.agent-loop-manifest.json', '{"version":1,"kind":"tools","agent":"evidence","entries":["../sentinel.txt"]}');
+
+        $result = $this->runSync([]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame('untouched', file_get_contents($this->root . '/sentinel.txt'));
+        self::assertFileDoesNotExist($this->root . '/tools/slop-scan/composer.json');
+    }
+
+    public function testAbsoluteToolsDirectoryIsRejectedInsteadOfSilentlyStripped(): void
+    {
+        $result = $this->runSync(['--tools-dir=/outside']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertDirectoryDoesNotExist($this->root . '/outside');
+    }
+
     public function testUnknownOptionFails(): void
     {
         $result = $this->runSync(['--bogus']);
