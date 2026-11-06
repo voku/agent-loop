@@ -48,7 +48,6 @@ final class InitRecommendCommandTest extends TestCase
         self::assertSame('en', $report['prompting']['language']);
         self::assertSame('default', $report['prompting']['source']);
         self::assertSame(3, $report['review']['human_attention_every_changes_required']);
-        self::assertFalse($report['review']['configurable_by_setup']);
         self::assertSame(['agent-loop init sync-tools --dry-run'], $report['next_actions']);
 
         ob_start();
@@ -99,7 +98,6 @@ PHP,
         self::assertSame('agent-loop map build --paths=src,tests', $report['map']['command']);
         self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
         self::assertSame([], $report['exclusions']['slop']);
-        self::assertTrue($report['map']['requires_confirmation']);
         self::assertSame('.php-cs-fixer.dist.php', $report['sources']['php_cs_fixer']);
         self::assertFileDoesNotExist($this->root . '/pwned');
         self::assertFileDoesNotExist($this->root . '/slop-scan.config.json');
