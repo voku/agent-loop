@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
+use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\Cli\OptionTokens;
 
 /**
