@@ -94,9 +94,9 @@ final readonly class InitCli
             'notes' => ['Writes project files only and never runs Composer. Use --dry-run to preview updates.'],
         ],
         'recommend' => [
-            'usage' => 'agent-loop init recommend [--format=json]',
-            'description' => 'Inspect existing PHPStan, Composer, PHP-CS-Fixer and slop config as read-only setup evidence for human or LLM review.',
-            'notes' => ['Does not execute PHP-CS-Fixer configs, call an LLM, install tools, copy excludes between tools, or change review safeguards.'],
+            'usage' => 'agent-loop init recommend [--format=json|llm]',
+            'description' => 'Inspect PHP project tooling and emit either raw setup evidence or an actionable LLM onboarding brief.',
+            'notes' => ['--format=llm includes the complete untrusted project evidence and instructions for an external coding host; it never calls a model or applies changes.'],
         ],
         'scaffold' => [
             'usage' => 'agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]',
@@ -171,7 +171,7 @@ final readonly class InitCli
           agent-loop init sync-instructions --agent=<agent|all> [--dry-run]
           agent-loop init sync-tools [--tools-root=PATH] [--tools-dir=PATH] [--config=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]
-          agent-loop init recommend [--format=json]
+          agent-loop init recommend [--format=json|llm]
 
         Commands:
           Every init subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
@@ -192,7 +192,7 @@ final readonly class InitCli
           sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
           sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and maintained host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
-          recommend         Discover project tooling and emit read-only, source-backed JSON for setup review.
+          recommend         Discover PHP tooling and output read-only JSON evidence or an LLM-ready setup brief.
           scaffold          Create minimum local workflow infrastructure. Use --prefix for a real empty board or --demo for tutorial board/task state; neither is invented by default.
         TXT;
 
