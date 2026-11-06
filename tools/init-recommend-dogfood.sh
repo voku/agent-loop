@@ -64,9 +64,9 @@ test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
 # explicit CI opt-in, never an implicit action of init recommend.
 (
   cd "$work/phpstan"
-  php "$root/bin/agent-loop" init sync-tools --tools-root="$root/resources/tools" --dry-run > "$evidence/install-preview.txt"
+  php "$root/bin/agent-loop" init sync-tools --dry-run > "$evidence/install-preview.txt"
   test ! -e tools/slop-scan/composer.json
-  php "$root/bin/agent-loop" init sync-tools --tools-root="$root/resources/tools" > "$evidence/install-tools.txt"
+  php "$root/bin/agent-loop" init sync-tools > "$evidence/install-tools.txt"
   test -f tools/slop-scan/composer.json
   test -f tools/slop-scan/slop-scan.php
   composer install --working-dir=tools/slop-scan --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress > "$evidence/composer-install.txt"
