@@ -1,0 +1,65 @@
+name: Project-aware init dogfood
+
+on:
+  pull_request:
+    paths:
+      - 'src/Init/**'
+      - 'tests/InitRecommendCommandTest.php'
+      - 'tools/init-recommend-dogfood.sh'
+      - '.github/workflows/init-recommend-dogfood.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-setup:
+    name: Real-project setup recommendations and escape regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A PR merge ref can be green while the exact reviewed head differs.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies without scripts
+        run: composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
+      - name: Verify syntax and focused PHPUnit coverage
+        run: |
+          php -l src/Init/InitRecommendCommand.php
+          php -l tests/InitRecommendCommandTest.php
+          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitCliTest.php
+      - name: Exercise actual CLI against isolated projects
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash tools/init-recommend-dogfood.sh
+      - name: Verify evidence is for the exact checked-out source
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          jq -e --arg head "$EXPECTED_HEAD_SHA" '
+            .result == "passed"
+            and .exact_head == $head
+            and (.cases | length == 4)
+          ' build/init-recommend-dogfood/proof.json
+      - name: Upload proof and JSON reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: init-recommend-dogfood-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: build/init-recommend-dogfood/
