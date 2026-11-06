@@ -99,6 +99,16 @@ vendor/bin/agent-loop
 
 ## Start a repository
 
+### Existing PHP project: let your coding agent tailor the setup
+
+Ask your coding agent:
+
+> Set up Agent Loop for this PHP project. Run `vendor/bin/agent-loop init recommend --format=llm`, inspect its evidence and the existing PHP tooling, propose the minimal configuration with diffs and dry-runs, then ask for approval before modifying files.
+
+The command supplies a structured setup task and bounded evidence from PHPStan, PHP-CS-Fixer, Composer, Slop Scan and existing Agent Loop settings. It neither calls an LLM nor executes project PHP. See [project-aware setup](docs/reference/project-aware-init.md).
+
+### Manual setup
+
 Create the repository-local workflow scaffold:
 
 ```bash
