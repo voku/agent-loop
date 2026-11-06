@@ -57,6 +57,18 @@ jq -e '
   and .review.human_attention_every_changes_required == 3
   and .review.configurable_by_setup == false
 ' "$evidence/phpstan.json" >/dev/null
+(cd "$work/phpstan" && php "$root/bin/agent-loop" init recommend --format=llm > "$evidence/llm-brief.json")
+jq -e '
+  .schema_version == 1
+  and .kind == "agent-loop.php-project-setup"
+  and (.workflow | length) >= 5
+  and (.deliverables | length) >= 4
+  and (.guardrails | length) >= 4
+  and (.preview_commands | index("vendor/bin/agent-loop init sync-tools --dry-run") != null)
+  and .evidence.map.paths == ["src","tests"]
+  and .evidence.prompting.language == "de-de"
+  and .evidence.sources.php_cs_fixer == ".php-cs-fixer.dist.php"
+' "$evidence/llm-brief.json" >/dev/null
 test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
 
 # Install the *real* Slop Scan tooling in the disposable consumer using the
@@ -139,7 +151,8 @@ jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id
     "composer-fallback-for-nested-scope",
     "out-of-root-symlink-rejection",
     "actual-agent-loop-repository",
-    "composer-installed-consumer-default-tool-installation"
+    "composer-installed-consumer-default-tool-installation",
+    "llm-ready-setup-brief-with-evidence-and-no-side-effects"
   ]
 }' > "$evidence/proof.json"
 
