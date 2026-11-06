@@ -215,6 +215,28 @@ PHP,
         (new InitRecommendCommand($this->root))->inspect();
     }
 
+    public function testAbsolutePhpstanScopeIsNeverReinterpretedAsRelative(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/phpstan.neon', "parameters:\n  paths:\n    - /src\n");
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame('directory-presence', $report['map']['source']);
+    }
+
+    public function testAbsoluteComposerScopeIsNeverReinterpretedAsRelative(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/composer.json', '{"autoload":{"psr-4":{"App\\\\":"/src"}}}');
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame('directory-presence', $report['map']['source']);
+    }
+
     public function testMalformedSlopConfigurationFailsClosed(): void
     {
         file_put_contents($this->root . '/slop-scan.config.json', '{ broken');
