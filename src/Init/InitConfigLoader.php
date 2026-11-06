@@ -36,7 +36,11 @@ final readonly class InitConfigLoader
      *     runtime: array{container: array<'service'|'image'|'workdir'|'user', non-empty-string>}
      * }
      */
-    public function load(?string $configPath): array
+    /**
+     * Optional already-read content lets security-conscious callers inspect a
+     * bounded repository file once, without a second unbounded filesystem read.
+     */
+    public function load(?string $configPath, ?string $contentOverride = null): array
     {
         $result = [
             'warnings' => [],
@@ -73,11 +77,11 @@ final readonly class InitConfigLoader
         }
 
         $absoluteConfigPath = $this->resolvePath($configPath);
-        if (!is_file($absoluteConfigPath)) {
+        if ($contentOverride === null && !is_file($absoluteConfigPath)) {
             return $result;
         }
 
-        $content = file_get_contents($absoluteConfigPath);
+        $content = $contentOverride ?? file_get_contents($absoluteConfigPath);
         if (!is_string($content)) {
             $result['warnings'][] = '[WARN] init config: invalid JSON';
 
