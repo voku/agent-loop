@@ -51,6 +51,39 @@ final class InitSyncToolsCommandTest extends TestCase
     }
 
     /** A runner that is not executable is a runner an agent cannot invoke. */
+    public function testInstalledConsumerFindsBundledToolProjectsWithoutProjectResources(): void
+    {
+        $consumer = $this->root . '/consumer';
+        mkdir($consumer, 0o775, true);
+        $command = new InitSyncToolsCommand($consumer);
+
+        ob_start();
+        try {
+            $exit = $command->run(['--dry-run']);
+            $preview = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $exit, $preview);
+        self::assertStringContainsString('would write tools/slop-scan/composer.json', $preview);
+        self::assertFileDoesNotExist($consumer . '/tools/slop-scan/composer.json');
+
+        ob_start();
+        try {
+            $exit = $command->run([]);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $exit, $output);
+        self::assertFileExists($consumer . '/tools/slop-scan/composer.json');
+        self::assertFileExists($consumer . '/tools/slop-scan/slop-scan.php');
+        self::assertStringContainsString('composer install --working-dir=tools/slop-scan', $output);
+        self::assertDirectoryDoesNotExist($consumer . '/tools/slop-scan/vendor');
+    }
+
     public function testRunnerKeepsItsExecutableBit(): void
     {
         $this->runSync([]);
