@@ -329,7 +329,7 @@ final readonly class InitRecommendCommand
             if (preg_match('/\A(?:([a-zA-Z0-9_.*\/-]+)|"([a-zA-Z0-9_.*\/-]+)"|\'([a-zA-Z0-9_.*\/-]+)\')(?:\s+#.*)?\z/', $entry[1], $literal) !== 1) {
                 return null;
             }
-            $values[] = $literal[1] ?: ($literal[2] ?: ($literal[3] ?? ''));
+            $values[] = $literal[1] ?: (($literal[2] ?? '') ?: ($literal[3] ?? ''));
         }
 
         return array_values(array_unique($values));
