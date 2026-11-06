@@ -116,12 +116,10 @@ final readonly class InitRecommendCommand
             }
         }
 
-        if ($initPath !== null) {
-            // InitConfigLoader owns the effective semantics; validate the same
-            // input's size and repository boundary before delegating to it.
-            $this->readBounded($initPath);
-        }
-        $config = (new InitConfigLoader($root))->load($initPath);
+        // Validate and read exactly once: InitConfigLoader owns interpretation,
+        // while this command owns bounded input and repository confinement.
+        $initContent = $initPath === null ? null : $this->readBounded($initPath);
+        $config = (new InitConfigLoader($root))->load($initPath, $initContent);
         array_push($warnings, ...$config['warnings']);
         $language = $config['prompting']['language'];
 
