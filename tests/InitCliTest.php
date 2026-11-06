@@ -33,7 +33,7 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop init host-status', $help['output']);
         self::assertStringContainsString('agent-loop init install-plan', $help['output']);
         self::assertStringContainsString('agent-loop init install-assets', $help['output']);
-        self::assertStringContainsString('agent-loop init recommend', $help['output']);
+        self::assertStringContainsString('agent-loop init recommend [--format=json|llm]', $help['output']);
         self::assertStringContainsString('agent-loop init sync-policy', $help['output']);
         self::assertStringContainsString('--agent=<codex|claude|opencode|cursor|all>', $help['output']);
         self::assertStringContainsString('agent-loop init sync-instructions', $help['output']);
