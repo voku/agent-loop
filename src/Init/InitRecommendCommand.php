@@ -73,6 +73,14 @@ final readonly class InitRecommendCommand
             $content = $this->readBounded($phpstanPath);
             $phpstanPaths = $this->neonList($content, 'paths');
             $phpstanExcludes = $this->neonList($content, 'excludePaths');
+            if ($phpstanPaths === null) {
+                $warnings[] = 'PHPStan parameters.paths could not be read as a literal list; falling back to Composer or directory scope.';
+                $phpstanPaths = [];
+            }
+            if ($phpstanExcludes === null) {
+                $warnings[] = 'PHPStan parameters.excludePaths could not be read as a literal list; no excludes are reported.';
+                $phpstanExcludes = [];
+            }
         }
 
         $paths = $this->existingPaths($phpstanPaths);
@@ -238,72 +246,90 @@ final readonly class InitRecommendCommand
     }
 
     /**
-     * Extract only simple literal list entries. NEON includes, parameters,
-     * expressions and nested configuration are intentionally not interpreted.
+     * Extract only literal PHPStan list entries without evaluating NEON includes,
+     * parameters or expressions. Null means the requested key was present but
+     * could not be interpreted safely; an absent or empty key returns [].
      *
-     * @return list<string>
+     * @return list<string>|null
      */
-    private function neonList(string $content, string $key): array
+    private function neonList(string $content, string $key): ?array
     {
         $lines = preg_split('/\R/', $content);
         if ($lines === false) {
-            return [];
+            return null;
         }
 
         $inParameters = false;
-        $inList = false;
-        $entryIndent = 4;
+        $seen = false;
+        $keyIndent = 0;
+        $itemIndent = null;
+        $subkeyIndent = null;
         $values = [];
 
         foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
             if ($line === 'parameters:') {
                 $inParameters = true;
-                $inList = false;
-
                 continue;
             }
             if (preg_match('/^\S/', $line) === 1) {
+                if ($seen) {
+                    break;
+                }
                 $inParameters = false;
-                $inList = false;
             }
             if (!$inParameters) {
                 continue;
             }
-            if (preg_match('/^  ' . preg_quote($key, '/') . ':\s*$/', $line) === 1) {
-                $inList = true;
-                $entryIndent = 4;
-                $values = [];
 
+            if (!$seen) {
+                if (preg_match('/^( {2}| {4})' . preg_quote($key, '/') . ':(.*)$/', $line, $field) !== 1) {
+                    continue;
+                }
+                $seen = true;
+                $keyIndent = strlen($field[1]);
+                $inline = trim($field[2]);
+                if ($inline === '[]') {
+                    return [];
+                }
+                if ($inline !== '' && !str_starts_with($inline, '#')) {
+                    return null;
+                }
                 continue;
             }
-            if (!$inList || trim($line) === '' || str_starts_with(ltrim($line), '#')) {
-                continue;
+
+            $indent = strspn($line, ' ');
+            if ($indent <= $keyIndent) {
+                break;
             }
 
-            // A new sibling parameter ends the requested literal list.
-            if (preg_match('/^ {0,2}\S/', $line) === 1) {
-                $inList = false;
-
-                continue;
-            }
-
-            if ($key === 'excludePaths' && $entryIndent === 4
-                && preg_match('/^ {4}(?:analyse|analyseAndScan):\s*$/', $line) === 1
+            if ($key === 'excludePaths'
+                && preg_match('/^(?:analyse|analyseAndScan):\s*(?:#.*)?$/', $trimmed) === 1
+                && $indent === $keyIndent + 2
             ) {
-                $entryIndent = 6;
-
+                $subkeyIndent = $indent;
+                $itemIndent = null;
                 continue;
             }
 
-            if (preg_match('/^ {' . $entryIndent . '}-\s+([a-zA-Z0-9_.*\/-]+)\s*(?:#.*)?$/', $line, $matches) === 1) {
-                $values[] = $matches[1];
-
-                continue;
+            $minimumIndent = ($subkeyIndent ?? $keyIndent) + 2;
+            if ($indent < $minimumIndent || preg_match('/^-\s+(.+)$/', $trimmed, $entry) !== 1) {
+                return null;
             }
+            if ($itemIndent !== null && $indent !== $itemIndent) {
+                return null;
+            }
+            $itemIndent = $indent;
 
-            // Unexpected nesting or dynamic NEON syntax is ambiguous. Never
-            // infer a map scope from its child list or partially accept values.
-            return [];
+            // The supported literal grammar is deliberately narrower than
+            // NEON: no escapes, interpolation, nested objects, or expressions.
+            if (preg_match('/\A(?:([a-zA-Z0-9_.*\/-]+)|"([a-zA-Z0-9_.*\/-]+)"|\'([a-zA-Z0-9_.*\/-]+)\')(?:\s+#.*)?\z/', $entry[1], $literal) !== 1) {
+                return null;
+            }
+            $values[] = $literal[1] ?: ($literal[2] ?: ($literal[3] ?? ''));
         }
 
         return array_values(array_unique($values));
