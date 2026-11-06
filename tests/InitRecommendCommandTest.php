@@ -237,6 +237,43 @@ PHP,
         self::assertSame('directory-presence', $report['map']['source']);
     }
 
+    public function testQuotedFourSpacePhpstanScopeAndNestedExcludesAreReadWithoutExecution(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/tests', 0o775, true);
+        file_put_contents($this->root . '/phpstan.neon', <<<'NEON'
+parameters:
+    paths:
+        - "src"
+        - 'tests'
+    excludePaths:
+      analyse:
+        - "tests/fixtures/*"
+NEON);
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src', 'tests'], $report['map']['paths']);
+        self::assertSame('phpstan.neon', $report['map']['source']);
+        self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
+        self::assertSame([], $report['warnings']);
+    }
+
+    public function testUnsupportedPhpstanEntriesEmitWarningsInsteadOfSilentExclusions(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/phpstan.neon', "parameters:\n  paths: %dynamicPaths%\n  excludePaths:\n    - %dynamicExclude%\n");
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame('directory-presence', $report['map']['source']);
+        self::assertSame([], $report['exclusions']['phpstan']);
+        self::assertCount(2, $report['warnings']);
+        self::assertStringContainsString('parameters.paths', $report['warnings'][0]);
+        self::assertStringContainsString('parameters.excludePaths', $report['warnings'][1]);
+    }
+
     public function testMalformedSlopConfigurationFailsClosed(): void
     {
         file_put_contents($this->root . '/slop-scan.config.json', '{ broken');
