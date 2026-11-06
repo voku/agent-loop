@@ -147,6 +147,74 @@ PHP,
         self::assertSame([], $report['exclusions']['slop']);
     }
 
+    public function testNestedPhpstanPathsNeverBecomeAnImplicitMapScope(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/app', 0o775, true);
+        file_put_contents($this->root . '/phpstan.neon', "parameters:\n  paths:\n    unexpected:\n      - src\n");
+        file_put_contents($this->root . '/composer.json', '{"autoload":{"psr-4":{"App\\\\":"app/"}}}');
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['app'], $report['map']['paths']);
+        self::assertSame('composer.json', $report['map']['source']);
+        self::assertSame('agent-loop map build --paths=app', $report['map']['command']);
+    }
+
+    public function testMixedPhpstanListAndNestedMappingIsNotPartiallyAccepted(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/tests', 0o775, true);
+        file_put_contents($this->root . '/phpstan.neon', "parameters:\n  paths:\n    - src\n    unexpected:\n      - tests\n");
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src', 'tests'], $report['map']['paths']);
+        self::assertSame('directory-presence', $report['map']['source']);
+    }
+
+    public function testOutOfRootPhpstanSymlinkFailsClosed(): void
+    {
+        $outside = tempnam(sys_get_temp_dir(), 'init-neon-');
+        self::assertIsString($outside);
+        file_put_contents($outside, "parameters:\n  paths:\n    - .\n");
+        self::assertTrue(symlink($outside, $this->root . '/phpstan.neon'));
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Symlinked project config');
+            (new InitRecommendCommand($this->root))->inspect();
+        } finally {
+            unlink($outside);
+        }
+    }
+
+    public function testSymlinkedConfigParentCannotEscapeTheProject(): void
+    {
+        $outside = sys_get_temp_dir() . '/init-outside-' . bin2hex(random_bytes(6));
+        mkdir($outside, 0o775, true);
+        file_put_contents($outside . '/init.json', '{"version":1,"prompting":{"language":"de"}}');
+        self::assertTrue(symlink($outside, $this->root . '/.agent-loop'));
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('repository file');
+            (new InitRecommendCommand($this->root))->inspect();
+        } finally {
+            unlink($this->root . '/.agent-loop');
+            unlink($outside . '/init.json');
+            rmdir($outside);
+        }
+    }
+
+    public function testOversizedAgentLoopConfigFailsBeforeLoaderReadsIt(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', str_repeat(' ', 1048577));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('too large');
+        (new InitRecommendCommand($this->root))->inspect();
+    }
+
     public function testMalformedSlopConfigurationFailsClosed(): void
     {
         file_put_contents($this->root . '/slop-scan.config.json', '{ broken');
