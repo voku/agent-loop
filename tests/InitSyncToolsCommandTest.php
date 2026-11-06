@@ -177,6 +177,22 @@ final class InitSyncToolsCommandTest extends TestCase
         self::assertStringContainsString('composer install --working-dir=dev-tools/slop-scan', $result['output']);
     }
 
+    public function testCustomToolsDirAcceptsTrailingSeparator(): void
+    {
+        $result = $this->runSync(['--tools-dir=dev-tools/']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertFileExists($this->root . '/dev-tools/slop-scan/composer.json');
+    }
+
+    public function testDriveAbsoluteToolsDirectoryIsRejected(): void
+    {
+        $result = $this->runSync(['--tools-dir=C:/outside']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertDirectoryDoesNotExist($this->root . '/C:');
+    }
+
     public function testMissingToolRootFails(): void
     {
         $result = $this->runSync(['--tools-root=does/not/exist']);
