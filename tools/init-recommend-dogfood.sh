@@ -97,6 +97,36 @@ test ! -s "$evidence/symlink-stdout.txt"
 (cd "$root" && php bin/agent-loop init recommend --format=json > "$evidence/self.json")
 jq -e '.schema_version == 1 and (.map.paths | index("src") != null) and .sources.phpstan != null and .sources.slop == "slop-scan.config.json"' "$evidence/self.json" >/dev/null
 
+# E. Real Composer-installed consumer, not merely the source checkout.
+# This validates package asset inclusion and the ordinary default install path.
+mkdir -p "$work/installed"
+jq -n --arg source "$root" '{
+  name: "setup/dogfood-consumer",
+  "require-dev": {"voku/agent-loop": "dev-main"},
+  repositories: [{
+    type: "path",
+    url: $source,
+    options: {symlink: false, versions: {"voku/agent-loop": "dev-main"}}
+  }],
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  config: {"allow-plugins": false}
+}' > "$work/installed/composer.json"
+composer update --working-dir="$work/installed" --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress > "$evidence/installed-consumer-composer.txt"
+(
+  cd "$work/installed"
+  test -f vendor/voku/agent-loop/resources/tools/slop-scan/composer.json
+  cmp vendor/voku/agent-loop/src/Init/InitSyncToolsCommand.php "$root/src/Init/InitSyncToolsCommand.php"
+  php vendor/bin/agent-loop init recommend --format=json > "$evidence/installed-consumer-recommend.json"
+  php vendor/bin/agent-loop init sync-tools --dry-run > "$evidence/installed-consumer-preview.txt"
+  test ! -e tools/slop-scan/composer.json
+  php vendor/bin/agent-loop init sync-tools > "$evidence/installed-consumer-tools.txt"
+  test -f tools/slop-scan/composer.json
+  cmp tools/slop-scan/composer.json vendor/voku/agent-loop/resources/tools/slop-scan/composer.json
+  test ! -e tools/slop-scan/vendor
+)
+jq -e '.schema_version == 1 and .sources.composer == "composer.json"' "$evidence/installed-consumer-recommend.json" >/dev/null
+
 jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id "${GITHUB_RUN_ID:-local}" '
 {
   schema_version: 1,
@@ -108,7 +138,8 @@ jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id
     "phpstan-and-slop-isolation",
     "composer-fallback-for-nested-scope",
     "out-of-root-symlink-rejection",
-    "actual-agent-loop-repository"
+    "actual-agent-loop-repository",
+    "composer-installed-consumer-default-tool-installation"
   ]
 }' > "$evidence/proof.json"
 
