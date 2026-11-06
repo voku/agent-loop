@@ -40,7 +40,7 @@ jobs:
         run: |
           php -l src/Init/InitRecommendCommand.php
           php -l tests/InitRecommendCommandTest.php
-          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitCliTest.php
+          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
       - name: Exercise actual CLI against isolated projects
         shell: bash
         env:
