@@ -50,8 +50,17 @@ final readonly class InitSyncToolsCommand
             echo $warning . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
+        $overrides = $this->readPathOverrides($tokens);
+        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $overrides);
         $sourceRoot = $paths->absoluteToolsRoot();
+        if (!is_dir($sourceRoot)
+            && !isset($config['paths']['tools_root'])
+            && !isset($overrides['tools-root'])
+        ) {
+            // The consuming project need not carry copies of agent-loop's
+            // bundled tool templates. Explicit roots still fail closed.
+            $sourceRoot = PackageResources::toolsRoot();
+        }
         if (!is_dir($sourceRoot)) {
             fwrite(\STDERR, 'Tool project root is missing: ' . $paths->toolsRoot() . "\n");
 
