@@ -270,7 +270,12 @@ final readonly class InitRecommendCommand
 
         foreach ($candidates as $candidate) {
             $path = rtrim(str_replace('\\', '/', $candidate), '/');
-            if ($path === '' || $path === '.' || preg_match('/\A[a-zA-Z0-9_.\/-]+\z/', $path) !== 1 || in_array('..', explode('/', $path), true)) {
+            if ($path === '.') {
+                // A literal project-root scope is valid, but should not be expanded to
+                // a guessed list of directories. The caller must confirm it.
+                return ['.'];
+            }
+            if ($path === '' || preg_match('/\A[a-zA-Z0-9_.\/-]+\z/', $path) !== 1 || in_array('..', explode('/', $path), true)) {
                 continue;
             }
             $resolved = realpath($root . '/' . $path);
