@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Exercise the real checked-out CLI against independent project roots.
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+evidence="${1:-$root/build/init-recommend-dogfood}"
+mkdir -p "$evidence"
+evidence="$(cd "$evidence" && pwd)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+head="$(git -C "$root" rev-parse HEAD)"
+if [[ -n "${EXPECTED_HEAD_SHA:-}" && "$head" != "$EXPECTED_HEAD_SHA" ]]; then
+  echo "FAIL: checked-out commit differs from expected PR head" >&2
+  exit 1
+fi
+
+# A. Existing user policy + Slop ignores + PHPStan paths + hostile Finder.
+mkdir -p "$work/phpstan/src" "$work/phpstan/tests" "$work/phpstan/.agent-loop"
+cat > "$work/phpstan/src/Example.php" <<'PHP'
+<?php
+declare(strict_types=1);
+namespace SetupDogfood;
+final readonly class Example
+{
+    public function value(): string
+    {
+        return 'ok';
+    }
+}
+PHP
+cat > "$work/phpstan/phpstan.neon" <<'NEON'
+parameters:
+  paths:
+    - src
+    - tests
+  excludePaths:
+    analyse:
+      - tests/fixtures/*
+NEON
+printf '{"version":1,"prompting":{"language":"de-DE"}}\n' > "$work/phpstan/.agent-loop/init.json"
+printf '{"ignores":["**/vendor/**","**/fixtures/**"]}\n' > "$work/phpstan/slop-scan.config.json"
+cat > "$work/phpstan/.php-cs-fixer.dist.php" <<'PHP'
+<?php
+file_put_contents(__DIR__ . '/EXECUTED_UNEXPECTEDLY', 'bad');
+return [];
+PHP
+(cd "$work/phpstan" && php "$root/bin/agent-loop" init recommend --format=json > "$evidence/phpstan.json")
+jq -e '
+  .schema_version == 1
+  and .map.paths == ["src","tests"]
+  and .map.source == "phpstan.neon"
+  and .exclusions.phpstan == ["tests/fixtures/*"]
+  and .exclusions.slop == ["**/vendor/**","**/fixtures/**"]
+  and .prompting.language == "de-de"
+  and .sources.php_cs_fixer == ".php-cs-fixer.dist.php"
+  and .review.human_attention_every_changes_required == 3
+  and .review.configurable_by_setup == false
+' "$evidence/phpstan.json" >/dev/null
+test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
+
+# B. Incorrectly nested PHPStan scope must use Composer instead.
+mkdir -p "$work/nested/src" "$work/nested/app"
+printf 'parameters:\n  paths:\n    unexpected:\n      - src\n' > "$work/nested/phpstan.neon"
+printf '{"name":"setup/dogfood","autoload":{"psr-4":{"Demo\\\\":"app/"}}}\n' > "$work/nested/composer.json"
+(cd "$work/nested" && php "$root/bin/agent-loop" init recommend --format=json > "$evidence/nested.json")
+jq -e '.map.paths == ["app"] and .map.source == "composer.json"' "$evidence/nested.json" >/dev/null
+
+# C. Reject repo-controlled symlink to external file.
+printf 'parameters:\n  paths:\n    - .\n' > "$work/outside.neon"
+mkdir -p "$work/escape"
+ln -s "$work/outside.neon" "$work/escape/phpstan.neon"
+if (cd "$work/escape" && php "$root/bin/agent-loop" init recommend --format=json > "$evidence/symlink-stdout.txt" 2> "$evidence/symlink-stderr.txt"); then
+  echo 'FAIL: external symlink was accepted' >&2
+  exit 1
+fi
+grep -q 'Symlinked project config' "$evidence/symlink-stderr.txt"
+test ! -s "$evidence/symlink-stdout.txt"
+
+# D. Real repository: assess the configs under review.
+(cd "$root" && php bin/agent-loop init recommend --format=json > "$evidence/self.json")
+jq -e '.schema_version == 1 and (.map.paths | index("src") != null) and .sources.phpstan != null and .sources.slop == "slop-scan.config.json"' "$evidence/self.json" >/dev/null
+
+jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id "${GITHUB_RUN_ID:-local}" '
+{
+  schema_version: 1,
+  exact_head: $head,
+  workflow: $workflow,
+  run_id: $run_id,
+  result: "passed",
+  cases: [
+    "phpstan-and-slop-isolation",
+    "composer-fallback-for-nested-scope",
+    "out-of-root-symlink-rejection",
+    "actual-agent-loop-repository"
+  ]
+}' > "$evidence/proof.json"
+
+echo "PASS: project-aware init dogfood at exact HEAD $head"
