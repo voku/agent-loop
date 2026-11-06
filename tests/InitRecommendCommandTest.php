@@ -137,6 +137,18 @@ PHP,
         self::assertSame('phpstan.neon', $report['sources']['phpstan']);
     }
 
+    public function testLiteralRootScopeAndNestedExcludePathsStaySeparate(): void
+    {
+        file_put_contents($this->root . '/phpstan.neon', "parameters:\n  paths:\n    - .\n  excludePaths:\n    analyse:\n      - tests/fixtures/*\n");
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['.'], $report['map']['paths']);
+        self::assertSame('agent-loop map build --paths=.', $report['map']['command']);
+        self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
+        self::assertSame([], $report['exclusions']['slop']);
+    }
+
     public function testMalformedSlopConfigurationFailsClosed(): void
     {
         file_put_contents($this->root . '/slop-scan.config.json', '{ broken');
