@@ -35,8 +35,7 @@ final readonly class InitConfigLoader
      *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}},
      *     runtime: array{container: array<'service'|'image'|'workdir'|'user', non-empty-string>}
      * }
-     */
-    /**
+     *
      * Optional already-read content lets security-conscious callers inspect a
      * bounded repository file once, without a second unbounded filesystem read.
      */
