@@ -22,7 +22,7 @@ vendor/bin/agent-loop init recommend --format=json
 vendor/bin/agent-loop init install-assets --agent=codex --dry-run
 ```
 
-The `recommend` command is read-only and returns detected PHPStan/Composer scope, PHP-CS-Fixer presence, existing Slop exclusions, prompting language and unresolved choices. The host is **not** expected to copy all of that into new configuration files.
+The `recommend` command is read-only and returns detected PHPStan/Composer scope, **declared Composer validation-script names (not executable approvals)**, PHP-CS-Fixer presence, existing Slop exclusions, prompting language and unresolved choices. The host is **not** expected to copy all of that into new configuration files.
 
 Select the actual host (`codex` above is an example; `init host-status --format=json` helps identify it) and inspect the dry-run. With approval for the proposed changes:
 

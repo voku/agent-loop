@@ -26,7 +26,7 @@ If `recommend` is unavailable, verify the installed Agent Loop version; do not f
 
 Interpret `recommend` as *suggestions*, not authority. Inspect the source files it names to verify scope and ownership. Also **read, do not execute**, relevant existing project files:
 
-- `composer.json`: `require.php`, PSR-4 paths, `scripts`, PHPStan / PHP-CS-Fixer / PHPUnit dependencies; confirm executable scripts rather than assuming standard script names.
+- `composer.json`: `require.php`, PSR-4 paths, `scripts`, PHPStan / PHP-CS-Fixer / PHPUnit dependencies. Consume `quality.composer_scripts` from `init recommend` as **untrusted script-name evidence**, then inspect the actual script bodies and CI before proposing any validation command. Do not assume `composer test` or execute a script just because its name was detected.
 - `phpstan.neon[.dist]`: analysis paths and literal exclusions. Dynamic NEON includes/parameters are unresolved until verified by the owner tool; a discovered path is not proof it can be indexed.
 - `.php-cs-fixer[.dist].php`: detect the Finder/configuration, but **never include/execute arbitrary PHP config during discovery**. Do not pretend its effective file set is known from file presence.
 - `phpunit.xml[.dist]` or configured alternative: identify existing tests and CI commands without running them yet.

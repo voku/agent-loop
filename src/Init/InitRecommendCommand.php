@@ -49,6 +49,7 @@ final readonly class InitRecommendCommand
      *   schema_version: int,
      *   sources: array{phpstan: string|null, php_cs_fixer: string|null, composer: string|null, slop: string|null, agent_loop: string|null},
      *   map: array{paths: list<string>, source: string|null, command: string|null, requires_confirmation: true},
+     *   quality: array{source: string|null, composer_scripts: list<string>, requires_confirmation: true, note: string},
      *   exclusions: array{phpstan: list<string>, slop: list<string>, note: string},
      *   prompting: array{language: string, source: string},
      *   review: array{human_attention_every_changes_required: int, configurable_by_setup: false},
@@ -65,8 +66,9 @@ final readonly class InitRecommendCommand
         $slopPath = $this->firstExisting(['slop-scan.config.json', 'repo-slop.config.json']);
         $composerPath = $this->firstExisting(['composer.json']);
         $initPath = $this->firstExisting(['.agent-loop/init.json']);
+        $composer = $composerPath === null ? null : $this->readJson($composerPath);
         $phpstanLists = $this->phpstanLists($phpstanPath);
-        [$paths, $source] = $this->mapPaths($phpstanLists['paths'], $phpstanPath, $composerPath);
+        [$paths, $source] = $this->mapPaths($phpstanLists['paths'], $phpstanPath, $composerPath, $composer);
         $slop = $this->slopIgnores($slopPath);
 
         $phpstanExcludes = $phpstanLists['excludes'];
@@ -100,6 +102,12 @@ final readonly class InitRecommendCommand
                 'source' => $source,
                 'command' => $mapCommand,
                 'requires_confirmation' => true,
+            ],
+            'quality' => [
+                'source' => $composerPath,
+                'composer_scripts' => $composer === null ? [] : (new InitComposerQualityEvidence())->scriptNames($composer),
+                'requires_confirmation' => true,
+                'note' => 'Composer script names are declarations, not verified safe commands. Inspect script bodies and CI before executing them; never run scripts during discovery.',
             ],
             'exclusions' => [
                 'phpstan' => $phpstanExcludes,
@@ -156,30 +164,24 @@ final readonly class InitRecommendCommand
      * conventional directories. All candidates pass repository confinement.
      *
      * @param list<string> $phpstanPaths
+     * @param array<string, mixed>|null $composer
      * @return array{list<string>, string|null}
      */
-    private function mapPaths(array $phpstanPaths, ?string $phpstanPath, ?string $composerPath): array
+    private function mapPaths(array $phpstanPaths, ?string $phpstanPath, ?string $composerPath, ?array $composer): array
     {
         $paths = $this->existingPaths($phpstanPaths);
         if ($paths !== []) {
             return [$paths, $phpstanPath];
         }
 
-        if ($composerPath !== null) {
-            $composer = $this->readJson($composerPath);
+        if ($composer !== null) {
             $autoload = $composer['autoload'] ?? null;
             $psr4 = is_array($autoload) ? ($autoload['psr-4'] ?? null) : null;
             $candidates = [];
-            if (is_array($psr4)) {
-                foreach ($psr4 as $directories) {
-                    if (is_string($directories)) {
-                        $candidates[] = $directories;
-                    } elseif (is_array($directories)) {
-                        foreach ($directories as $directory) {
-                            if (is_string($directory)) {
-                                $candidates[] = $directory;
-                            }
-                        }
+            foreach (is_array($psr4) ? $psr4 : [] as $directories) {
+                foreach (is_array($directories) ? $directories : [$directories] as $directory) {
+                    if (is_string($directory)) {
+                        $candidates[] = $directory;
                     }
                 }
             }

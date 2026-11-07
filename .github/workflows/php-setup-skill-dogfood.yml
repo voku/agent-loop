@@ -94,6 +94,9 @@ jobs:
             and (.sources.php_cs_fixer == ".php-cs-fixer.dist.php")
             and (.exclusions.phpstan == ["tests/fixtures/*"])
             and (.exclusions.slop == ["**/vendor/**"])
+            and (.quality.source == "composer.json")
+            and (.quality.composer_scripts == ["test"])
+            and (.quality.requires_confirmation == true)
             and (.prompting.language == "de-de")
             and (.review.configurable_by_setup == false)
           ' "$proof/recommend.json" >/dev/null
