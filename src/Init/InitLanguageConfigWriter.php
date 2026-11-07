@@ -41,7 +41,7 @@ final readonly class InitLanguageConfigWriter
         }
 
         try {
-            if (is_link($lockPath) || !$this->isSameFile($handle, $lockPath)) {
+            if (!$this->isSameFile($handle, $lockPath)) {
                 throw new RuntimeException('Init language lock changed during acquisition.');
             }
             if (!flock($handle, LOCK_EX)) {
@@ -121,6 +121,7 @@ final readonly class InitLanguageConfigWriter
         $visible = lstat($path);
 
         return is_array($opened) && is_array($visible)
+            && ($visible['mode'] & 0o170000) === 0o100000
             && $opened['dev'] === $visible['dev'] && $opened['ino'] === $visible['ino'];
     }
 
