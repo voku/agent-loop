@@ -94,8 +94,51 @@ final readonly class InitConfigLoader
             return $result;
         }
 
-        $result['paths'] = $this->configuredPaths($decoded['paths'] ?? null);
-        $result['agents'] = $this->configuredAgents($decoded['agents'] ?? null);
+        $paths = $decoded['paths'] ?? null;
+        if (is_array($paths)) {
+            foreach ([
+                'skills_root',
+                'subagents_root',
+                'codex_hooks_root',
+                'claude_hooks_root',
+                'tools_root',
+                // Workflow state locations. state_root moves the whole tree at
+                // once; the rest override one branch of it independently, which
+                // is what a project that grew its own conventions actually needs.
+                'state_root',
+                'board_root',
+                'sessions_root',
+                'learning_root',
+                'recall_root',
+                'map_root',
+            ] as $key) {
+                $value = $paths[$key] ?? null;
+                if (is_string($value) && $value !== '') {
+                    $result['paths'][$key] = $value;
+                }
+            }
+        }
+
+        $agents = $decoded['agents'] ?? null;
+        if (is_array($agents)) {
+            foreach ($agents as $agentName => $agentConfig) {
+                if (!is_string($agentName) || !is_array($agentConfig)) {
+                    continue;
+                }
+
+                $normalizedAgentConfig = [];
+                foreach (['status', 'maps_to'] as $key) {
+                    $value = $agentConfig[$key] ?? null;
+                    if (is_string($value) && $value !== '') {
+                        $normalizedAgentConfig[$key] = $value;
+                    }
+                }
+
+                if ($normalizedAgentConfig !== []) {
+                    $result['agents'][strtolower($agentName)] = $normalizedAgentConfig;
+                }
+            }
+        }
 
         if (array_key_exists('package_skills', $decoded)) {
             if (!is_bool($decoded['package_skills'])) {
@@ -315,69 +358,6 @@ final readonly class InitConfigLoader
                 $runtime['container'] ?? null,
                 $result['warnings'],
             );
-        }
-
-        return $result;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function configuredPaths(mixed $paths): array
-    {
-        if (!is_array($paths)) {
-            return [];
-        }
-
-        $result = [];
-        foreach ([
-            'skills_root',
-            'subagents_root',
-            'codex_hooks_root',
-            'claude_hooks_root',
-            'tools_root',
-            'state_root',
-            'board_root',
-            'sessions_root',
-            'learning_root',
-            'recall_root',
-            'map_root',
-        ] as $key) {
-            $value = $paths[$key] ?? null;
-            if (is_string($value) && $value !== '') {
-                $result[$key] = $value;
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * @return array<string, array<string, string>>
-     */
-    private function configuredAgents(mixed $agents): array
-    {
-        if (!is_array($agents)) {
-            return [];
-        }
-
-        $result = [];
-        foreach ($agents as $agentName => $agentConfig) {
-            if (!is_string($agentName) || !is_array($agentConfig)) {
-                continue;
-            }
-
-            $normalized = [];
-            foreach (['status', 'maps_to'] as $key) {
-                $value = $agentConfig[$key] ?? null;
-                if (is_string($value) && $value !== '') {
-                    $normalized[$key] = $value;
-                }
-            }
-
-            if ($normalized !== []) {
-                $result[strtolower($agentName)] = $normalized;
-            }
         }
 
         return $result;
