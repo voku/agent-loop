@@ -19,6 +19,7 @@ Run from the PHP project root after Composer has made the CLI available:
 
 ```bash
 vendor/bin/agent-loop init recommend --format=json
+vendor/bin/agent-loop init plan --format=json
 vendor/bin/agent-loop init host-status --format=json
 ```
 
