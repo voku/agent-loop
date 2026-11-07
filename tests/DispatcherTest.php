@@ -68,6 +68,56 @@ final class DispatcherTest extends TestCase
         }
     }
 
+    public function testDelegatedBoardGeneratesDistinctPersistentLocalTaskIds(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-generated-card-' . bin2hex(random_bytes(6));
+        mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $root . '/.agent-loop/todo/kanban.config.json',
+            json_encode(['projectPrefix' => 'LOCAL'], JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            $dispatcher = new Dispatcher($root);
+            $createdIds = [];
+
+            foreach (['First follow-up', 'Second follow-up'] as $title) {
+                ob_start();
+                $exit = $dispatcher->run([
+                    'agent-loop',
+                    'board',
+                    'card',
+                    'create',
+                    '--generate-id',
+                    '--title=' . $title,
+                    '--format=json',
+                ]);
+                $output = (string) ob_get_clean();
+
+                self::assertSame(0, $exit, $output);
+                /** @var array{card: string} $payload */
+                $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+                $id = $payload['card'];
+
+                self::assertMatchesRegularExpression('/^LOCAL-[1-9][0-9]*$/', $id);
+                self::assertFileExists($root . '/.agent-loop/todo/cards/' . $id . '.md');
+                self::assertTrue(\\voku\\AgentLoop\\Workflow\\WorkflowTaskId::isValid($id));
+
+                ob_start();
+                $showExit = $dispatcher->run(['agent-loop', 'board', 'card', 'show', $id, '--format=json']);
+                $shown = (string) ob_get_clean();
+
+                self::assertSame(0, $showExit, $shown);
+                self::assertStringContainsString($title, $shown);
+                $createdIds[] = $id;
+            }
+
+            self::assertNotSame($createdIds[0], $createdIds[1]);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testDelegatedBoardAcceptsEqualsAndSpacedLongOptionValues(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-board-' . bin2hex(random_bytes(6));
