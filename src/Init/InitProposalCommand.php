@@ -93,28 +93,12 @@ final readonly class InitProposalCommand
             ];
         }
 
-        $changes = [];
-        if ($requestedLanguage !== null) {
-            $language = $this->normalizeLanguage($requestedLanguage);
-            foreach ($report['warnings'] as $warning) {
-                if (str_contains($warning, 'init config:')) {
-                    throw new RuntimeException('Cannot propose a language edit while the existing init config has validation warnings.');
-                }
-            }
-
-            if ($language !== $report['prompting']['language']) {
-                $changes[] = [
-                    'target' => '.agent-loop/init.json',
-                    'pointer' => '/prompting/language',
-                    'before' => $report['prompting']['language'],
-                    'before_source' => $report['prompting']['source'],
-                    'after' => $language,
-                    'owner' => 'agent-loop',
-                    'source' => 'explicit --language',
-                    'requires_confirmation' => true,
-                ];
-            }
-        }
+        $changes = $this->languageChanges(
+            $requestedLanguage,
+            $report['prompting']['language'],
+            $report['prompting']['source'],
+            $report['warnings'],
+        );
 
         return [
             'schema_version' => 1,
@@ -125,6 +109,44 @@ final readonly class InitProposalCommand
             'changes' => $changes,
             'warnings' => $report['warnings'],
         ];
+    }
+
+    /**
+     * @param list<string> $warnings
+     *
+     * @return list<array{target: string, pointer: string, before: string, before_source: string, after: string, owner: string, source: string, requires_confirmation: true}>
+     */
+    private function languageChanges(
+        ?string $requestedLanguage,
+        string $currentLanguage,
+        string $currentSource,
+        array $warnings,
+    ): array {
+        if ($requestedLanguage === null) {
+            return [];
+        }
+
+        $language = $this->normalizeLanguage($requestedLanguage);
+        foreach ($warnings as $warning) {
+            if (str_contains($warning, 'init config:')) {
+                throw new RuntimeException('Cannot propose a language edit while the existing init config has validation warnings.');
+            }
+        }
+
+        if ($language === $currentLanguage) {
+            return [];
+        }
+
+        return [[
+            'target' => '.agent-loop/init.json',
+            'pointer' => '/prompting/language',
+            'before' => $currentLanguage,
+            'before_source' => $currentSource,
+            'after' => $language,
+            'owner' => 'agent-loop',
+            'source' => 'explicit --language',
+            'requires_confirmation' => true,
+        ]];
     }
 
     private function normalizeLanguage(string $language): string
