@@ -9,6 +9,7 @@ on:
       - 'resources/skills/**'
       - 'resources/subagents/**'
       - 'tools/Dogfood/Routing/**'
+      - 'tools/Dogfood/codex-implicit-router-provider-proof.py'
       - 'resources/hooks/codex/**'
   workflow_dispatch:
 
@@ -206,6 +207,25 @@ jobs:
                   f"{counts['before_reinstall']} != {counts['after_reinstall']}"
               )
           PY
+
+      - name: Prove implicit managed router reaches an ordinary Codex provider request
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/Dogfood/codex-implicit-router-provider-proof.py
+          python3 tools/Dogfood/codex-implicit-router-provider-proof.py \
+            --source-root="${PROOF_ROOT}" \
+            --evidence-root="${EVIDENCE_ROOT}" \
+            --repository-head="$(cat "${EVIDENCE_ROOT}/repository-head-sha.txt")" \
+            --codex-version="$(codex --version)"
+          jq -e '.evidence_class == "host_runtime_provider_request" and .status == "observed"
+            and .arms.baseline.router_marker_count == 0
+            and .arms.treatment.router_marker_count == 1
+            and .arms.baseline.managed_policy_sha256 == .arms.treatment.managed_policy_sha256' \
+            "${EVIDENCE_ROOT}/implicit-router-provider-proof.json" >/dev/null
 
       - name: Prove projected rules auto-load and block live shell command
         shell: bash
