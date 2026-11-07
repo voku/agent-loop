@@ -48,7 +48,7 @@ final class InitRecommendCommandTest extends TestCase
         self::assertSame('en', $report['prompting']['language']);
         self::assertSame('default', $report['prompting']['source']);
         self::assertSame(3, $report['review']['human_attention_every_changes_required']);
-        self::assertSame(['agent-loop init sync-tools --dry-run'], $report['next_actions']);
+        self::assertSame(['vendor/bin/agent-loop init sync-tools --dry-run'], $report['next_actions']);
 
         ob_start();
         try {
@@ -95,7 +95,7 @@ PHP,
 
         self::assertSame(['src', 'tests'], $report['map']['paths']);
         self::assertSame('phpstan.neon.dist', $report['map']['source']);
-        self::assertSame('agent-loop map build --paths=src,tests', $report['map']['command']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=src,tests', $report['map']['command']);
         self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
         self::assertSame([], $report['exclusions']['slop']);
         self::assertSame('.php-cs-fixer.dist.php', $report['sources']['php_cs_fixer']);
@@ -142,7 +142,7 @@ PHP,
         $report = (new InitRecommendCommand($this->root))->inspect();
 
         self::assertSame(['.'], $report['map']['paths']);
-        self::assertSame('agent-loop map build --paths=.', $report['map']['command']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=.', $report['map']['command']);
         self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
         self::assertSame([], $report['exclusions']['slop']);
     }
@@ -158,7 +158,7 @@ PHP,
 
         self::assertSame(['app'], $report['map']['paths']);
         self::assertSame('composer.json', $report['map']['source']);
-        self::assertSame('agent-loop map build --paths=app', $report['map']['command']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=app', $report['map']['command']);
     }
 
     public function testMixedPhpstanListAndNestedMappingIsNotPartiallyAccepted(): void
@@ -249,7 +249,7 @@ PHP,
 
         self::assertSame(['src'], $report['map']['paths']);
         self::assertSame('phpstan.neon', $report['map']['source']);
-        self::assertSame('agent-loop map build --paths=src', $report['map']['command']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=src', $report['map']['command']);
         self::assertSame([], $report['warnings']);
     }
 
