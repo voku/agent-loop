@@ -178,16 +178,10 @@ final readonly class InitRecommendCommand
             $autoload = $composer['autoload'] ?? null;
             $psr4 = is_array($autoload) ? ($autoload['psr-4'] ?? null) : null;
             $candidates = [];
-            if (is_array($psr4)) {
-                foreach ($psr4 as $directories) {
-                    if (is_string($directories)) {
-                        $candidates[] = $directories;
-                    } elseif (is_array($directories)) {
-                        foreach ($directories as $directory) {
-                            if (is_string($directory)) {
-                                $candidates[] = $directory;
-                            }
-                        }
+            foreach (is_array($psr4) ? $psr4 : [] as $directories) {
+                foreach (is_array($directories) ? $directories : [$directories] as $directory) {
+                    if (is_string($directory)) {
+                        $candidates[] = $directory;
                     }
                 }
             }
