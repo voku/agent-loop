@@ -59,6 +59,26 @@ jq -e '
 ' "$evidence/phpstan.json" >/dev/null
 test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
 
+# Real CLI: accepted single-field mutation only after a reviewed evidence SHA.
+(cd "$work/phpstan" && php "$root/bin/agent-loop" init plan --format=json --language=fr-FR) > "$evidence/approved-language-plan.json"
+review_sha="$(jq -er '.evidence_sha256' "$evidence/approved-language-plan.json")"
+cp "$work/phpstan/.agent-loop/init.json" "$evidence/original-language-config.json"
+(
+  cd "$work/phpstan"
+  php "$root/bin/agent-loop" init apply --language=fr-FR --evidence-sha256="$review_sha" --accept=prompting.language --dry-run > "$evidence/language-dry-run.json"
+  cmp .agent-loop/init.json "$evidence/original-language-config.json"
+  php "$root/bin/agent-loop" init apply --language=fr-FR --evidence-sha256="$review_sha" --accept=prompting.language --yes > "$evidence/language-applied.json"
+  jq -e '.prompting.language == "fr-fr"' .agent-loop/init.json >/dev/null
+  if php "$root/bin/agent-loop" init apply --language=de-DE --evidence-sha256="$review_sha" --accept=prompting.language --yes > "$evidence/stale-stdout.txt" 2> "$evidence/stale-stderr.txt"; then
+    echo 'FAIL: stale reviewed evidence was accepted' >&2
+    exit 1
+  fi
+)
+jq -e '.status == "dry_run"' "$evidence/language-dry-run.json" >/dev/null
+jq -e '.status == "applied"' "$evidence/language-applied.json" >/dev/null
+test ! -s "$evidence/stale-stdout.txt"
+test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
+
 # Install the *real* Slop Scan tooling in the disposable consumer using the
 # existing owner command, then run the installed scanner. Composer is an
 # explicit CI opt-in, never an implicit action of init recommend.
