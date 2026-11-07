@@ -35,6 +35,7 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop init install-assets', $help['output']);
         self::assertStringContainsString('agent-loop init recommend', $help['output']);
         self::assertStringContainsString('agent-loop init plan', $help['output']);
+        self::assertStringContainsString('agent-loop init apply', $help['output']);
         self::assertStringContainsString('agent-loop init sync-policy', $help['output']);
         self::assertStringContainsString('--agent=<codex|claude|opencode|cursor|all>', $help['output']);
         self::assertStringContainsString('agent-loop init sync-instructions', $help['output']);
@@ -74,6 +75,7 @@ final class InitCliTest extends TestCase
             'scaffold',
             'recommend',
             'plan',
+            'apply',
         ];
 
         foreach ($commands as $command) {
