@@ -46,15 +46,22 @@ jobs:
           consumer="$(mktemp -d)"
           trap 'rm -rf "$consumer"' EXIT
           mkdir -p "$consumer/src" "$consumer/tests" "$consumer/.agent-loop"
-          cat > "$consumer/composer.json" <<'JSON'
-          {
-            "name": "acme/php-onboarding-consumer",
-            "type": "project",
-            "require": {"php": "^8.3"},
-            "autoload": {"psr-4": {"Acme\\": "src/"}},
-            "scripts": {"test": "echo original-project-test-script"}
-          }
-          JSON
+          jq -n --arg root "$GITHUB_WORKSPACE" '{
+            name: "acme/php-onboarding-consumer",
+            type: "project",
+            require: {"php": "^8.3"},
+            "require-dev": {"voku/agent-loop": "dev-main"},
+            repositories: [{
+              type: "path",
+              url: $root,
+              options: {symlink: false, versions: {"voku/agent-loop": "dev-main"}}
+            }],
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            autoload: {"psr-4": {"Acme\\\\": "src/"}},
+            scripts: {test: "echo original-project-test-script"},
+            config: {"allow-plugins": false}
+          }' > "$consumer/composer.json"
           cat > "$consumer/phpstan.neon.dist" <<'NEON'
           parameters:
             paths:
@@ -71,10 +78,14 @@ jobs:
           PHP
           printf '{"ignores":["**/vendor/**"]}\n' > "$consumer/slop-scan.config.json"
           printf '{"version":1,"prompting":{"language":"de-DE"}}\n' > "$consumer/.agent-loop/init.json"
-          (cd "$consumer" && find . -type f -print0 | sort -z | xargs -0 sha256sum) > "$proof/before.sha256"
+          # Install the current checked-out package into an independent PHP project.
+          composer update --working-dir="$consumer" --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress > "$proof/composer-install.log"
+          test -f "$consumer/vendor/voku/agent-loop/resources/skills/agent-loop-php-setup/SKILL.md"
+          cmp "$GITHUB_WORKSPACE/resources/skills/agent-loop-php-setup/SKILL.md" "$consumer/vendor/voku/agent-loop/resources/skills/agent-loop-php-setup/SKILL.md"
+          (cd "$consumer" && find . -path ./vendor -prune -o -type f -print0 | sort -z | xargs -0 sha256sum) > "$proof/before.sha256"
           (
             cd "$consumer"
-            php "$GITHUB_WORKSPACE/bin/agent-loop" init recommend --format=json > "$proof/recommend.json"
+            php vendor/bin/agent-loop init recommend --format=json > "$proof/recommend.json"
           )
           jq -e '
             .schema_version == 1
@@ -88,26 +99,27 @@ jobs:
           ' "$proof/recommend.json" >/dev/null
           (
             cd "$consumer"
-            php "$GITHUB_WORKSPACE/bin/agent-loop" init install-assets --agent=codex --dry-run > "$proof/install-preview.log"
+            php vendor/bin/agent-loop init install-assets --agent=codex --dry-run > "$proof/install-preview.log"
           )
           grep -F 'install agent-loop-php-setup' "$proof/install-preview.log"
           test ! -e "$consumer/.codex"
           test ! -e "$consumer/UNEXPECTED_EXECUTION"
-          (cd "$consumer" && find . -type f -print0 | sort -z | xargs -0 sha256sum) > "$proof/after-preview.sha256"
+          (cd "$consumer" && find . -path ./vendor -prune -o -type f -print0 | sort -z | xargs -0 sha256sum) > "$proof/after-preview.sha256"
           diff -u "$proof/before.sha256" "$proof/after-preview.sha256"
           (
             cd "$consumer"
-            php "$GITHUB_WORKSPACE/bin/agent-loop" init install-assets --agent=codex > "$proof/install.log"
+            php vendor/bin/agent-loop init install-assets --agent=codex > "$proof/install.log"
           )
           test -f "$consumer/.codex/skills/agent-loop-php-setup/SKILL.md"
-          cmp "$GITHUB_WORKSPACE/resources/skills/agent-loop-php-setup/SKILL.md" "$consumer/.codex/skills/agent-loop-php-setup/SKILL.md"
+          cmp "$consumer/vendor/voku/agent-loop/resources/skills/agent-loop-php-setup/SKILL.md" "$consumer/.codex/skills/agent-loop-php-setup/SKILL.md"
           test ! -e "$consumer/UNEXPECTED_EXECUTION"
           test ! -e "$consumer/.codex/hooks.json"
           test ! -e "$consumer/tools/slop-scan/vendor"
           jq -n --arg sha "$EXPECTED_HEAD_SHA" '{
             schema_version: 1,
             checked_head: $sha,
-            scenario: "installed_php_project",
+            scenario: "composer_installed_php_project",
+            composer_installed_package: true,
             read_only_discovery: "passed",
             unchanged_project_config_before_install: true,
             php_cs_fixer_not_executed: true,
