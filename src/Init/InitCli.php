@@ -93,6 +93,11 @@ final readonly class InitCli
             'description' => 'Install isolated evidence-tool projects such as itp-context and slop-scan under tools/.',
             'notes' => ['Writes project files only and never runs Composer. Use --dry-run to preview updates.'],
         ],
+        'plan' => [
+            'usage' => 'agent-loop init plan [--format=json]',
+            'description' => 'Build a typed, read-only review plan from existing setup evidence; never apply changes or run scripts.',
+            'notes' => ['Candidates require explicit approval; file_changes is empty until a separately reviewed apply flow exists.'],
+        ],
         'recommend' => [
             'usage' => 'agent-loop init recommend [--format=json]',
             'description' => 'Inspect existing PHPStan, Composer, PHP-CS-Fixer and slop config as read-only setup evidence for human or LLM review.',
@@ -139,6 +144,7 @@ final readonly class InitCli
             'sync-tools' => (new InitSyncToolsCommand($this->rootPath))->run($rest),
             'scaffold' => (new InitScaffoldCommand($this->rootPath))->run($rest),
             'recommend' => (new InitRecommendCommand($this->rootPath))->run($rest),
+            'plan' => (new InitPlanCommand($this->rootPath))->run($rest),
             default => $this->printUsage(1, $command),
         };
     }
@@ -172,6 +178,7 @@ final readonly class InitCli
           agent-loop init sync-tools [--tools-root=PATH] [--tools-dir=PATH] [--config=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]
           agent-loop init recommend [--format=json]
+          agent-loop init plan [--format=json]
 
         Commands:
           Every init subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
@@ -193,6 +200,7 @@ final readonly class InitCli
           sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and maintained host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
           recommend         Discover project tooling and emit read-only, source-backed JSON for setup review.
+          plan              Produce typed, source-backed read-only setup candidates with zero file edits or executions.
           scaffold          Create minimum local workflow infrastructure. Use --prefix for a real empty board or --demo for tutorial board/task state; neither is invented by default.
         TXT;
 
