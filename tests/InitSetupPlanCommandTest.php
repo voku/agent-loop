@@ -85,7 +85,7 @@ final class InitSetupPlanCommandTest extends TestCase
         self::assertSame('prompting.language', $plan['candidates'][0]['id']);
         self::assertSame('en', $plan['candidates'][0]['before']);
         self::assertSame('de-de', $plan['candidates'][0]['after']);
-        self::assertSame(['operation' => 'replace', 'pointer' => '/prompting/language', 'value' => 'de-de'], $plan['candidates'][0]['diff']);
+        self::assertSame(['operation' => 'set-after-approval', 'pointer' => '/prompting/language', 'value' => 'de-de'], $plan['candidates'][0]['diff']);
         self::assertSame($before, file_get_contents($this->root . '/.agent-loop/init.json'));
         self::assertSame([], (new InitSetupPlanCommand($this->root))->inspect('en')['candidates']);
     }
@@ -95,8 +95,20 @@ final class InitSetupPlanCommandTest extends TestCase
         $plan = (new InitSetupPlanCommand($this->root))->inspect('fr');
         self::assertSame('prompting.language', $plan['candidates'][0]['id']);
         self::assertNull($plan['candidates'][0]['before']);
-        self::assertSame('add', $plan['candidates'][0]['diff']['operation']);
+        self::assertSame('set-after-approval', $plan['candidates'][0]['diff']['operation']);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
+    public function testExistingConfigWithoutDeclaredLanguageIsNotMisrepresentedAsAnExplicitValue(): void
+    {
+        self::assertTrue(mkdir($this->root . '/.agent-loop'));
+        file_put_contents($this->root . '/.agent-loop/init.json', "{\n  \"version\": 1, \"custom\": true\n}\n");
+
+        $plan = (new InitSetupPlanCommand($this->root))->inspect('fr');
+
+        self::assertSame('resolved-config-or-default', $plan['candidates'][0]['before_source']);
+        self::assertSame('set-after-approval', $plan['candidates'][0]['diff']['operation']);
+        self::assertSame('en', $plan['candidates'][0]['before']);
     }
 
     public function testUnsupportedFlagsAndMaliciousLanguageAreRejectedWithoutMutation(): void
