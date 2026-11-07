@@ -144,6 +144,20 @@ final class InitPlanCommandTest extends TestCase
         self::assertSame('de-de', $plan['review_diffs'][0]['after']);
     }
 
+    public function testEvidenceDigestBindsNormalizedRequestedLanguageWithoutChangingLegacyDigest(): void
+    {
+        $command = new InitPlanCommand($this->root);
+        $legacy = $command->inspect();
+
+        self::assertSame($legacy['evidence_sha256'], $command->inspect()['evidence_sha256']);
+
+        $fr = $command->inspect('fr-FR');
+        self::assertSame($fr['evidence_sha256'], $command->inspect('FR-fr')['evidence_sha256']);
+        self::assertNotSame($legacy['evidence_sha256'], $fr['evidence_sha256']);
+        self::assertNotSame($fr['evidence_sha256'], $command->inspect('ja')['evidence_sha256']);
+        self::assertSame([], $fr['file_changes']);
+    }
+
     public function testMalformedExistingConfigBlocksLanguageDiff(): void
     {
         mkdir($this->root . '/.agent-loop', 0o775, true);

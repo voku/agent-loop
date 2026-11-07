@@ -6,6 +6,7 @@ on:
       - 'src/Init/**'
       - 'tests/InitRecommendCommandTest.php'
       - 'tests/InitPlanCommandTest.php'
+      - 'tests/InitApplyCommandTest.php'
       - 'tests/InitSyncToolsCommandTest.php'
       - 'tests/InitConfigLoaderTest.php'
       - 'tests/InitCliTest.php'
@@ -49,9 +50,12 @@ jobs:
         run: |
           php -l src/Init/InitRecommendCommand.php
           php -l src/Init/InitPlanCommand.php
+          php -l src/Init/InitApplyCommand.php
+          php -l src/Init/InitLanguageConfigWriter.php
           php -l tests/InitRecommendCommandTest.php
           php -l tests/InitPlanCommandTest.php
-          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitPlanCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
+          php -l tests/InitApplyCommandTest.php
+          php vendor/bin/phpunit tests/InitApplyCommandTest.php tests/InitRecommendCommandTest.php tests/InitPlanCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
       - name: Exercise actual CLI against isolated projects
         shell: bash
         env:

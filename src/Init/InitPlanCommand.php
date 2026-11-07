@@ -60,7 +60,13 @@ final readonly class InitPlanCommand
     public function inspect(?string $requestedLanguage = null): array
     {
         $evidence = (new InitRecommendCommand($this->rootPath))->inspect();
-        $encoded = json_encode($evidence, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        // A reviewed language diff is not interchangeable with a different request.
+        // Keep the original evidence-only hash stable for plans without a language.
+        $normalizedLanguage = $requestedLanguage === null ? null : $this->normalizeLanguage($requestedLanguage);
+        $digestInput = $normalizedLanguage === null
+            ? $evidence
+            : ['evidence' => $evidence, 'requested_language' => $normalizedLanguage];
+        $encoded = json_encode($digestInput, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         $proposals = [];
         $mapProposal = $this->mapProposal($evidence['map']['command'], $evidence['map']['source']);

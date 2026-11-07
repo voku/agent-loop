@@ -98,6 +98,11 @@ final readonly class InitCli
             'description' => 'Build a typed, read-only review plan from existing setup evidence; never apply changes or run scripts.',
             'notes' => ['Candidates require explicit approval; --language only previews a requested language diff, and neither mode writes files.'],
         ],
+        'apply' => [
+            'usage' => 'agent-loop init apply --language=<BCP47> --evidence-sha256=<SHA256> --accept=prompting.language [--dry-run|--yes]',
+            'description' => 'Apply only an explicitly approved prompt language change after checking its current setup evidence digest.',
+            'notes' => ['Without --yes this is a read-only preview. With --yes only prompting.language is written, under a lock and with atomic replacement.'],
+        ],
         'recommend' => [
             'usage' => 'agent-loop init recommend [--format=json]',
             'description' => 'Inspect existing PHPStan, Composer, PHP-CS-Fixer and slop config as read-only setup evidence for human or LLM review.',
@@ -145,6 +150,7 @@ final readonly class InitCli
             'scaffold' => (new InitScaffoldCommand($this->rootPath))->run($rest),
             'recommend' => (new InitRecommendCommand($this->rootPath))->run($rest),
             'plan' => (new InitPlanCommand($this->rootPath))->run($rest),
+            'apply' => (new InitApplyCommand($this->rootPath))->run($rest),
             default => $this->printUsage(1, $command),
         };
     }
@@ -179,6 +185,7 @@ final readonly class InitCli
           agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]
           agent-loop init recommend [--format=json]
           agent-loop init plan [--format=json] [--language=<BCP47>]
+          agent-loop init apply --language=<BCP47> --evidence-sha256=<SHA256> --accept=prompting.language [--dry-run|--yes]
 
         Commands:
           Every init subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
@@ -201,6 +208,7 @@ final readonly class InitCli
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
           recommend         Discover project tooling and emit read-only, source-backed JSON for setup review.
           plan              Produce typed, source-backed read-only setup candidates with zero file edits or executions.
+          apply             Update only an accepted prompt-language field after current-evidence validation; no other writes.
           scaffold          Create minimum local workflow infrastructure. Use --prefix for a real empty board or --demo for tutorial board/task state; neither is invented by default.
         TXT;
 
