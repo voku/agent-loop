@@ -31,6 +31,19 @@ final class PremiseCheckGuidanceTest extends TestCase
         self::assertStringContainsString('Re-check anything whose authority, freshness, repository scope, or assumptions may have changed.', $manifest);
     }
 
+    public function testExplicitlyRequestedLocalCardsUseOwnerGeneratedIdentityRegardlessOfFutureWorkMode(): void
+    {
+        $workflow = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-workflow/SKILL.md');
+
+        self::assertIsString($workflow);
+        $frontDoor = explode('## Ambiguous New Work Items', explode('## End-to-End Implementation Front Door', $workflow, 2)[1] ?? '', 2)[0];
+
+        self::assertStringContainsString('board card create --generate-id --title', $frontDoor);
+        self::assertStringContainsString('never calculate `highest number + 1`', $frontDoor);
+        self::assertStringContainsString('external ticket authority', $frontDoor);
+        self::assertStringContainsString('result\'s `card` ID unchanged', $frontDoor);
+    }
+
     public function testWorkflowSkillKeepsPromptControlsRoutable(): void
     {
         $workflow = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-workflow/SKILL.md');
