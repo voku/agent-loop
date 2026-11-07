@@ -120,16 +120,16 @@
         },
         {
             "name": "helgesverre/toon",
-            "version": "v3.2.1",
+            "version": "v3.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/HelgeSverre/toon-php.git",
-                "reference": "55ca6ba93846bde75eeb04dac70a99fe0bb435dd"
+                "reference": "6c9163b174fb77f31e64bd9840d428b6691964fc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/HelgeSverre/toon-php/zipball/55ca6ba93846bde75eeb04dac70a99fe0bb435dd",
-                "reference": "55ca6ba93846bde75eeb04dac70a99fe0bb435dd",
+                "url": "https://api.github.com/repos/HelgeSverre/toon-php/zipball/6c9163b174fb77f31e64bd9840d428b6691964fc",
+                "reference": "6c9163b174fb77f31e64bd9840d428b6691964fc",
                 "shasum": ""
             },
             "require": {
@@ -180,9 +180,10 @@
             ],
             "support": {
                 "issues": "https://github.com/HelgeSverre/toon-php/issues",
-                "source": "https://github.com/HelgeSverre/toon-php/tree/v3.2.1"
+                "source": "https://github.com/HelgeSverre/toon-php/tree/v3.3.0"
             },
-            "time": "2026-07-08T15:55:13+00:00"
+            "time": "2026-11-06T13:07:31+00:00",
+            "published-time": "2026-11-06T13:08:24+00:00"
         },
         {
             "name": "nikic/php-parser",
