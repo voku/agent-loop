@@ -1,5 +1,24 @@
 ## Unreleased
 
+## [0.20.82] - 2026-11-07
+
+### Added
+
+- Expose read-only, project-aware PHP setup evidence with `agent-loop init recommend --format=json`. Detect literal PHPStan paths and exclusions, Composer autoload, existing Slop Scan ignores, and PHP-CS-Fixer configuration without running project scripts or PHP configuration (#948).
+- Ship the `agent-loop-php-setup` coding-host skill for evidence-based proposals, dry runs, and explicitly approved configuration changes. The skill does not introduce another model client or bypass human review (#951).
+- Report syntactically safe Composer quality-script names as untrusted setup evidence, without executing or trusting script bodies (#953).
+- Integrate the released `voku/agent-recall-compiler` 0.26.0 bounded-choice validation API, with installed-consumer regression coverage. Workflow selection remains opt-in and advisory; there is no implicit model routing (#952).
+
+### Changed
+
+- Remove an unused follow-up budget setting from the discover-only project configuration while retaining the existing no-automatic-follow-up boundary (#931).
+- Update development dependency `symfony/yaml` to the 7.4.23 security release (#944).
+
+### Tests
+
+- Cover project-aware setup boundaries, malformed and hostile tooling configuration, installed PHP-consumer skill projection, safe Composer script-name discovery, and the optional Recall bounded-choice API (#948, #951, #952, #953).
+- Require exact-head PHP 8.3/8.4/8.5 `composer ci` and relevant installed-consumer GitHub Actions dogfood before tagging this release.
+
 ## [0.20.81] - 2026-11-04
 
 ### Fixed

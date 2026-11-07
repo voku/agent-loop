@@ -36,6 +36,21 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testProvidedBoundedContentIsUsedWithoutSecondFilesystemRead(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', '{invalid actual JSON');
+
+        $config = (new InitConfigLoader($root))->load(
+            '.agent-loop/init.json',
+            '{"prompting":{"language":"de-DE"}}',
+        );
+
+        self::assertSame('de-de', $config['prompting']['language']);
+        self::assertSame([], $config['warnings']);
+    }
+
     public function testInvalidPromptingOptionsWarnAndKeepDefaults(): void
     {
         $root = $this->tempDir();

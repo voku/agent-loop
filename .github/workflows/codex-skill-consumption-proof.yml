@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/codex-skill-consumption-proof.yml'
       - 'resources/skills/agent-loop-workflow/**'
+      - 'resources/skills/agent-loop-php-setup/**'
       - 'src/Init/**'
   workflow_dispatch:
 
@@ -22,7 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify checked-out PR head
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
 
       - name: Checkout pinned first-party interaction skills
         uses: actions/checkout@v7
@@ -73,13 +79,16 @@ jobs:
           )
 
           workflow_skill="${proof_root}/.codex/skills/agent-loop-workflow/SKILL.md"
+          php_setup_skill="${proof_root}/.codex/skills/agent-loop-php-setup/SKILL.md"
           interview_skill="${proof_root}/.codex/skills/requirements-interview/SKILL.md"
           repair_skill="${proof_root}/.codex/skills/review-feedback-repair/SKILL.md"
 
           test -f "${workflow_skill}"
+          test -f "${php_setup_skill}"
           test -f "${interview_skill}"
           test -f "${repair_skill}"
           grep -Fq 'This is the implementation front door.' "${workflow_skill}"
+          grep -Fq 'The coding host is already the LLM.' "${php_setup_skill}"
           grep -Fq 'Turn an ambiguous feature or engineering request into an implementation-ready contract without starting implementation.' "${interview_skill}"
           grep -Fq 'Turn current review feedback and failing validation into bounded repair work without surrendering engineering judgment.' "${repair_skill}"
 
@@ -92,6 +101,7 @@ jobs:
           git -C "${GITHUB_WORKSPACE}/build/agent-skills-source" rev-parse HEAD > "${evidence_root}/agent-skills-head-sha.txt"
           sha256sum "${GITHUB_WORKSPACE}/composer.lock" | cut -d' ' -f1 > "${evidence_root}/dependency-graph.sha256"
           sha256sum "${workflow_skill}" | cut -d' ' -f1 > "${evidence_root}/projected-agent-loop-workflow.sha256"
+          sha256sum "${php_setup_skill}" | cut -d' ' -f1 > "${evidence_root}/projected-agent-loop-php-setup.sha256"
           sha256sum "${interview_skill}" | cut -d' ' -f1 > "${evidence_root}/projected-requirements-interview.sha256"
           sha256sum "${repair_skill}" | cut -d' ' -f1 > "${evidence_root}/projected-review-feedback-repair.sha256"
 
@@ -204,12 +214,14 @@ jobs:
 
           run_arm baseline 'Inspect this repository and report the current branch.'
           run_arm workflow '$agent-loop-workflow Handle governed task PROOF-1.'
+          run_arm php-setup '$agent-loop-php-setup Set up Agent Loop for this existing PHP project. Inspect configuration only; do not mutate.'
           run_arm interview '$requirements-interview Clarify the ambiguous task: Improve the workflow. Do not implement.'
           run_arm repair '$review-feedback-repair Address current review feedback for governed task PROOF-1.'
 
           python3 - \
             "${EVIDENCE_ROOT}/baseline-request.json" \
             "${EVIDENCE_ROOT}/workflow-request.json" \
+            "${EVIDENCE_ROOT}/php-setup-request.json" \
             "${EVIDENCE_ROOT}/interview-request.json" \
             "${EVIDENCE_ROOT}/repair-request.json" \
             "${EVIDENCE_ROOT}/skill-consumption.json" <<'PY'
@@ -218,6 +230,7 @@ jobs:
 
           markers = {
               "agent-loop-workflow": "This is the implementation front door.",
+              "agent-loop-php-setup": "The coding host is already the LLM.",
               "requirements-interview": (
                   "Turn an ambiguous feature or engineering request into an implementation-ready "
                   "contract without starting implementation."
@@ -230,8 +243,9 @@ jobs:
           arms = {
               "baseline": sys.argv[1],
               "agent-loop-workflow": sys.argv[2],
-              "requirements-interview": sys.argv[3],
-              "review-feedback-repair": sys.argv[4],
+              "agent-loop-php-setup": sys.argv[3],
+              "requirements-interview": sys.argv[4],
+              "review-feedback-repair": sys.argv[5],
           }
 
           def flatten(value):
@@ -255,16 +269,25 @@ jobs:
               "baseline": {skill: 0 for skill in markers},
               "agent-loop-workflow": {
                   "agent-loop-workflow": 1,
+                  "agent-loop-php-setup": 0,
+                  "requirements-interview": 0,
+                  "review-feedback-repair": 0,
+              },
+              "agent-loop-php-setup": {
+                  "agent-loop-workflow": 0,
+                  "agent-loop-php-setup": 1,
                   "requirements-interview": 0,
                   "review-feedback-repair": 0,
               },
               "requirements-interview": {
                   "agent-loop-workflow": 0,
+                  "agent-loop-php-setup": 0,
                   "requirements-interview": 1,
                   "review-feedback-repair": 0,
               },
               "review-feedback-repair": {
                   "agent-loop-workflow": 0,
+                  "agent-loop-php-setup": 0,
                   "requirements-interview": 0,
                   "review-feedback-repair": 1,
               },
@@ -281,12 +304,12 @@ jobs:
               "boundary": (
                   "Proves Codex 0.157.0 loads each selected projected SKILL.md body into the "
                   "provider request for explicit skill selection, with no observed cross-loading "
-                  "between these three markers. It does not prove implicit semantic routing, "
+                  "between these four markers. It does not prove implicit semantic routing, "
                   "model compliance with the skill body, end-to-end behavioral sequencing, "
                   "arbitrary skills, or other hosts."
               ),
           }
-          with open(sys.argv[5], "w", encoding="utf-8") as handle:
+          with open(sys.argv[6], "w", encoding="utf-8") as handle:
               json.dump(receipt, handle, indent=2, sort_keys=True)
               handle.write("\n")
 
