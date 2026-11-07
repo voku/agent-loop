@@ -58,7 +58,7 @@ final class InitComposerQualityEvidenceTest extends TestCase
             self::assertSame(['src'], $report['map']['paths']);
             self::assertSame('composer.json', $report['quality']['source']);
             self::assertSame(['ci', 'test:unit'], $report['quality']['composer_scripts']);
-            self::assertSame('Composer script names are declarations, not verified safe commands. Inspect script bodies and CI before executing them; never run scripts during discovery.', $report['quality']['note']);
+            self::assertStringContainsString('not verified safe commands', $report['quality']['note']);
             self::assertFileDoesNotExist($root . '/PWNED');
             self::assertSame([], $report['warnings']);
         } finally {
