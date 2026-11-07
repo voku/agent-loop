@@ -1,0 +1,64 @@
+name: Docker image smoke
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - Dockerfile.agent-ui
+      - .dockerignore
+      - composer.json
+      - composer.lock
+      - docker/**
+      - .github/workflows/docker-smoke.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - Dockerfile.agent-ui
+      - .dockerignore
+      - composer.json
+      - composer.lock
+      - docker/**
+      - .github/workflows/docker-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: Dockerfile
+            image: agent-loop-image-smoke
+          - dockerfile: Dockerfile.agent-ui
+            image: agent-ui-image-smoke
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build exact Dockerfile and pinned base-image digests
+        run: docker build --pull --file "${{ matrix.dockerfile }}" --tag "${{ matrix.image }}" .
+
+      - name: Verify PHP runtime and compiled extensions inside image
+        run: |
+          docker run --rm --entrypoint php "${{ matrix.image }}" -r '
+          if (PHP_VERSION_ID < 80500) {
+              fwrite(STDERR, "Expected PHP >=8.5 in image.\n");
+              exit(1);
+          }
+          foreach (["intl", "mbstring", "pdo_sqlite"] as $extension) {
+              if (!extension_loaded($extension)) {
+                  fwrite(STDERR, "Missing required extension: " . $extension . "\n");
+                  exit(1);
+              }
+          }
+          echo PHP_VERSION . PHP_EOL;
+          '
+
+      - name: Verify Composer is executable inside image
+        run: docker run --rm --entrypoint composer "${{ matrix.image }}" --version --no-ansi
