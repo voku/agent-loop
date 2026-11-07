@@ -84,23 +84,33 @@ final readonly class InitApplyCommand
             throw new InvalidArgumentException('supported options are --language, --evidence-sha256, --accept=prompting.language, --dry-run and --yes.');
         }
 
-        if ($yes && $dryRun) {
-            throw new InvalidArgumentException('--yes and --dry-run are mutually exclusive.');
-        }
-        if (!isset($options['language'], $options['evidence_sha256'], $options['accept'])) {
-            throw new InvalidArgumentException('language, evidence SHA-256, and explicit --accept=prompting.language are required.');
-        }
-        if (preg_match('/\A[a-f0-9]{64}\z/', $options['evidence_sha256']) !== 1) {
-            throw new InvalidArgumentException('--evidence-sha256 must contain 64 lowercase hexadecimal characters.');
-        }
-        if (strlen($options['language']) > 35 || preg_match('/\A[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*\z/', $options['language']) !== 1) {
-            throw new InvalidArgumentException('--language must be a valid BCP 47 language tag.');
-        }
+        return $this->validatedOptions($options, $yes, $dryRun);
+    }
 
-        return [
-            'language' => strtolower($options['language']),
-            'evidence_sha256' => $options['evidence_sha256'],
-            'yes' => $yes,
-        ];
+    /**
+     * @param array{language?: string, evidence_sha256?: string, accept?: true} $options
+     * @return array{language: string, evidence_sha256: string, yes: bool}
+     */
+    private function validatedOptions(array $options, bool $yes, bool $dryRun): array
+    {
+            if ($yes && $dryRun) {
+                throw new InvalidArgumentException('--yes and --dry-run are mutually exclusive.');
+            }
+            if (!isset($options['language'], $options['evidence_sha256'], $options['accept'])) {
+                throw new InvalidArgumentException('language, evidence SHA-256, and explicit --accept=prompting.language are required.');
+            }
+            if (preg_match('/\A[a-f0-9]{64}\z/', $options['evidence_sha256']) !== 1) {
+                throw new InvalidArgumentException('--evidence-sha256 must contain 64 lowercase hexadecimal characters.');
+            }
+            if (strlen($options['language']) > 35 || preg_match('/\A[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*\z/', $options['language']) !== 1) {
+                throw new InvalidArgumentException('--language must be a valid BCP 47 language tag.');
+            }
+    
+            return [
+                'language' => strtolower($options['language']),
+                'evidence_sha256' => $options['evidence_sha256'],
+                'yes' => $yes,
+            ];
+
     }
 }
