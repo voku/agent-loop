@@ -200,6 +200,26 @@ final class InitSyncToolsCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
     }
 
+    public function testSymlinkedToolsDirectoryIsNotFollowedEvenWithForce(): void
+    {
+        $outside = sys_get_temp_dir() . '/agent-loop-tools-root-outside-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($outside, 0o775, true));
+        self::assertNotFalse(file_put_contents($outside . '/sentinel.txt', 'unchanged'));
+        self::assertTrue(symlink($outside, $this->root . '/tools'));
+
+        try {
+            self::assertSame(1, $this->runSync(['--force'])['exit']);
+            self::assertSame(1, $this->runSync(['--dry-run'])['exit']);
+            self::assertSame('unchanged', file_get_contents($outside . '/sentinel.txt'));
+            self::assertFileDoesNotExist($outside . '/.agent-loop-manifest.json');
+            self::assertFileDoesNotExist($outside . '/slop-scan/composer.json');
+        } finally {
+            unlink($this->root . '/tools');
+            unlink($outside . '/sentinel.txt');
+            rmdir($outside);
+        }
+    }
+
     public function testSymlinkedToolTargetIsNotFollowedEvenWithForce(): void
     {
         $outside = sys_get_temp_dir() . '/agent-loop-tools-outside-' . bin2hex(random_bytes(6));
