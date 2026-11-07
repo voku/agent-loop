@@ -4,6 +4,17 @@ The first slice of [#947](https://github.com/voku/agent-loop/issues/947) exposes
 
 For the **actual end-user onboarding flow**, see [PHP project onboarding with a coding agent](php-project-onboarding.md). The coding host's own LLM uses the evidence; Agent Loop needs no second model client.
 
+A second, still **read-only**, CLI produces a typed per-field proposal from the same evidence:
+
+```bash
+vendor/bin/agent-loop init plan --format=json
+vendor/bin/agent-loop init plan --format=json --language=de-DE  # only for an explicitly requested language
+```
+
+The plan emits a source-backed `map.build` command candidate only for confirmed existing directories, with unknown current index state; optional `prompting.language` JSON-pointer diff only when a valid desired language was supplied and differs; and preserved Slop Scan glob policy and governed review Attention invariant. Each candidate names its owner, evidence source, confidence, before/after and required approval. Composer quality script names remain **evidence only**, never an execution proposal. A default language is not falsely presented as a user preference.
+
+The JSON `authorization` contract states `writes=false`, `executes_project_code=false`, and `apply_supported=false`. No `init apply` command exists; applying an accepted change is a separate, explicit implementation with ownership and conflict checks. This is deliberately a reviewable structured diff, **not** a silent config rewrite.
+
 ```bash
 vendor/bin/agent-loop init recommend --format=json
 ```
