@@ -331,6 +331,9 @@ final readonly class InitRecommendCommand
             if (!$inParameters) {
                 continue;
             }
+            if (str_contains($line, "\t")) {
+                return null;
+            }
 
             if (!$seen) {
                 if (preg_match('/^( {2}| {4})' . preg_quote($key, '/') . ':(.*)$/', $line, $field) !== 1) {

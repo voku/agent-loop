@@ -289,6 +289,24 @@ NEON);
         self::assertSame([], $report['warnings']);
     }
 
+    public function testTabIndentedPhpstanListsEmitWarningsInsteadOfSilentlyFallingBack(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents(
+            $this->root . '/phpstan.neon',
+            "parameters:\n\tpaths:\n\t\t- src\n\texcludePaths:\n\t\t- tests/fixtures/*\n",
+        );
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame('directory-presence', $report['map']['source']);
+        self::assertSame([], $report['exclusions']['phpstan']);
+        self::assertCount(2, $report['warnings']);
+        self::assertStringContainsString('parameters.paths', $report['warnings'][0]);
+        self::assertStringContainsString('parameters.excludePaths', $report['warnings'][1]);
+    }
+
     public function testUnsupportedPhpstanEntriesEmitWarningsInsteadOfSilentExclusions(): void
     {
         mkdir($this->root . '/src', 0o775, true);
