@@ -61,9 +61,12 @@ jq -e '
 jq -e '
   .schema_version == 1
   and .kind == "agent-loop.php-project-setup"
-  and (.workflow | length) >= 5
-  and (.deliverables | length) >= 4
-  and (.guardrails | length) >= 4
+  and ([.workflow[], .deliverables[], .guardrails[], .preview_commands[]] | length) <= 14
+  and (.workflow | length) >= 3
+  and (.deliverables | length) >= 2
+  and (.guardrails | length) >= 3
+  and (.guardrails | join(" ") | contains("three-round human Attention cap"))
+  and (.guardrails | join(" ") | contains("Never copy PHPStan"))
   and (.preview_commands | index("vendor/bin/agent-loop init sync-tools --dry-run") != null)
   and .evidence.map.paths == ["src","tests"]
   and .evidence.prompting.language == "de-de"
