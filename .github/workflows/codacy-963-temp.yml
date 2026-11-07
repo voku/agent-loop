@@ -1,0 +1,26 @@
+name: Temporary Codacy #963 detail
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codacy-963-temp.yml'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read exact Codacy delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(mktemp)"
+          curl -fsSL --max-time 30 \
+            'https://api.codacy.com/api/v3/analysis/organizations/gh/voku/repositories/agent-loop/pull-requests/963/issues?limit=100' > "$payload"
+          jq -c '
+            .data[]
+            | select(.deltaType == "Added")
+            | .commitIssue
+            | {path:.filePath,line:.lineNumber,rule:.patternInfo.id,level:.patternInfo.level,message:.message}
+          ' "$payload"
+          rm -f "$payload"
