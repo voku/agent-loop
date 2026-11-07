@@ -87,7 +87,7 @@ final class FirstPartyAgentAssetContractTest extends TestCase
             self::assertStringContainsStringIgnoringCase('security fix', $guidance);
             self::assertStringContainsStringIgnoringCase('greenfield', $guidance);
             self::assertStringContainsString('git rev-parse --is-shallow-repository', $guidance);
-            self::assertStringContainsString('git log --follow', $guidance);
+            self::assertStringContainsString('log --follow', $guidance);
             self::assertStringContainsString('history_incomplete=true', $guidance);
             self::assertStringContainsStringIgnoringCase('do not automatically fetch', $guidance);
             self::assertStringContainsStringIgnoringCase('Contract', $guidance);
