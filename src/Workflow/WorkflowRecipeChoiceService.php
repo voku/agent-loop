@@ -125,7 +125,6 @@ final readonly class WorkflowRecipeChoiceService
         );
     }
 
-    /** @param mixed $value */
     private static function requireCandidateId(mixed $value): string
     {
         if (!is_string($value) || preg_match('/\A[a-z][a-z0-9._-]*\z/D', $value) !== 1) {
