@@ -5,6 +5,7 @@
 ### Fixed
 
 - Emit Composer-installed `vendor/bin/agent-loop` paths in project-aware PHP onboarding recommendations and prove their read-only dry-run behavior in a real installed PHP consumer (#961).
+- Ignore nested, unrelated PHPStan `paths` keys when reading project analysis scope; only direct `parameters.paths` is used for project-aware setup recommendations, with installed-consumer regression coverage (#959).
 - Align both candidate dogfood workflow pins and immutable release-commit proofs with `voku/agent-recall-compiler` 0.27.0; keep the release-contract tests and approval boundaries intact (#958).
 
 ### Changed
