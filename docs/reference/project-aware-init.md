@@ -44,7 +44,32 @@ This command **does not** modify `.agent-loop/init.json`, slop-scan configuratio
 map state or the human Attention safeguard. The empty file diff is intentional:
 no configuration mutation is proposed based solely on default values or tool-specific
 excludes. The coding host may present separate minimal changes for explicit approval,
-but `init diff` and `init apply` do not yet exist.
+but there is no generic `init diff` or arbitrary-field writer. Only the accepted language change has a supported apply command.
+
+## Accepted, evidence-guarded language change
+
+The only writable follow-up currently supported by this proposal flow is
+`prompting.language`. First inspect the exact `review_diffs` and copy the
+`evidence_sha256` returned by `init plan --format=json --language=de-DE`.
+A language is **never** inferred from a default or a repository prompt.
+
+```bash
+vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --dry-run
+# Only after approving that exact field and reviewing the preview:
+vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --yes
+```
+
+The mutation requires an existing, non-symlinked `.agent-loop` directory.
+With `--yes`, the command reacquires the current plan under a project-local
+mutation lock and rejects stale digests, malformed or oversized JSON, symlink
+destinations, and unexpected target changes. It atomically changes only the
+selected field, preserving unknown JSON keys and existing file permissions.
+The default or explicit `--dry-run` never writes. Repeat with a freshly
+reviewed plan after unrelated project settings change; do not retry with an old
+hash.
+
+This is **not** a generic arbitrary-field JSON patch API, a way to execute
+Composer scripts, or authority to change tool exclusions and approval limits.
 
 ## Deliberate boundaries
 
