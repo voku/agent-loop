@@ -142,6 +142,12 @@ composer update --working-dir="$work/installed" --no-interaction --prefer-dist -
   test -f vendor/voku/agent-loop/resources/tools/slop-scan/composer.lock
   cmp vendor/voku/agent-loop/src/Init/InitSyncToolsCommand.php "$root/src/Init/InitSyncToolsCommand.php"
   php vendor/bin/agent-loop init recommend --format=json > "$evidence/installed-consumer-recommend.json"
+  cmp vendor/voku/agent-loop/src/Init/InitLanguageConfigWriter.php "$root/src/Init/InitLanguageConfigWriter.php"
+  mkdir -p .agent-loop
+  php vendor/bin/agent-loop init plan --format=json --language=de-DE > "$evidence/installed-language-plan.json"
+  installed_evidence="$(jq -er '.evidence_sha256' "$evidence/installed-language-plan.json")"
+  php vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256="$installed_evidence" --accept=prompting.language --yes > "$evidence/installed-language-apply.json"
+  jq -e '.version == 1 and .prompting.language == "de-de"' .agent-loop/init.json >/dev/null
   php vendor/bin/agent-loop init sync-tools --dry-run > "$evidence/installed-consumer-preview.txt"
   test ! -e tools/slop-scan/composer.json
   php vendor/bin/agent-loop init sync-tools > "$evidence/installed-consumer-tools.txt"
