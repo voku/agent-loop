@@ -44,6 +44,16 @@ final class PremiseCheckGuidanceTest extends TestCase
         self::assertStringContainsString('result\'s `card` ID unchanged', $frontDoor);
     }
 
+    public function testTaskStartRoutesNewLocalCardIdsToOwnerInsteadOfSequentialExamples(): void
+    {
+        $taskStart = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-task-start/SKILL.md');
+
+        self::assertIsString($taskStart);
+        self::assertStringContainsString('follow `agent-loop-workflow` to obtain the Kanban owner', $taskStart);
+        self::assertStringContainsString('Never derive an ID by incrementing a branch-local maximum.', $taskStart);
+        self::assertStringNotContainsString('LOCAL-001', $taskStart);
+    }
+
     public function testWorkflowSkillKeepsPromptControlsRoutable(): void
     {
         $workflow = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-workflow/SKILL.md');
