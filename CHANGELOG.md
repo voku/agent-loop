@@ -1,5 +1,24 @@
 ## Unreleased
 
+## [0.20.83] - 2026-11-07
+
+### Fixed
+
+- Emit Composer-installed `vendor/bin/agent-loop` paths in project-aware PHP onboarding recommendations and prove their read-only dry-run behavior in a real installed PHP consumer (#961).
+- Ignore nested, unrelated PHPStan `paths` keys when reading project analysis scope; only direct `parameters.paths` is used for project-aware setup recommendations, with installed-consumer regression coverage (#959).
+- Align both candidate dogfood workflow pins and immutable release-commit proofs with `voku/agent-recall-compiler` 0.27.0; keep the release-contract tests and approval boundaries intact (#958).
+
+### Changed
+
+- Update released `voku/agent-map` to 0.22.6 and `voku/agent-edit` to 0.6.2 for improved PHPStan exclusion preservation and safer refactor-plan interoperability (#945, #946).
+- Update `voku/agent-recall-compiler` to 0.27.0, exposing its explicit, non-mutating exploration capability without implicit model routing or task execution authority (#958).
+- Refresh development dependencies `phpstan/phpstan` to 2.3.5, `friendsofphp/php-cs-fixer` to 3.95.29, and `composer/semver` to 3.6.0 (#939, #943, #883).
+- Update runtime dependency `helgesverre/toon` to 3.3.0 while retaining its previously selected default wire-format behavior (#955).
+
+### Tests
+
+- Validate the installed Composer PHP setup recommendations, matching release-pinned Recall candidate dogfood, real-project guidance, refactor lifecycles, and PHP 8.3/8.4/8.5 CI on exact release-candidate commits before publishing the release marker.
+
 ## [0.20.82] - 2026-11-07
 
 ### Added
