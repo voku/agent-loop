@@ -29,7 +29,7 @@ Approval records authority for the exact Contract revision; Run, Session and Rec
 ## Contract Intent & Scope
 
 A PLAN must carry enough durable intent that future agents do not need the chat context:
-- **Task ID:** Stable identifier (e.g. `ISSUE-123` or `LOCAL-001`).
+- **Task ID:** Reuse a supplied stable external identifier (e.g. `ISSUE-123`). For an explicitly requested new local card without one, follow `agent-loop-workflow` to obtain the Kanban owner's generated card ID and reuse it unchanged. Never derive an ID by incrementing a branch-local maximum.
 - **Scope (`--file` / `--scope`):** Smallest stable boundary containing the change (single file or cohesive component directory plus tests; never the entire repo root).
 - **Validation (`--validation`):** Real executable command (`composer ci` or focused test), one command per flag. `finish` needs passing evidence for each entry on its own, so a `;`, `&&` or `||` chain is a single all-or-nothing obligation that tends to fail late and force a new Contract revision with a new approval; `workflow plan` warns about it.
 - **Acceptance:** Specific outcome criteria that must hold.
