@@ -52,67 +52,100 @@ final readonly class InitSetupPlanCommand
         $evidence = (new InitRecommendCommand($this->rootPath))->inspect();
         $candidates = [];
 
-        if ($evidence['map']['command'] !== null) {
-            $candidates[] = [
-                'id' => 'map.build',
-                'kind' => 'command',
-                'owner' => 'agent-map',
-                'source' => $evidence['map']['source'],
-                'confidence' => $evidence['map']['source'] === 'directory-presence' ? 'heuristic' : 'source-backed',
-                'target' => 'agent-map index',
-                'before' => 'unknown',
-                'after' => $evidence['map']['command'],
-                'diff' => ['operation' => 'run-after-approval', 'paths' => $evidence['map']['paths']],
-                'requires_confirmation' => true,
-            ];
+        $map = $this->mapCandidate($evidence['map']['command'], $evidence['map']['source'], $evidence['map']['paths']);
+        if ($map !== null) {
+            $candidates[] = $map;
         }
 
-        $currentLanguage = $evidence['prompting']['language'];
-        if ($language !== null && $language !== $currentLanguage) {
-            $explicitSetting = $evidence['prompting']['source'] !== 'default';
-            $candidates[] = [
-                'id' => 'prompting.language',
-                'kind' => 'json-member',
-                'owner' => 'agent-loop',
-                'source' => 'explicit-cli-request',
-                'confidence' => 'user-specified',
-                'target' => '.agent-loop/init.json',
-                'before' => $explicitSetting ? $currentLanguage : null,
-                'after' => $language,
-                'diff' => [
-                    'operation' => $explicitSetting ? 'replace' : 'add',
-                    'pointer' => '/prompting/language',
-                    'value' => $language,
-                ],
-                'requires_confirmation' => true,
-            ];
+        $languageProposal = $this->languageCandidate($language, $evidence['prompting']['language'], $evidence['prompting']['source']);
+        if ($languageProposal !== null) {
+            $candidates[] = $languageProposal;
         }
 
         return [
             'schema_version' => 1,
             'evidence_schema_version' => $evidence['schema_version'],
             'candidates' => $candidates,
-            'preserved' => [
-                [
-                    'owner' => 'slop-scan',
-                    'target' => $evidence['sources']['slop'],
-                    'values' => $evidence['exclusions']['slop'],
-                    'reason' => 'Keep slop glob policy unchanged; PHPStan exclusions are not slop globs.',
-                ],
-                [
-                    'owner' => 'agent-loop',
-                    'target' => '.agent-loop/init.json',
-                    'field' => 'review.human_attention_every_changes_required',
-                    'value' => $evidence['review']['human_attention_every_changes_required'],
-                    'reason' => 'Governed human Attention policy is not an onboarding setting.',
-                ],
-            ],
+            'preserved' => $this->preservedSettings(
+                $evidence['sources']['slop'],
+                $evidence['exclusions']['slop'],
+                $evidence['review']['human_attention_every_changes_required'],
+            ),
             'quality_script_names' => $evidence['quality']['composer_scripts'],
             'warnings' => $evidence['warnings'],
-            'authorization' => [
-                'writes' => false,
-                'executes_project_code' => false,
-                'apply_supported' => false,
+            'authorization' => ['writes' => false, 'executes_project_code' => false, 'apply_supported' => false],
+        ];
+    }
+
+    /**
+     * @param list<string> $paths
+     * @return array<string, mixed>|null
+     */
+    private function mapCandidate(?string $command, ?string $source, array $paths): ?array
+    {
+        if ($command === null) {
+            return null;
+        }
+
+        return [
+            'id' => 'map.build',
+            'kind' => 'command',
+            'owner' => 'agent-map',
+            'source' => $source,
+            'confidence' => $source === 'directory-presence' ? 'heuristic' : 'source-backed',
+            'target' => 'agent-map index',
+            'before' => 'unknown',
+            'after' => $command,
+            'diff' => ['operation' => 'run-after-approval', 'paths' => $paths],
+            'requires_confirmation' => true,
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function languageCandidate(?string $language, string $current, string $source): ?array
+    {
+        if ($language === null || $language === $current) {
+            return null;
+        }
+
+        return [
+            'id' => 'prompting.language',
+            'kind' => 'json-member',
+            'owner' => 'agent-loop',
+            'source' => 'explicit-cli-request',
+            'confidence' => 'user-specified',
+            'target' => '.agent-loop/init.json',
+            'before' => $source === 'default' ? null : $current,
+            'before_source' => $source === 'default' ? 'default' : 'resolved-config-or-default',
+            'after' => $language,
+            'diff' => [
+                'operation' => 'set-after-approval',
+                'pointer' => '/prompting/language',
+                'value' => $language,
+            ],
+            'requires_confirmation' => true,
+        ];
+    }
+
+    /**
+     * @param list<string> $slopIgnores
+     * @return list<array<string, mixed>>
+     */
+    private function preservedSettings(?string $slopSource, array $slopIgnores, int $humanAttention): array
+    {
+        return [
+            [
+                'owner' => 'slop-scan',
+                'target' => $slopSource,
+                'values' => $slopIgnores,
+                'reason' => 'Keep slop glob policy unchanged; PHPStan exclusions are not slop globs.',
+            ],
+            [
+                'owner' => 'agent-loop',
+                'target' => '.agent-loop/init.json',
+                'field' => 'review.human_attention_every_changes_required',
+                'value' => $humanAttention,
+                'reason' => 'Governed human Attention policy is not an onboarding setting.',
             ],
         ];
     }
