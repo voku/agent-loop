@@ -100,6 +100,18 @@ final readonly class WorkflowHumanDecisionProjector
         $history = $contracts->supersededRevisions($taskId);
         $previous = $history === [] ? null : $history[count($history) - 1];
 
+        // Intermediate drafts must not hide changes since the last genuine approval.
+        // When no approved baseline exists, compare to the latest draft instead.
+        foreach ($history as $revision) {
+            if (
+                $revision->approvedBy !== null
+                && $revision->approvedAt !== null
+                && !str_starts_with(trim($revision->approvedBy), 'standing:')
+            ) {
+                $previous = $revision;
+            }
+        }
+
         return new WorkflowContractApprovalPresentation($contract, $previous, $nextAction);
     }
 

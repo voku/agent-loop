@@ -28,10 +28,30 @@ final readonly class WorkflowContractApprovalPresentation
             'acceptance_criteria' => $this->contract->acceptanceCriteria,
             'validation' => $this->contract->validation,
             'behavior_anchors' => $this->contract->behaviorAnchors,
+            'operating_prompt_manifest' => $this->contract->operatingPromptManifest,
             'operating_prompts' => $this->contract->operatingPrompts,
             'revision_delta' => $this->revisionDelta(),
             'contract_path' => $contractPath,
         ];
+    }
+
+    /**
+     * @param list<array{id: string, arguments: array<string, bool|int|string>}> $prompts
+     * @return list<string>
+     */
+    public function operatingPromptSummaries(array $prompts): array
+    {
+        $summaries = [];
+        foreach ($prompts as $prompt) {
+            $arguments = $prompt['arguments'];
+            ksort($arguments, SORT_STRING);
+            $summaries[] = $prompt['id'] . ($arguments === [] ? '' : ' ' . json_encode(
+                $arguments,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+            ));
+        }
+
+        return $summaries;
     }
 
     /**
@@ -51,21 +71,8 @@ final readonly class WorkflowContractApprovalPresentation
             return null;
         }
 
-        $lists = [];
-        foreach ([
-            'Scope' => [$this->previousRevision->scope, $this->contract->scope],
-            'Validation' => [$this->previousRevision->validation, $this->contract->validation],
-            'Non-goals' => [$this->previousRevision->nonGoals, $this->contract->nonGoals],
-            'Acceptance criteria' => [$this->previousRevision->acceptanceCriteria, $this->contract->acceptanceCriteria],
-        ] as $label => [$before, $after]) {
-            $added = array_values(array_diff($after, $before));
-            $removed = array_values(array_diff($before, $after));
-            if ($added === [] && $removed === []) {
-                continue;
-            }
+        $lists = $this->listChanges($this->previousRevision);
 
-            $lists[$label] = ['added' => $added, 'removed' => $removed];
-        }
         $previousGoal = $this->previousRevision->goal === $this->contract->goal
             ? null
             : $this->previousRevision->goal;
@@ -78,6 +85,71 @@ final readonly class WorkflowContractApprovalPresentation
             'previous_goal' => $previousGoal,
             'lists' => $lists,
             'empty' => $previousGoal === null && $lists === [],
+        ];
+    }
+    /**
+     * @return array<string, array{added: list<string>, removed: list<string>}>
+     */
+    private function listChanges(TaskContract $previous): array
+    {
+        $beforePrompts = $this->operatingPromptSummaries($previous->operatingPrompts);
+        $afterPrompts = $this->operatingPromptSummaries($this->contract->operatingPrompts);
+        $comparisons = [
+            'Scope' => [$previous->scope, $this->contract->scope],
+            'Validation' => [$previous->validation, $this->contract->validation],
+            'Non-goals' => [$previous->nonGoals, $this->contract->nonGoals],
+            'Acceptance criteria' => [$previous->acceptanceCriteria, $this->contract->acceptanceCriteria],
+            'Behavior anchors' => [$previous->behaviorAnchors, $this->contract->behaviorAnchors],
+            'Operating prompt manifest' => [
+                $previous->operatingPromptManifest === null ? [] : [$previous->operatingPromptManifest],
+                $this->contract->operatingPromptManifest === null ? [] : [$this->contract->operatingPromptManifest],
+            ],
+            'Operating prompts' => [$beforePrompts, $afterPrompts],
+        ];
+
+        $changes = [];
+        foreach ($comparisons as $label => [$before, $after]) {
+            $added = array_values(array_diff($after, $before));
+            $removed = array_values(array_diff($before, $after));
+            if ($added !== [] || $removed !== []) {
+                $changes[$label] = ['added' => $added, 'removed' => $removed];
+            }
+        }
+
+        $orderChange = $this->promptOrderChange($previous->operatingPrompts, $this->contract->operatingPrompts, $beforePrompts, $afterPrompts);
+        if ($orderChange !== null) {
+            $changes['Operating prompt order'] = $orderChange;
+        }
+
+        return $changes;
+    }
+
+    /**
+     * @param list<array{id: string, arguments: array<string, bool|int|string>}> $beforePrompts
+     * @param list<array{id: string, arguments: array<string, bool|int|string>}> $afterPrompts
+     * @param list<string> $before
+     * @param list<string> $after
+     * @return array{added: list<string>, removed: list<string>}|null
+     */
+    private function promptOrderChange(array $beforePrompts, array $afterPrompts, array $before, array $after): ?array
+    {
+        if ($before === $after) {
+            return null;
+        }
+
+        $beforeIds = array_column($beforePrompts, 'id');
+        $afterIds = array_column($afterPrompts, 'id');
+
+        // Added/removed or reconfigured prompts must not mask reordered shared prompts.
+        $sharedBefore = array_values(array_intersect($beforeIds, $afterIds));
+        $sharedAfter = array_values(array_intersect($afterIds, $beforeIds));
+        if ($sharedBefore === $sharedAfter) {
+            return null;
+        }
+
+        return [
+            'added' => [implode(' -> ', $after)],
+            'removed' => [implode(' -> ', $before)],
         ];
     }
 }
