@@ -2,6 +2,10 @@
 
 ## [0.20.83] - 2026-11-07
 
+### Added
+
+- Provide `agent-loop init plan --format=json`, a typed read-only proposal with source-linked map and Composer script candidates, bounded SHA-256 provenance, explicit confirmation requirements, and no configuration writes or implicit execution (#963).
+
 ### Fixed
 
 - Emit Composer-installed `vendor/bin/agent-loop` paths in project-aware PHP onboarding recommendations and prove their read-only dry-run behavior in a real installed PHP consumer (#961).
