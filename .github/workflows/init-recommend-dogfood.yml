@@ -54,6 +54,62 @@ jobs:
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bash tools/init-recommend-dogfood.sh
+      - name: Checkout pinned real PHP library
+        uses: actions/checkout@v7
+        with:
+          repository: voku/portable-utf8
+          ref: 28cb685c22cd829aba819406295c0763204c5c09
+          path: build/init-recommend-real-php/portable-utf8
+          persist-credentials: false
+      - name: Checkout pinned security-sensitive PHP project
+        uses: actions/checkout@v7
+        with:
+          repository: voku/anti-xss
+          ref: 7fd0ba5171ccf26ec60cca7ca9de492992dd0bcb
+          path: build/init-recommend-real-php/anti-xss
+          persist-credentials: false
+      - name: Prove actual PHPStan scope in pinned real repositories without project execution
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/build/init-recommend-dogfood"
+          mkdir -p "$proof"
+          check_real_php() {
+            local name="$1" expected_sha="$2"
+            local project="$GITHUB_WORKSPACE/build/init-recommend-real-php/$name"
+            test "$(git -C "$project" rev-parse HEAD)" = "$expected_sha"
+            test -z "$(git -C "$project" status --porcelain)"
+            (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" init recommend --format=json) > "$proof/real-$name.json"
+            jq -e '
+              .schema_version == 1
+              and .sources.phpstan == "phpstan.neon"
+              and .sources.composer == "composer.json"
+              and .map.paths == ["src"]
+              and .map.source == "phpstan.neon"
+              and .map.command == "agent-loop map build --paths=src"
+              and .map.requires_confirmation == true
+              and .review.human_attention_every_changes_required == 3
+              and .review.configurable_by_setup == false
+              and .warnings == []
+            ' "$proof/real-$name.json" > /dev/null
+            test -z "$(git -C "$project" status --porcelain)"
+          }
+          check_real_php portable-utf8 28cb685c22cd829aba819406295c0763204c5c09
+          check_real_php anti-xss 7fd0ba5171ccf26ec60cca7ca9de492992dd0bcb
+          jq -n --arg head "$EXPECTED_HEAD_SHA" '{
+            schema_version: 1,
+            agent_loop_head: $head,
+            pinned_php_projects: {
+              "voku/portable-utf8": "28cb685c22cd829aba819406295c0763204c5c09",
+              "voku/anti-xss": "7fd0ba5171ccf26ec60cca7ca9de492992dd0bcb"
+            },
+            phpstan_scope_provenance: "passed",
+            repository_trees_unchanged: true,
+            project_php_not_executed: true,
+            result: "passed"
+          }' > "$proof/real-php-proof.json"
       - name: Verify evidence is for the exact checked-out source
         shell: bash
         env:

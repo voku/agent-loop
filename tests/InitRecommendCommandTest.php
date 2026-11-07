@@ -237,6 +237,36 @@ PHP,
         self::assertSame('directory-presence', $report['map']['source']);
     }
 
+    public function testRealPhpstanWorkingDirectoryPlaceholderKeepsSourceProvenance(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents(
+            $this->root . '/phpstan.neon',
+            "parameters:\n    level: 8\n    paths:\n        - %currentWorkingDirectory%/src/\n",
+        );
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame('phpstan.neon', $report['map']['source']);
+        self::assertSame('agent-loop map build --paths=src', $report['map']['command']);
+        self::assertSame([], $report['warnings']);
+    }
+
+    public function testWorkingDirectoryPlaceholderCannotTraverseOutsideProject(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents(
+            $this->root . '/phpstan.neon',
+            "parameters:\n  paths:\n    - %currentWorkingDirectory%/../outside\n",
+        );
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame('directory-presence', $report['map']['source']);
+    }
+
     public function testQuotedFourSpacePhpstanScopeAndNestedExcludesAreReadWithoutExecution(): void
     {
         mkdir($this->root . '/src', 0o775, true);
