@@ -70,6 +70,40 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         }
     }
 
+    public function testBoundedGitHistoryInvestigationIsConditionalAndReadOnly(): void
+    {
+        $root = dirname(__DIR__);
+        $skill = file_get_contents($root . '/resources/skills/agent-loop-investigate/SKILL.md');
+        $investigator = file_get_contents($root . '/resources/subagents/agent-loop-investigator.md');
+        $bootstrap = file_get_contents($root . '/resources/skills/agent-loop-discipline/SKILL.md');
+
+        self::assertIsString($skill);
+        self::assertIsString($investigator);
+        self::assertIsString($bootstrap);
+
+        foreach ([$skill, $investigator] as $guidance) {
+            self::assertStringContainsStringIgnoringCase('regression', $guidance);
+            self::assertStringContainsStringIgnoringCase('bug fix', $guidance);
+            self::assertStringContainsStringIgnoringCase('security fix', $guidance);
+            self::assertStringContainsStringIgnoringCase('greenfield', $guidance);
+            self::assertStringContainsString('git rev-parse --is-shallow-repository', $guidance);
+            self::assertStringContainsString('git log --follow', $guidance);
+            self::assertStringContainsString('history_incomplete=true', $guidance);
+            self::assertStringContainsStringIgnoringCase('do not automatically fetch', $guidance);
+            self::assertStringContainsStringIgnoringCase('Contract', $guidance);
+            self::assertStringContainsStringIgnoringCase('read-only', $guidance);
+        }
+
+        self::assertStringContainsString('--max-count=15', $skill);
+        self::assertStringContainsString('git --no-pager show --stat', $skill);
+        self::assertStringContainsString('git --no-pager blame -L', $skill);
+        self::assertStringContainsString("git --no-pager log --max-count=15 -S'literal'", $skill);
+        self::assertStringContainsString('200 displayed diff lines', $skill);
+        self::assertStringContainsString('Do not create a cache, lifecycle state', $skill);
+        self::assertStringNotContainsString('## Bounded Git History Investigation', $bootstrap);
+        self::assertStringNotContainsString('git --no-pager log --follow', $bootstrap);
+    }
+
     public function testPackageOwnedAgentAssetsContainNoRemoteBootstrap(): void
     {
         $root = dirname(__DIR__) . '/resources';
