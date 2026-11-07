@@ -1,0 +1,20 @@
+name: Temporary read-only init plan Codacy findings
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/init-plan-quality-diagnostic-temp.yml'
+permissions:
+  contents: read
+jobs:
+  codacy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Fetch precise public Codacy issue information
+        shell: bash
+        run: |
+          set -euo pipefail
+          data="$(mktemp)"
+          curl --fail-with-body -sSL --max-time 25 -o "$data" 'https://api.codacy.com/api/v3/analysis/organizations/gh/voku/repositories/agent-loop/pull-requests/967/issues?limit=100'
+          jq -c '{analyzed:.analyzed, added:[.data[] | select(.deltaType=="Added") | .commitIssue | {file:.filePath,line:.lineNumber,rule:.patternInfo.id,severity:.patternInfo.severityLevel,message:.message}]}' "$data"
+          rm "$data"
