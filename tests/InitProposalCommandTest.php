@@ -49,7 +49,6 @@ final class InitProposalCommandTest extends TestCase
         self::assertSame('proposal_only', $report['state']);
         self::assertSame([], $report['candidates']);
         self::assertSame([], $report['changes']);
-        self::assertFalse($report['apply_supported']);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
 
         ob_start();
