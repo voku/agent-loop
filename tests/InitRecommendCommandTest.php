@@ -174,7 +174,7 @@ PHP,
 
         self::assertSame(['app'], $report['map']['paths']);
         self::assertSame('phpstan.neon', $report['map']['source']);
-        self::assertSame('agent-loop map build --paths=app', $report['map']['command']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=app', $report['map']['command']);
     }
 
     public function testNestedUnrelatedPhpstanPathKeyCannotBecomeMapScope(): void
@@ -194,7 +194,7 @@ PHP,
 
         self::assertSame(['app'], $report['map']['paths']);
         self::assertSame('composer.json', $report['map']['source']);
-        self::assertSame('agent-loop map build --paths=app', $report['map']['command']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=app', $report['map']['command']);
     }
 
     public function testNestedPhpstanExcludePathsCannotOverrideDirectExclusions(): void
