@@ -28,7 +28,7 @@ vendor/bin/agent-loop init plan --format=json
 vendor/bin/agent-loop init plan --format=json --language=de-DE  # only when explicitly requested
 ```
 
-Its deterministic JSON includes a SHA-256 digest of the bounded `init recommend` evidence,
+Its deterministic JSON includes a SHA-256 digest of the bounded `init recommend` evidence. With `--language=<BCP47>`, the digest also binds the **normalized requested language**, so a reviewed `fr-FR` proposal cannot authorize `ja`. With no requested language, the original evidence-only digest remains unchanged,
 proposals with owner, source, confidence and approval prerequisites, an explicit
 `execution: not_authorized` marker, and `file_changes: []`. An explicitly
 requested `--language=<BCP47>` additionally previews one semantic
@@ -61,9 +61,13 @@ vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --a
 
 The mutation requires an existing, non-symlinked `.agent-loop` directory.
 With `--yes`, the command reacquires the current plan under a project-local
-mutation lock and rejects stale digests, malformed or oversized JSON, symlink
-destinations, and unexpected target changes. It atomically changes only the
-selected field, preserving unknown JSON keys and existing file permissions.
+mutation lock and rejects stale or language-mismatched digests, malformed
+or oversized JSON, symlink destinations, and target changes observed before
+the final recheck. It atomically changes only the selected field, preserving
+unknown JSON keys and existing file permissions. The lock coordinates callers
+of this writer, **not arbitrary outside editors**: a change by an unrelated
+writer after the final check and before the rename can still be overwritten.
+Review diffs, use version control, and avoid concurrent uncoordinated edits.
 The default or explicit `--dry-run` never writes. Repeat with a freshly
 reviewed plan after unrelated project settings change; do not retry with an old
 hash.
