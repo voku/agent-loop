@@ -98,6 +98,11 @@ final readonly class InitCli
             'description' => 'Inspect existing PHPStan, Composer, PHP-CS-Fixer and slop config as read-only setup evidence for human or LLM review.',
             'notes' => ['Does not execute PHP-CS-Fixer configs, call an LLM, install tools, copy excludes between tools, or change review safeguards.'],
         ],
+        'plan' => [
+            'usage' => 'agent-loop init plan [--format=json] [--language=<BCP47>]',
+            'description' => 'Generate a typed, reviewable setup proposal from real project evidence without applying changes.',
+            'notes' => ['Language is never guessed; use --language only for an explicit desired value. Commands and JSON diffs require separate approval.'],
+        ],
         'scaffold' => [
             'usage' => 'agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]',
             'description' => 'Create the minimum local workflow infrastructure for a real project or an opt-in tutorial board.',
@@ -139,6 +144,7 @@ final readonly class InitCli
             'sync-tools' => (new InitSyncToolsCommand($this->rootPath))->run($rest),
             'scaffold' => (new InitScaffoldCommand($this->rootPath))->run($rest),
             'recommend' => (new InitRecommendCommand($this->rootPath))->run($rest),
+            'plan' => (new InitSetupPlanCommand($this->rootPath))->run($rest),
             default => $this->printUsage(1, $command),
         };
     }
@@ -172,6 +178,7 @@ final readonly class InitCli
           agent-loop init sync-tools [--tools-root=PATH] [--tools-dir=PATH] [--config=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]
           agent-loop init recommend [--format=json]
+          agent-loop init plan [--format=json] [--language=<BCP47>]
 
         Commands:
           Every init subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
@@ -193,6 +200,7 @@ final readonly class InitCli
           sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and maintained host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
           recommend         Discover project tooling and emit read-only, source-backed JSON for setup review.
+          plan              Generate a typed source-backed setup proposal and explicit per-field diff without applying it.
           scaffold          Create minimum local workflow infrastructure. Use --prefix for a real empty board or --demo for tutorial board/task state; neither is invented by default.
         TXT;
 
