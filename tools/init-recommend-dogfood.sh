@@ -59,6 +59,24 @@ jq -e '
 ' "$evidence/phpstan.json" >/dev/null
 test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
 
+# New read-only typed plan: explicit user language change, proven no mutation.
+(cd "$work/phpstan" && php "$root/bin/agent-loop" init plan --format=json --language=fr-FR > "$evidence/phpstan-plan.json")
+jq -e '
+  .schema_version == 1
+  and .state == "proposal_only"
+  and .apply_supported == false
+  and (.candidates | map(.id)) == ["map.paths"]
+  and .candidates[0].owner == "voku/agent-map"
+  and .candidates[0].source == "phpstan.neon"
+  and .changes[0].target == ".agent-loop/init.json"
+  and .changes[0].pointer == "/prompting/language"
+  and .changes[0].before == "de-de"
+  and .changes[0].after == "fr-fr"
+  and (.changes | length) == 1
+' "$evidence/phpstan-plan.json" >/dev/null
+grep -q '"language":"de-DE"' "$work/phpstan/.agent-loop/init.json"
+test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
+
 # Install the *real* Slop Scan tooling in the disposable consumer using the
 # existing owner command, then run the installed scanner. Composer is an
 # explicit CI opt-in, never an implicit action of init recommend.
@@ -122,6 +140,8 @@ composer update --working-dir="$work/installed" --no-interaction --prefer-dist -
   test -f vendor/voku/agent-loop/resources/tools/slop-scan/composer.lock
   cmp vendor/voku/agent-loop/src/Init/InitSyncToolsCommand.php "$root/src/Init/InitSyncToolsCommand.php"
   php vendor/bin/agent-loop init recommend --format=json > "$evidence/installed-consumer-recommend.json"
+  php vendor/bin/agent-loop init plan --format=json > "$evidence/installed-consumer-plan.json"
+  jq -e '.state == "proposal_only" and .apply_supported == false and .changes == []' "$evidence/installed-consumer-plan.json" >/dev/null
   php vendor/bin/agent-loop init sync-tools --dry-run > "$evidence/installed-consumer-preview.txt"
   test ! -e tools/slop-scan/composer.json
   php vendor/bin/agent-loop init sync-tools > "$evidence/installed-consumer-tools.txt"
