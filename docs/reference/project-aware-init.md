@@ -16,7 +16,7 @@ The JSON document reports:
 - **exclusions**: literal PHPStan `excludePaths` and existing slop-scan `ignores`, **not** automatically merged;
 - **prompting**: the current `.agent-loop/init.json` language or the `en` default, without claiming a user preference;
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
-- **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM.
+- **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM. Commands use the Composer-installed `vendor/bin/agent-loop` executable, without requiring a globally installed CLI on `PATH`.
 
 ## Deliberate boundaries
 
