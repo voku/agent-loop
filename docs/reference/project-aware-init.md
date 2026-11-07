@@ -28,8 +28,8 @@ vendor/bin/agent-loop init plan --format=json
 vendor/bin/agent-loop init plan --format=json --language=de-DE  # only when explicitly requested
 ```
 
-Its deterministic JSON includes a SHA-256 digest of the bounded `init recommend` evidence. With `--language=<BCP47>`, the digest also binds the **normalized requested language**, so a reviewed `fr-FR` proposal cannot authorize `ja`. With no requested language, the original evidence-only digest remains unchanged,
-proposals with owner, source, confidence and approval prerequisites, an explicit
+Its deterministic JSON includes a SHA-256 digest of the bounded `init recommend` evidence. With `--language=<BCP47>`, the digest also binds the **normalized requested language**, so a reviewed `fr-FR` proposal cannot authorize `ja`. With no requested language, the original evidence-only digest remains unchanged.
+The response also contains proposals with owner, source, confidence and approval prerequisites, an explicit
 `execution: not_authorized` marker, and `file_changes: []`. An explicitly
 requested `--language=<BCP47>` additionally previews one semantic
 `review_diffs` entry for `/prompting/language`; it never edits the config,
