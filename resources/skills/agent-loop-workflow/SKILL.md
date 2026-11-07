@@ -22,7 +22,7 @@ A task router may choose a specialist skill, never a lifecycle phase. Only the c
 
 When this skill is invoked for an end-to-end implementation request, keep the request ergonomic without creating a second workflow:
 
-- use the supplied stable task id with `enter`; if no stable id exists, obtain one through the repository's task owner rather than inventing lifecycle state in chat;
+- use the supplied stable task id with `enter`; for an explicitly requested new local Kanban card without an external ticket ID, create it using `vendor/bin/agent-loop board card create --generate-id --title "<descriptive task title>" --format=json`, then use the result's `card` ID unchanged for `enter`, Contract, Run, and Session; never calculate `highest number + 1` or invent `PREFIX-NUMBER` in a host; preserve IDs actually supplied by an external ticket authority;
 - treat the user's request as intent to drive the governed task, not as authority to skip approval, verification, review, Learning, or any other gate the current result requires;
 - do not predeclare a private sequence such as branch -> specs -> code -> PR -> merge; the current lifecycle result decides the next governed action;
 - continue through `enter`, host work, and `finish` until the result reports completion or a real `decision_required` boundary.
