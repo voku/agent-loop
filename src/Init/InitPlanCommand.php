@@ -63,30 +63,9 @@ final readonly class InitPlanCommand
         $encoded = json_encode($evidence, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         $proposals = [];
-        $command = $evidence['map']['command'];
-        if ($command !== null) {
-            $source = $evidence['map']['source'];
-            $confidence = match ($source) {
-                'directory-presence' => 'directory_presence',
-                'composer.json' => 'declared_config',
-                default => 'literal_config',
-            };
-
-            $proposals[] = [
-                'id' => 'map.scope',
-                'kind' => 'map_command',
-                'owner' => 'agent-map',
-                'source' => $source,
-                'confidence' => $confidence,
-                'current' => null,
-                'proposed' => $command,
-                'requires_confirmation' => true,
-                'execution' => 'not_authorized',
-                'prerequisites' => [
-                    'Confirm the proposed repository scope and index cost.',
-                    'Run the command only after explicit approval.',
-                ],
-            ];
+        $mapProposal = $this->mapProposal($evidence['map']['command'], $evidence['map']['source']);
+        if ($mapProposal !== null) {
+            $proposals[] = $mapProposal;
         }
 
         array_push($proposals, ...$this->composerProposals(
@@ -112,6 +91,49 @@ final readonly class InitPlanCommand
                 'reason' => 'No configuration diff or command execution is authorized by setup evidence. Existing project-owned values, exclusions, and the three-round Attention safeguard are unchanged.',
             ],
             'warnings' => $evidence['warnings'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *   id: 'map.scope',
+     *   kind: 'map_command',
+     *   owner: 'agent-map',
+     *   source: string|null,
+     *   confidence: 'literal_config'|'declared_config'|'directory_presence',
+     *   current: null,
+     *   proposed: string,
+     *   requires_confirmation: true,
+     *   execution: 'not_authorized',
+     *   prerequisites: list<string>
+     * }|null
+     */
+    private function mapProposal(?string $command, ?string $source): ?array
+    {
+        if ($command === null) {
+            return null;
+        }
+
+        $confidence = match ($source) {
+            'directory-presence' => 'directory_presence',
+            'composer.json' => 'declared_config',
+            default => 'literal_config',
+        };
+
+        return [
+            'id' => 'map.scope',
+            'kind' => 'map_command',
+            'owner' => 'agent-map',
+            'source' => $source,
+            'confidence' => $confidence,
+            'current' => null,
+            'proposed' => $command,
+            'requires_confirmation' => true,
+            'execution' => 'not_authorized',
+            'prerequisites' => [
+                'Confirm the proposed repository scope and index cost.',
+                'Run the command only after explicit approval.',
+            ],
         ];
     }
 
