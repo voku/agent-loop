@@ -204,7 +204,7 @@ final readonly class InitSyncToolsCommand
         }
 
         echo '  agent-loop init tools --refresh' . "\n";
-        echo "\nKeep the generated lock files, ignore the vendor directories:\n";
+        echo "\nKeep projected lock files, ignore the vendor directories:\n";
         echo '  /' . $toolsDir . '/*/vendor/' . "\n";
     }
 

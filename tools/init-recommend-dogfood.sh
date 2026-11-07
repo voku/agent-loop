@@ -68,10 +68,13 @@ test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
   test ! -e tools/slop-scan/composer.json
   php "$root/bin/agent-loop" init sync-tools > "$evidence/install-tools.txt"
   test -f tools/slop-scan/composer.json
+  test -f tools/slop-scan/composer.lock
+  cmp tools/slop-scan/composer.lock "$root/resources/tools/slop-scan/composer.lock"
   test -f tools/slop-scan/slop-scan.php
   composer install --working-dir=tools/slop-scan --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress > "$evidence/composer-install.txt"
   test -f tools/slop-scan/vendor/autoload.php
   php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --ignore 'tools/**' --json > "$evidence/slop-scan.json"
+  jq -e 'type == "object" and has("metadata") and has("summary") and has("files") and has("findings")' "$evidence/slop-scan.json" >/dev/null
 )
 test ! -e "$work/phpstan/EXECUTED_UNEXPECTEDLY"
 
@@ -116,6 +119,7 @@ composer update --working-dir="$work/installed" --no-interaction --prefer-dist -
 (
   cd "$work/installed"
   test -f vendor/voku/agent-loop/resources/tools/slop-scan/composer.json
+  test -f vendor/voku/agent-loop/resources/tools/slop-scan/composer.lock
   cmp vendor/voku/agent-loop/src/Init/InitSyncToolsCommand.php "$root/src/Init/InitSyncToolsCommand.php"
   php vendor/bin/agent-loop init recommend --format=json > "$evidence/installed-consumer-recommend.json"
   php vendor/bin/agent-loop init sync-tools --dry-run > "$evidence/installed-consumer-preview.txt"
@@ -123,6 +127,7 @@ composer update --working-dir="$work/installed" --no-interaction --prefer-dist -
   php vendor/bin/agent-loop init sync-tools > "$evidence/installed-consumer-tools.txt"
   test -f tools/slop-scan/composer.json
   cmp tools/slop-scan/composer.json vendor/voku/agent-loop/resources/tools/slop-scan/composer.json
+  cmp tools/slop-scan/composer.lock vendor/voku/agent-loop/resources/tools/slop-scan/composer.lock
   test ! -e tools/slop-scan/vendor
 )
 jq -e '.schema_version == 1 and .sources.composer == "composer.json"' "$evidence/installed-consumer-recommend.json" >/dev/null
