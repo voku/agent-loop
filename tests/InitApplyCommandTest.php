@@ -112,6 +112,39 @@ final class InitApplyCommandTest extends TestCase
         (new InitLanguageConfigWriter($this->root))->apply('fr', $plan['evidence_sha256']);
     }
 
+    public function testDifferentLanguageCannotReuseReviewedEvidenceInCliOrLockedWriter(): void
+    {
+        $path = $this->root . '/.agent-loop/init.json';
+        $original = '{"version":1,"prompting":{"language":"de"}}';
+        file_put_contents($path, $original);
+        $reviewed = (new InitPlanCommand($this->root))->inspect('fr-FR');
+
+        ob_start();
+        try {
+            $exit = (new InitApplyCommand($this->root))->run([
+                '--language=ja',
+                '--evidence-sha256=' . $reviewed['evidence_sha256'],
+                '--accept=prompting.language',
+                '--yes',
+            ]);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+        self::assertSame(1, $exit);
+        self::assertSame('', $output);
+        self::assertSame($original, file_get_contents($path));
+
+        try {
+            (new InitLanguageConfigWriter($this->root))->apply('ja', $reviewed['evidence_sha256']);
+            self::fail('Locked writer accepted evidence reviewed for a different language.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('Setup evidence changed', $exception->getMessage());
+        }
+
+        self::assertSame($original, file_get_contents($path));
+    }
+
     public function testSymlinkedConfigTargetCannotBeOverwritten(): void
     {
         $outside = $this->root . '/outside.json';
@@ -120,6 +153,7 @@ final class InitApplyCommandTest extends TestCase
         self::assertTrue(symlink($outside, $configPath));
 
         $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Symlinked project config is not supported');
         (new InitLanguageConfigWriter($this->root))->apply('de', str_repeat('0', 64));
     }
 
