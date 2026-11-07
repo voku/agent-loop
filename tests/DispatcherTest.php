@@ -119,6 +119,50 @@ final class DispatcherTest extends TestCase
         }
     }
 
+    public function testGeneratedLocalCardRespectsConfiguredLaneAndRequiredBrief(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-custom-board-' . bin2hex(random_bytes(6));
+        mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $root . '/.agent-loop/todo/kanban.config.json',
+            json_encode([
+                'projectPrefix' => 'LOCAL',
+                'lanes' => ['PLANNED', 'DOING'],
+                'requiredFieldsByLane' => ['PLANNED' => ['taskBrief']],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            ob_start();
+            $exit = (new Dispatcher($root))->run([
+                'agent-loop',
+                'board',
+                'card',
+                'create',
+                '--generate-id',
+                '--title=Local implementation',
+                '--lane=PLANNED',
+                '--brief=Prove the configured creation lane',
+                '--format=json',
+            ]);
+            $output = (string) ob_get_clean();
+
+            self::assertSame(0, $exit, $output);
+            /** @var array{card: string} $payload */
+            $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+            $id = $payload['card'];
+            self::assertMatchesRegularExpression('/^LOCAL-[1-9][0-9]*$/', $id);
+
+            $path = $root . '/.agent-loop/todo/cards/' . $id . '.md';
+            self::assertFileExists($path);
+            $card = (string) file_get_contents($path);
+            self::assertStringContainsString('**Lane:** PLANNED', $card);
+            self::assertStringContainsString('Prove the configured creation lane', $card);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testDelegatedBoardAcceptsEqualsAndSpacedLongOptionValues(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-board-' . bin2hex(random_bytes(6));
