@@ -28,7 +28,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Pin evidence to exact candidate head
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
       - name: Lint Git history dogfood
         run: bash -n tools/git-history-dogfood.sh
       - name: Verify a regression across a file rename, with bounded diffs and shallow evidence
@@ -59,6 +64,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: git-history-dogfood-${{ github.sha }}
+          name: git-history-dogfood-${{ github.event.pull_request.head.sha || github.sha }}
           if-no-files-found: warn
           path: build/git-history-dogfood.json
