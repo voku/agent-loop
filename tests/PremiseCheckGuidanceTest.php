@@ -42,9 +42,9 @@ final class PremiseCheckGuidanceTest extends TestCase
         self::assertStringContainsString('board card create --generate-id --title', $frontDoor);
         self::assertStringContainsString('--lane=<configured-lane>', $frontDoor);
         self::assertStringContainsString('fields required by that board\'s configured creation lane', $frontDoor);
-        self::assertStringContainsString('never calculate `highest number + 1`', $frontDoor);
+        self::assertStringContainsString('Never calculate `highest number + 1`', $frontDoor);
         self::assertStringContainsString('external ticket authority', $frontDoor);
-        self::assertStringContainsString('result\'s `card` ID unchanged', $frontDoor);
+        self::assertStringContainsString('returned `card` ID unchanged', $frontDoor);
     }
 
     public function testTaskStartRoutesNewLocalCardIdsToOwnerInsteadOfSequentialExamples(): void
