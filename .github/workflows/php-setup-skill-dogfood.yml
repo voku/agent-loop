@@ -64,6 +64,9 @@ jobs:
           }' > "$consumer/composer.json"
           cat > "$consumer/phpstan.neon.dist" <<'NEON'
           parameters:
+            customSettings:
+              paths:
+                - vendor
             paths:
               - src
               - tests
