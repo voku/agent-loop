@@ -31,6 +31,30 @@ final class PremiseCheckGuidanceTest extends TestCase
         self::assertStringContainsString('Re-check anything whose authority, freshness, repository scope, or assumptions may have changed.', $manifest);
     }
 
+    public function testExplicitlyRequestedLocalCardsUseOwnerGeneratedIdentityRegardlessOfFutureWorkMode(): void
+    {
+        $workflow = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-workflow/SKILL.md');
+
+        self::assertIsString($workflow);
+        $frontDoor = explode('## Ambiguous New Work Items', explode('## End-to-End Implementation Front Door', $workflow, 2)[1] ?? '', 2)[0];
+
+        self::assertStringContainsString('board card create --generate-id --title', $frontDoor);
+        self::assertStringContainsString('--lane=<configured-lane>', $frontDoor);
+        self::assertStringContainsString('--board=<configured-board-id>', $frontDoor);
+        self::assertStringContainsString('highest number + 1', $frontDoor);
+        self::assertStringContainsString('external ticket authority', $frontDoor);
+        self::assertStringContainsString('stop and request a stable task ID', $frontDoor);
+    }
+
+    public function testTaskStartRoutesNewLocalCardIdsToOwnerInsteadOfSequentialExamples(): void
+    {
+        $taskStart = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-task-start/SKILL.md');
+
+        self::assertIsString($taskStart);
+        self::assertStringContainsString('agent-loop-workflow', $taskStart);
+        self::assertStringNotContainsString('LOCAL-001', $taskStart);
+    }
+
     public function testWorkflowSkillKeepsPromptControlsRoutable(): void
     {
         $workflow = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-workflow/SKILL.md');
