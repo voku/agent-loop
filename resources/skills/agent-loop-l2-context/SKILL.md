@@ -22,7 +22,7 @@ description: Use agent-loop to compile, inspect, and govern task-scoped Recall/L
 | Persist Governed Contract | `vendor/bin/agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>` | Transitions status to ready for implementation |
 | Exact-symbol Architecture Intent | `<itp-path>/itp-context-summarize <file>` | After repository-appropriate navigation identifies an annotated edit target, summarize it before the first edit |
 | Concept Architecture Search | `<itp-path>/itp-context-query var/itp-context --text='<concepts>'` | Search exported architecture intent when the relevant symbol is not yet known |
-| PHPStan Repair Context | `composer phpstan` | Agent Format adds advisory ITP notices for diagnosed annotated files; a green run emits no ITP notice |
+| PHPStan Repair Context | Repository PHPStan command (for example `composer phpstan`) | PHPStan diagnostics; configured Agent Format + ITP integration can add advisory ITP notices for diagnosed annotated files |
 | Scoped Method Edit | `vendor/bin/agent-loop edit '<Class>::<method>' --runner=auto --replace-old='<old>' --replace-new='<new>' -- '<purpose>'` | Deterministic mechanical edit |
 
 Use the repository-appropriate navigation method to identify the likely source
@@ -34,9 +34,11 @@ No ITP result means that target has no declared rule; it does not prove the
 code has no architectural constraints. These rules are advisory context, not
 approval or correctness evidence.
 
-Use `composer phpstan` for later PHPStan repair feedback. Agent Format only
-adds ITP notices when PHPStan reports an issue in an annotated file, so a green
-run does not replace the pre-edit symbol summary.
+Use the repository's PHPStan command for later repair feedback. A PHPStan run
+without Agent Format + ITP integration does not emit ITP notices. When the
+repository configures Agent Format with ITP integration, a diagnosed annotated
+file can add advisory ITP notices. Even then, a green run emits no ITP notice
+and does not replace the pre-edit symbol summary.
 
 ### Bad vs Good Context Construction
 
