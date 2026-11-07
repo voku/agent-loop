@@ -88,7 +88,7 @@ jobs:
               and .sources.composer == "composer.json"
               and .map.paths == ["src"]
               and .map.source == "phpstan.neon"
-              and .map.command == "agent-loop map build --paths=src"
+              and .map.command == "vendor/bin/agent-loop map build --paths=src"
               and .map.requires_confirmation == true
               and .review.human_attention_every_changes_required == 3
               and .review.configurable_by_setup == false

@@ -82,8 +82,8 @@ final readonly class InitRecommendCommand
         array_push($warnings, ...$config['warnings']);
         $language = $config['prompting']['language'];
 
-        $mapCommand = $paths === [] ? null : 'agent-loop map build --paths=' . implode(',', $paths);
-        $actions = ['agent-loop init sync-tools --dry-run'];
+        $mapCommand = $paths === [] ? null : 'vendor/bin/agent-loop map build --paths=' . implode(',', $paths);
+        $actions = ['vendor/bin/agent-loop init sync-tools --dry-run'];
         if ($mapCommand !== null) {
             $actions[] = $mapCommand;
         }
