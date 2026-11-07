@@ -99,6 +99,9 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         self::assertStringContainsString('git --no-pager blame -L', $skill);
         self::assertStringContainsString("git --no-pager log --max-count=15 -S'literal'", $skill);
         self::assertStringContainsString('200 displayed diff lines', $skill);
+        self::assertStringContainsString('awk \'NR <= 200', $skill);
+        self::assertStringContainsString('[output truncated after 200 lines]', $skill);
+        self::assertStringContainsString('Pickaxe (`-S`/`-G`) may search much further', $skill);
         self::assertStringContainsString('Do not create a cache, lifecycle state', $skill);
         self::assertStringNotContainsString('## Bounded Git History Investigation', $bootstrap);
         self::assertStringNotContainsString('git --no-pager log --follow', $bootstrap);
