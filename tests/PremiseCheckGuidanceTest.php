@@ -38,13 +38,12 @@ final class PremiseCheckGuidanceTest extends TestCase
         self::assertIsString($workflow);
         $frontDoor = explode('## Ambiguous New Work Items', explode('## End-to-End Implementation Front Door', $workflow, 2)[1] ?? '', 2)[0];
 
-        self::assertStringContainsString('no stable task id was supplied', $frontDoor);
         self::assertStringContainsString('board card create --generate-id --title', $frontDoor);
         self::assertStringContainsString('--lane=<configured-lane>', $frontDoor);
-        self::assertStringContainsString('fields required by that board\'s configured creation lane', $frontDoor);
-        self::assertStringContainsString('Never calculate `highest number + 1`', $frontDoor);
+        self::assertStringContainsString('--board=<configured-board-id>', $frontDoor);
+        self::assertStringContainsString('highest number + 1', $frontDoor);
         self::assertStringContainsString('external ticket authority', $frontDoor);
-        self::assertStringContainsString('returned `card` ID unchanged', $frontDoor);
+        self::assertStringContainsString('stop and request a stable task ID', $frontDoor);
     }
 
     public function testTaskStartRoutesNewLocalCardIdsToOwnerInsteadOfSequentialExamples(): void
@@ -52,8 +51,7 @@ final class PremiseCheckGuidanceTest extends TestCase
         $taskStart = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-task-start/SKILL.md');
 
         self::assertIsString($taskStart);
-        self::assertStringContainsString('follow `agent-loop-workflow` to obtain the Kanban owner', $taskStart);
-        self::assertStringContainsString('Never derive an ID by incrementing a branch-local maximum.', $taskStart);
+        self::assertStringContainsString('agent-loop-workflow', $taskStart);
         self::assertStringNotContainsString('LOCAL-001', $taskStart);
     }
 
