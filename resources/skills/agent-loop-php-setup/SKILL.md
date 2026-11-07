@@ -81,7 +81,7 @@ vendor/bin/agent-loop init sync-tools
 
 Run `map build` only with confirmed paths. Execute Composer installs, existing test/formatter scripts, executable host hooks (`--with-hooks`), Git hook registration and security-policy updates **only with their own justified approval and trust boundary**. A generic request to "set up Agent Loop" does not implicitly approve privilege escalation or execution of arbitrary repository scripts.
 
-If no changes are necessary, report that instead of creating new files. If a proposed config edit lacks a supported safe owner command, present its minimal diff and stop at the approval boundary; do **not** invent `init plan`, `init diff` or `init apply` commands.
+If no changes are necessary, report that instead of creating new files. Use the real read-only `init plan --format=json` for source-backed candidate actions, preserved settings, and an optional explicit `--language=<BCP47>` JSON-pointer diff; it **never applies** proposals. If an accepted config edit lacks a supported safe owner command, present its minimal diff and stop at the approval boundary; do **not** invent `init diff` or `init apply` commands.
 
 ## 4. Verify and hand off
 
