@@ -149,7 +149,7 @@ final class InitPlanCommandTest extends TestCase
         mkdir($this->root . '/.agent-loop', 0o775, true);
         file_put_contents($this->root . '/.agent-loop/init.json', '{"prompting":{"language":42}}');
 
-        $this->expectException(\\RuntimeException::class);
+        $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cannot propose a language change');
         (new InitPlanCommand($this->root))->inspect('de-DE');
     }
