@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentLoop\Workflow\WorkflowTaskId;
 use PHPUnit\Framework\Attributes\Group;
 
 #[Group('slow')]
@@ -101,7 +102,7 @@ final class DispatcherTest extends TestCase
 
                 self::assertMatchesRegularExpression('/^LOCAL-[1-9][0-9]*$/', $id);
                 self::assertFileExists($root . '/.agent-loop/todo/cards/' . $id . '.md');
-                self::assertTrue(\\voku\\AgentLoop\\Workflow\\WorkflowTaskId::isValid($id));
+                self::assertTrue(WorkflowTaskId::isValid($id));
 
                 ob_start();
                 $showExit = $dispatcher->run(['agent-loop', 'board', 'card', 'show', $id, '--format=json']);
