@@ -1,0 +1,70 @@
+name: Prepare Recall 0.26 consumer lock (temporary)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - composer.json
+      - composer.lock
+      - .github/workflows/recall-026-lock-bootstrap.yml
+
+# Temporary branch-only lockfile preparation. Remove before merging.
+permissions:
+  contents: write
+
+jobs:
+  prepare-lock:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.head_ref == 'chore/recall-0.26.0-consumer-20261107'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Resolve and verify released Recall dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer update voku/agent-recall-compiler --with-dependencies \
+            --no-interaction --prefer-dist --no-progress --no-scripts --no-plugins
+          composer validate --strict --no-interaction
+          php -r '
+          $lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+          foreach ($lock["packages"] as $package) {
+              if ($package["name"] !== "voku/agent-recall-compiler") {
+                  continue;
+              }
+              if ($package["version"] !== "0.26.0"
+                  || ($package["source"]["reference"] ?? null) !== "42c52d8bec0044e96359f5d83f7a2315a4809c7c"
+              ) {
+                  throw new RuntimeException("Recall 0.26.0 version/commit does not match verified tag.");
+              }
+              exit(0);
+          }
+          throw new RuntimeException("Recall 0.26.0 absent from composer.lock");
+          '
+          vendor/bin/phpunit tests/ReleasedBoundedChoiceCoreIntegrationTest.php
+      - name: Commit the dependency-only lock update
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          git add -- composer.lock
+          if git diff --cached --quiet; then
+            echo 'No composer.lock update needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(deps): lock agent-recall-compiler 0.26.0"
+          git push origin "HEAD:refs/heads/${HEAD_BRANCH}"
