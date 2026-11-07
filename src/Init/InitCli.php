@@ -94,9 +94,9 @@ final readonly class InitCli
             'notes' => ['Writes project files only and never runs Composer. Use --dry-run to preview updates.'],
         ],
         'plan' => [
-            'usage' => 'agent-loop init plan [--format=json]',
+            'usage' => 'agent-loop init plan [--format=json] [--language=<BCP47>]',
             'description' => 'Build a typed, read-only review plan from existing setup evidence; never apply changes or run scripts.',
-            'notes' => ['Candidates require explicit approval; file_changes is empty until a separately reviewed apply flow exists.'],
+            'notes' => ['Candidates require explicit approval; --language only previews a requested language diff, and neither mode writes files.'],
         ],
         'recommend' => [
             'usage' => 'agent-loop init recommend [--format=json]',
@@ -178,7 +178,7 @@ final readonly class InitCli
           agent-loop init sync-tools [--tools-root=PATH] [--tools-dir=PATH] [--config=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]
           agent-loop init recommend [--format=json]
-          agent-loop init plan [--format=json]
+          agent-loop init plan [--format=json] [--language=<BCP47>]
 
         Commands:
           Every init subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.

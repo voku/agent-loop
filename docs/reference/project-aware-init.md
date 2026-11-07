@@ -25,11 +25,15 @@ configuration writer:
 
 ```bash
 vendor/bin/agent-loop init plan --format=json
+vendor/bin/agent-loop init plan --format=json --language=de-DE  # only when explicitly requested
 ```
 
 Its deterministic JSON includes a SHA-256 digest of the bounded `init recommend` evidence,
 proposals with owner, source, confidence and approval prerequisites, an explicit
-`execution: not_authorized` marker, and `file_changes: []`.
+`execution: not_authorized` marker, and `file_changes: []`. An explicitly
+requested `--language=<BCP47>` additionally previews one semantic
+`review_diffs` entry for `/prompting/language`; it never edits the config,
+and refuses to propose changes against malformed existing init settings.
 
 A project with no usable map scope or quality scripts produces no candidates.
 Detected Composer script names are *not* validation authority: the host must inspect
