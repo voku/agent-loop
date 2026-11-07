@@ -127,7 +127,6 @@ final readonly class WorkflowRecipeChoiceService
         );
     }
 
-    /** @param mixed $value */
     private static function isList(mixed $value): bool
     {
         return is_array($value) && array_is_list($value);
