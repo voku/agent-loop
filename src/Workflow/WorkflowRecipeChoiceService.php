@@ -79,10 +79,8 @@ final readonly class WorkflowRecipeChoiceService
         $seen = [];
         $candidates = [];
         $catalog = OperatingPromptCatalog::bundled();
-        foreach ($candidateIds as $id) {
-            if (!is_string($id) || preg_match('/\A[a-z][a-z0-9._-]*\z/D', $id) !== 1) {
-                throw new InvalidArgumentException('Invalid recipe candidate ID.');
-            }
+        foreach ($candidateIds as $candidateId) {
+            $id = self::requireCandidateId($candidateId);
             if (isset($seen[$id])) {
                 throw new InvalidArgumentException('Duplicate recipe candidate: ' . $id);
             }
@@ -125,6 +123,16 @@ final readonly class WorkflowRecipeChoiceService
             $responseSha256,
             null,
         );
+    }
+
+    /** @param mixed $value */
+    private static function requireCandidateId(mixed $value): string
+    {
+        if (!is_string($value) || preg_match('/\A[a-z][a-z0-9._-]*\z/D', $value) !== 1) {
+            throw new InvalidArgumentException('Invalid recipe candidate ID.');
+        }
+
+        return $value;
     }
 
     private static function isList(mixed $value): bool
