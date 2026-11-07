@@ -187,7 +187,7 @@ PHP,
         );
         file_put_contents(
             $this->root . '/composer.json',
-            json_encode(['autoload' => ['psr-4' => ['App\\\\' => 'app/']]], JSON_THROW_ON_ERROR),
+            json_encode(['autoload' => ['psr-4' => ['App\\' => 'app/']]], JSON_THROW_ON_ERROR),
         );
 
         $report = (new InitRecommendCommand($this->root))->inspect();
@@ -195,6 +195,21 @@ PHP,
         self::assertSame(['app'], $report['map']['paths']);
         self::assertSame('composer.json', $report['map']['source']);
         self::assertSame('agent-loop map build --paths=app', $report['map']['command']);
+    }
+
+    public function testNestedPhpstanExcludePathsCannotOverrideDirectExclusions(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents(
+            $this->root . '/phpstan.neon',
+            "parameters:\n  customSettings:\n    excludePaths:\n      - hidden/*\n  paths:\n    - src\n  excludePaths:\n    - tests/fixtures/*\n",
+        );
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
+        self::assertSame([], $report['exclusions']['slop']);
     }
 
     public function testMixedPhpstanListAndNestedMappingIsNotPartiallyAccepted(): void
