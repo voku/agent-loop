@@ -97,6 +97,16 @@ jobs:
               and .review.configurable_by_setup == false
               and .warnings == []
             ' "$proof/real-$name.json" > /dev/null
+            (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" init plan --format=json) > "$proof/plan-$name.json"
+            jq -e '
+              .schema_version == 1
+              and .authorization == {writes: false, executes_project_code: false, apply_supported: false}
+              and .candidates[0].id == "map.build"
+              and .candidates[0].source == "phpstan.neon"
+              and .candidates[0].diff.paths == ["src"]
+              and .candidates[0].requires_confirmation == true
+              and .warnings == []
+            ' "$proof/plan-$name.json" > /dev/null
             test -z "$(git -C "$project" status --porcelain)"
           }
           check_real_php portable-utf8 28cb685c22cd829aba819406295c0763204c5c09
