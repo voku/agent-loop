@@ -41,3 +41,33 @@ follow `prompting.language` for its own explanation and recommendation.
 The `workflow context <task-id> --format=json` projection includes the normalized `prompting` settings for governed tasks. Generated workflow and review prompts carry the language preference. The installed `agent-loop-blindspot-review` skill and reviewer use the settings for semantic review. An untracked review may read the same settings directly from `.agent-loop/init.json`. Invalid values produce a warning and fall back to the defaults.
 
 These preferences never change deterministic audit status, evidence requirements, lifecycle decisions, or human authority. A project-wide config should not store private fears or sensitive review details; supply a task focus in the request or governed task artifacts instead.
+
+## Experimental read-only recipe choice adapter (explicit host opt-in)
+
+An embedding host can call `WorkflowRecipeChoiceService` with an explicitly injected model callback and an ordered list of **verified Recall catalog IDs**. It uses the released Recall 0.26.0 prompt builder and strict choice validator. There is no bundled model provider, automatic candidate retrieval, workflow rerouting or implicit recipe activation.
+
+The default is `enabled: false`. Neither init configuration nor any existing CLI or workflow path turns it on. Existing `WorkflowPromptService` behavior is unchanged.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use voku\AgentLoop\Workflow\WorkflowRecipeChoiceService;
+
+// $hostModel is owned by the embedding application, not agent-loop.
+$choice = new WorkflowRecipeChoiceService(
+    static fn (string $prompt): string => $hostModel->complete($prompt),
+);
+$observation = $choice->evaluate(
+    'Write a failing regression test before patching this PHP bug.',
+    ['reproduce-before-fix', 'adversarial-review'],
+    enabled: true,
+);
+// Advisory context only. Never treat a result as approval or permission to edit.
+$selectedId = $observation['selected_id'];
+```
+
+The observation returns `status`, `authority: context_only`, `selected_id`, `candidate_ids`, `prompt_sha256`, `response_sha256` and `error_type`. It does not persist the raw model output or mutate existing task state. The result status is one of `disabled`, `no_candidates`, `selected`, `no_verified_selection`, `model_error`, or `invalid_model_output`.
+
+`no_verified_selection` deliberately combines explicit `none` and invalid JSON: it is **not** proof of correct semantic abstention. Host transport exceptions and unexpected return types are distinct statuses. A positive selection can only reference an offered, source-backed recipe; it is not a Contract decision, executable plan, or mutation authority. Candidate retrieval, model transport and independent accuracy evaluation remain the host's responsibilities.
