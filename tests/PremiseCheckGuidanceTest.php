@@ -38,7 +38,10 @@ final class PremiseCheckGuidanceTest extends TestCase
         self::assertIsString($workflow);
         $frontDoor = explode('## Ambiguous New Work Items', explode('## End-to-End Implementation Front Door', $workflow, 2)[1] ?? '', 2)[0];
 
+        self::assertStringContainsString('no stable task id was supplied', $frontDoor);
         self::assertStringContainsString('board card create --generate-id --title', $frontDoor);
+        self::assertStringContainsString('--lane=<configured-lane>', $frontDoor);
+        self::assertStringContainsString('fields required by that board\'s configured creation lane', $frontDoor);
         self::assertStringContainsString('never calculate `highest number + 1`', $frontDoor);
         self::assertStringContainsString('external ticket authority', $frontDoor);
         self::assertStringContainsString('result\'s `card` ID unchanged', $frontDoor);
