@@ -16,5 +16,6 @@ jobs:
           set -euo pipefail
           data="$(mktemp)"
           curl --fail-with-body -sSL --max-time 25 -o "$data" 'https://api.codacy.com/api/v3/analysis/organizations/gh/voku/repositories/agent-loop/pull-requests/962/issues?limit=100'
-          jq -c '.data[] | select(.deltaType == "Added") | .commitIssue | {path:.filePath,line:.lineNumber,rule:.patternInfo.id,severity:.patternInfo.severityLevel,message:.message}' "$data"
+          jq -c '{analyzed:.analyzed, count:(.data|length), deltas:[.data[].deltaType]}' "$data"
+          jq -c '.data[] | {deltaType:.deltaType,path:.commitIssue.filePath,line:.commitIssue.lineNumber,rule:.commitIssue.patternInfo.id,message:.commitIssue.message}' "$data"
           rm "$data"
