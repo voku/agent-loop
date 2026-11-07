@@ -46,8 +46,7 @@ final class InitSetupPlanCommandTest extends TestCase
         self::assertSame([], $plan['warnings']);
         self::assertSame([], $plan['preserved'][0]['values']);
         self::assertSame(3, $plan['preserved'][1]['value']);
-        self::assertFalse($plan['authorization']['writes']);
-        self::assertFalse($plan['authorization']['apply_supported']);
+        self::assertSame(['writes' => false, 'executes_project_code' => false, 'apply_supported' => false], $plan['authorization']);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
     }
 
