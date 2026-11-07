@@ -19,6 +19,12 @@ final class InitComposerQualityEvidenceTest extends TestCase
                 'ci' => ['@php -v', '@php -r "exit(0);"'],
                 'phpstan' => 'vendor/bin/phpstan',
                 'cs' => '@php vendor/bin/php-cs-fixer check',
+                'test:valid-array' => ['@php vendor/bin/phpunit', '@php vendor/bin/phpstan'],
+                'test:empty' => [],
+                'test:associative' => ['step' => '@php vendor/bin/phpunit'],
+                'test:mixed' => ['@php vendor/bin/phpunit', false],
+                'test:blank' => '  ',
+                'test:empty-step' => ['@php vendor/bin/phpunit', ''],
                 'post-install-cmd' => 'unexpected lifecycle hook',
                 'not-quality' => 'ignored',
                 'ci && echo unsafe' => 'invalid shell-like script name',
@@ -26,7 +32,7 @@ final class InitComposerQualityEvidenceTest extends TestCase
             ],
         ]);
 
-        self::assertSame(['ci', 'cs', 'phpstan', 'test:unit'], $scripts);
+        self::assertSame(['ci', 'cs', 'phpstan', 'test:unit', 'test:valid-array'], $scripts);
     }
 
     public function testMissingOrInvalidScriptsCannotInventValidation(): void
