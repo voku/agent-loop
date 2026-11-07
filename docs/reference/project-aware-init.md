@@ -18,6 +18,24 @@ The JSON document reports:
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
 - **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM. Commands use the Composer-installed `vendor/bin/agent-loop` executable, without requiring a globally installed CLI on `PATH`.
 
+## Typed proposal preview (read-only)
+
+The next incremental slice provides a deterministic, owner-specific `init plan` response using the same safely bounded `init recommend` evidence. It does **not** execute Composer scripts, apply configuration changes, or claim that a source-backed candidate is approved.
+
+```bash
+vendor/bin/agent-loop init plan --format=json
+# Only after the developer explicitly requests this language:
+vendor/bin/agent-loop init plan --format=json --language=de-DE
+```
+
+The response has `schema_version: 1`, `state: "proposal_only"`, `requires_confirmation: true`, `apply_supported: false`, and `candidates`, `changes`, `warnings` arrays.
+
+- `map.paths`: a candidate owned by **agent-map**, with the original PHPStan / Composer / directory source, confidence, and a suggested preview command. It is never executed.
+- `composer.quality-scripts`: declared Composer script **names**, not safe commands or permissions. Lifecycle hooks are not included; inspect script bodies and CI first.
+- `changes`: a **semantic** `/prompting/language` before/after proposal only when `--language` was explicitly provided and differs from the loaded value. Existing malformed init configuration blocks language proposals. Unspecified/default language yields no change.
+
+The command never opens a config writer. A future approved apply API must revalidate the current config and preserve unknown keys, owner-specific exclusion semantics, and the existing three-round Attention invariant; do **not** feed this JSON directly to a generic JSON patcher. Dedicated GitHub Actions coverage verifies this behavior against disposable projects and a real Composer-installed consumer.
+
 ## Deliberate boundaries
 
 This command **never writes**, runs Composer, executes PHP-CS-Fixer configs, calls a model, changes host policy, alters the review Attention safeguard, or installs tooling. It can safely inspect a Finder configuration's *presence*, not its effective execution-dependent scope.
