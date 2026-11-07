@@ -4,9 +4,17 @@
 
 This guide is for the project developer and the coding host. The skill source is `resources/skills/agent-loop-php-setup/SKILL.md` and is projected through the existing `init install-assets` mechanism.
 
-## First-time bootstrap
+## One-prompt onboarding (recommended)
 
-From the PHP project root, install Agent Loop through the project's normal Composer process:
+Give your existing coding agent this task, without manually mapping PHPStan or PHP-CS-Fixer settings:
+
+> Set up voku/agent-loop for this PHP repository. If it is not installed, inspect our Composer setup and propose the smallest safe development dependency change first. Once available, run `init recommend --format=json`, inspect our actual PHP tooling and scripts, preview the host installation, and use `agent-loop-php-setup` to produce and execute an approved setup plan. Preserve existing exclusions, validation gates and project instructions. Do not execute unknown PHP configs or install hooks without permission. Verify the result.
+
+The **coding agent**, not the developer, performs discovery and proposes the work. The developer authorizes the dependency change, managed-file changes and privileged or executable integrations where required.
+
+## First-time bootstrap (commands the agent can run)
+
+From the PHP project root, the agent uses the project's normal Composer process after approval:
 
 ```bash
 composer require --dev voku/agent-loop
