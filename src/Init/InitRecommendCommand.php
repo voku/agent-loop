@@ -65,64 +65,13 @@ final readonly class InitRecommendCommand
         $slopPath = $this->firstExisting(['slop-scan.config.json', 'repo-slop.config.json']);
         $composerPath = $this->firstExisting(['composer.json']);
         $initPath = $this->firstExisting(['.agent-loop/init.json']);
-        $warnings = [];
+        $phpstanLists = $this->phpstanLists($phpstanPath);
+        [$paths, $source] = $this->mapPaths($phpstanLists['paths'], $phpstanPath, $composerPath);
+        $slop = $this->slopIgnores($slopPath);
 
-        $phpstanPaths = [];
-        $phpstanExcludes = [];
-        if ($phpstanPath !== null) {
-            $content = $this->readBounded($phpstanPath);
-            $phpstanPaths = $this->neonList($content, 'paths');
-            $phpstanExcludes = $this->neonList($content, 'excludePaths');
-            if ($phpstanPaths === null) {
-                $warnings[] = 'PHPStan parameters.paths could not be read as a literal list; falling back to Composer or directory scope.';
-                $phpstanPaths = [];
-            }
-            if ($phpstanExcludes === null) {
-                $warnings[] = 'PHPStan parameters.excludePaths could not be read as a literal list; no excludes are reported.';
-                $phpstanExcludes = [];
-            }
-        }
-
-        $paths = $this->existingPaths($phpstanPaths);
-        $source = $paths !== [] ? $phpstanPath : null;
-
-        if ($paths === [] && $composerPath !== null) {
-            $composer = $this->readJson($composerPath);
-            $autoload = $composer['autoload'] ?? null;
-            $psr4 = is_array($autoload) ? ($autoload['psr-4'] ?? null) : null;
-            $candidates = [];
-            if (is_array($psr4)) {
-                foreach ($psr4 as $directories) {
-                    if (is_string($directories)) {
-                        $candidates[] = $directories;
-                    } elseif (is_array($directories)) {
-                        foreach ($directories as $directory) {
-                            if (is_string($directory)) {
-                                $candidates[] = $directory;
-                            }
-                        }
-                    }
-                }
-            }
-            $paths = $this->existingPaths($candidates);
-            $source = $paths !== [] ? $composerPath : null;
-        }
-
-        if ($paths === []) {
-            $paths = $this->existingPaths(['src', 'tests']);
-            $source = $paths !== [] ? 'directory-presence' : null;
-        }
-
-        $slopIgnores = [];
-        if ($slopPath !== null) {
-            $slop = $this->readJson($slopPath);
-            $ignores = $slop['ignores'] ?? [];
-            if (!is_array($ignores) || array_filter($ignores, static fn (mixed $ignore): bool => !is_string($ignore)) !== []) {
-                $warnings[] = 'slop-scan ignores are not a list of strings; no excludes were adopted.';
-            } else {
-                $slopIgnores = array_values($ignores);
-            }
-        }
+        $phpstanExcludes = $phpstanLists['excludes'];
+        $slopIgnores = $slop['ignores'];
+        $warnings = [...$phpstanLists['warnings'], ...$slop['warnings']];
 
         // Validate and read exactly once: InitConfigLoader owns interpretation,
         // while this command owns bounded input and repository confinement.
@@ -174,6 +123,96 @@ final readonly class InitRecommendCommand
             ],
             'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Keep unsupported PHPStan expressions visible instead of silently treating
+     * their paths or exclusions as authoritative.
+     *
+     * @return array{paths: list<string>, excludes: list<string>, warnings: list<string>}
+     */
+    private function phpstanLists(?string $configPath): array
+    {
+        if ($configPath === null) {
+            return ['paths' => [], 'excludes' => [], 'warnings' => []];
+        }
+
+        $content = $this->readBounded($configPath);
+        $paths = $this->neonList($content, 'paths');
+        $excludes = $this->neonList($content, 'excludePaths');
+        $warnings = [];
+        if ($paths === null) {
+            $warnings[] = 'PHPStan parameters.paths could not be read as a literal list; falling back to Composer or directory scope.';
+        }
+        if ($excludes === null) {
+            $warnings[] = 'PHPStan parameters.excludePaths could not be read as a literal list; no excludes are reported.';
+        }
+
+        return ['paths' => $paths ?? [], 'excludes' => $excludes ?? [], 'warnings' => $warnings];
+    }
+
+    /**
+     * Use detected PHPStan paths first, then Composer PSR-4, then existing
+     * conventional directories. All candidates pass repository confinement.
+     *
+     * @param list<string> $phpstanPaths
+     * @return array{list<string>, string|null}
+     */
+    private function mapPaths(array $phpstanPaths, ?string $phpstanPath, ?string $composerPath): array
+    {
+        $paths = $this->existingPaths($phpstanPaths);
+        if ($paths !== []) {
+            return [$paths, $phpstanPath];
+        }
+
+        if ($composerPath !== null) {
+            $composer = $this->readJson($composerPath);
+            $autoload = $composer['autoload'] ?? null;
+            $psr4 = is_array($autoload) ? ($autoload['psr-4'] ?? null) : null;
+            $candidates = [];
+            if (is_array($psr4)) {
+                foreach ($psr4 as $directories) {
+                    if (is_string($directories)) {
+                        $candidates[] = $directories;
+                    } elseif (is_array($directories)) {
+                        foreach ($directories as $directory) {
+                            if (is_string($directory)) {
+                                $candidates[] = $directory;
+                            }
+                        }
+                    }
+                }
+            }
+            $paths = $this->existingPaths($candidates);
+            if ($paths !== []) {
+                return [$paths, $composerPath];
+            }
+        }
+
+        $paths = $this->existingPaths(['src', 'tests']);
+
+        return [$paths, $paths !== [] ? 'directory-presence' : null];
+    }
+
+    /**
+     * A Slop Scan ignore is evidence of Slop policy only, not an exclusion
+     * eligible for automatic propagation to Map or PHPStan.
+     *
+     * @return array{ignores: list<string>, warnings: list<string>}
+     */
+    private function slopIgnores(?string $configPath): array
+    {
+        if ($configPath === null) {
+            return ['ignores' => [], 'warnings' => []];
+        }
+
+        $slop = $this->readJson($configPath);
+        $ignores = $slop['ignores'] ?? [];
+        if (!is_array($ignores) || array_filter($ignores, static fn (mixed $ignore): bool => !is_string($ignore)) !== []) {
+            return ['ignores' => [], 'warnings' => ['slop-scan ignores are not a list of strings; no excludes were adopted.']];
+        }
+
+        return ['ignores' => array_values($ignores), 'warnings' => []];
     }
 
     /** @param list<string> $candidates */
