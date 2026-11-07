@@ -929,16 +929,16 @@
         },
         {
             "name": "voku/agent-edit",
-            "version": "0.6.1",
+            "version": "0.6.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-edit.git",
-                "reference": "4532a99f148c33d64d60c0e036a4d892f9712fa7"
+                "reference": "8bc3d88367d21d4b628272f771ceceb3daf34b00"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-edit/zipball/4532a99f148c33d64d60c0e036a4d892f9712fa7",
-                "reference": "4532a99f148c33d64d60c0e036a4d892f9712fa7",
+                "url": "https://api.github.com/repos/voku/agent-edit/zipball/8bc3d88367d21d4b628272f771ceceb3daf34b00",
+                "reference": "8bc3d88367d21d4b628272f771ceceb3daf34b00",
                 "shasum": ""
             },
             "require": {
@@ -987,7 +987,8 @@
                 "issues": "https://github.com/voku/agent-edit/issues",
                 "source": "https://github.com/voku/agent-edit"
             },
-            "time": "2026-10-24T21:03:23+00:00"
+            "time": "2026-11-05T19:16:46+00:00",
+            "published-time": "2026-11-05T19:23:07+00:00"
         },
         {
             "name": "voku/agent-graph",
