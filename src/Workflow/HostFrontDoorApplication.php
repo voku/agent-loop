@@ -254,7 +254,7 @@ final readonly class HostFrontDoorApplication
      *     status: string,
      *     url: string|null,
      *     detail: string|null,
-     *     start_command: non-empty-list<string>|null
+     *     start_command?: non-empty-list<string>|null
      * }|null $presentation
      */
     private function printControlPlanePresentation(?array $presentation): void
