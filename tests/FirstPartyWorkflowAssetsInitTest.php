@@ -60,6 +60,7 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertArrayHasKey('agent-recall-consumer', $skills);
         self::assertArrayHasKey('agent-loop-discipline', $skills);
         self::assertArrayHasKey('agent-loop-workflow', $skills);
+        self::assertArrayHasKey('agent-loop-php-setup', $skills);
         self::assertArrayHasKey('agent-loop-dream', $skills);
 
         // Maintainer skills MUST NOT be present
@@ -177,6 +178,7 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertContains('agent-learning-consumer', $plannedEntries);
         self::assertContains('agent-recall-consumer', $plannedEntries);
         self::assertContains('agent-loop-workflow', $plannedEntries);
+        self::assertContains('agent-loop-php-setup', $plannedEntries);
         self::assertContains('agent-loop-dream', $plannedEntries);
         self::assertContains('agent-loop-discipline', $plannedEntries);
         self::assertContains('AGENTS.md', $plannedEntries);

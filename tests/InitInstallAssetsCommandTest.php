@@ -56,6 +56,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-discipline', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-investigate', $result['output']);
+        self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-php-setup', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-recall-consumer', $result['output']);
         self::assertStringContainsString(
             'from ' . count(FirstPartySkillRoots::resolve(dirname(__DIR__))) . ' source root(s)',
@@ -89,6 +90,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-investigate/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-php-setup/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-surgical-edit/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-code-review/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-review/SKILL.md');
