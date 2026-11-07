@@ -48,6 +48,7 @@ jobs:
             and .history.commit_budget == 15
             and .history.inspected_commits == 4
             and .history.rename_crossed == true
+            and .history.historical_path_verified == true
             and .history.blamed_sha == .fixture.regression_sha
             and .history.pickaxe_sha == .fixture.regression_sha
             and .history.source_before_after_verified == true
@@ -55,6 +56,7 @@ jobs:
             and .patch.displayed_lines == 201
             and .patch.displayed_line_budget == 200
             and .patch.truncation_marker == true
+            and .patch.git_error_propagated == true
             and .shallow.is_shallow == true
             and .shallow.history_incomplete == true
             and .shallow.automated_fetch == false

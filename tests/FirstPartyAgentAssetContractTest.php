@@ -95,6 +95,11 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         }
 
         self::assertStringContainsString('--max-count=15', $skill);
+        self::assertStringContainsString('log --follow --find-renames --name-status', $skill);
+        self::assertStringContainsString('log --follow --find-renames --name-status', $investigator);
+        self::assertStringContainsString('src/path-at-commit.php', $skill);
+        self::assertStringContainsString('set -o pipefail', $skill);
+        self::assertStringContainsString('set -o pipefail', $investigator);
         self::assertStringContainsString('git --no-pager show --stat', $skill);
         self::assertStringContainsString('git --no-pager blame -L', $skill);
         self::assertStringContainsString("git --no-pager log --max-count=15 -S'literal'", $skill);
