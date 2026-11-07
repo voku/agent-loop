@@ -12,6 +12,7 @@ The JSON document reports:
 
 - **sources**: detected PHPStan, PHP-CS-Fixer, Composer, slop-scan and agent-loop configuration files;
 - **map**: a proposed `--paths` scope, source and copyable command, always marked `requires_confirmation`;
+- **quality**: names of declared Composer check/test/analyse scripts only; script bodies, side effects and dependencies remain unverified and require approval before execution;
 - **exclusions**: literal PHPStan `excludePaths` and existing slop-scan `ignores`, **not** automatically merged;
 - **prompting**: the current `.agent-loop/init.json` language or the `en` default, without claiming a user preference;
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
