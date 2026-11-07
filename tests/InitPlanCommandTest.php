@@ -93,7 +93,7 @@ final class InitPlanCommandTest extends TestCase
         self::assertSame('literal_config', $plan['proposals'][0]['confidence']);
         self::assertSame('vendor/bin/agent-loop map build --paths=src', $plan['proposals'][0]['proposed']);
         self::assertSame('not_authorized', $plan['proposals'][0]['execution']);
-        self::assertNull($plan['proposals'][0]['current']);
+        self::assertContains('Run the command only after explicit approval.', $plan['proposals'][0]['prerequisites']);
         self::assertSame('unverified_script_name', $plan['proposals'][1]['confidence']);
         self::assertSame('ci', $plan['proposals'][1]['proposed']);
         self::assertSame('composer.json', $plan['proposals'][1]['source']);
