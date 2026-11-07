@@ -63,6 +63,24 @@ final readonly class ExecutionPlan
                 }
             }
         }
+        // A named dependency is not sufficient: it must be visited on every route to its consumer.
+        foreach ($this->stages as $stage) {
+            foreach ($stage->requires as $required) {
+                if ($stage->id === $required) {
+                    throw new InvalidArgumentException(sprintf(
+                        'Execution stage %s cannot require itself.',
+                        $stage->id,
+                    ));
+                }
+                if ($this->canReachWithout($stage->id, $required, $stages)) {
+                    throw new InvalidArgumentException(sprintf(
+                        'Execution stage %s can be reached without required stage %s.',
+                        $stage->id,
+                        $required,
+                    ));
+                }
+            }
+        }
     }
 
     /** @param array{path: non-empty-string, sha256: non-empty-string} $contractSource */
@@ -144,6 +162,40 @@ final readonly class ExecutionPlan
         }
 
         throw new RuntimeException('Execution plan has no role ' . $roleId . '.');
+    }
+
+    /**
+     * Check whether a stage is reachable along a route that never executes its declared prerequisite.
+     *
+     * @param array<string, ExecutionStage> $stages
+     */
+    private function canReachWithout(string $target, string $excluded, array $stages): bool
+    {
+        $first = $this->firstStageId();
+        if ($first === null || $first === $excluded) {
+            return false;
+        }
+
+        $queue = [$first];
+        $visited = [$first => true];
+
+        for ($index = 0; $index < count($queue); ++$index) {
+            $current = $queue[$index];
+            if ($current === $target) {
+                return true;
+            }
+
+            foreach ($stages[$current]->transitions as $next) {
+                if ($next === null || $next === $excluded || isset($visited[$next])) {
+                    continue;
+                }
+
+                $visited[$next] = true;
+                $queue[] = $next;
+            }
+        }
+
+        return false;
     }
 
     /** @return array<string, mixed> */
