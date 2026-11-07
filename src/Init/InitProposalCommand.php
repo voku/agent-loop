@@ -76,7 +76,7 @@ final readonly class InitProposalCommand
                 'confidence' => $report['map']['source'] === 'directory-presence' ? 'presence-only' : 'source-backed',
                 'value' => [
                     'paths' => $report['map']['paths'],
-                    'preview_command' => $report['map']['command'],
+                    'suggested_command' => $report['map']['command'],
                 ],
                 'requires_confirmation' => true,
             ];
