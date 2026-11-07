@@ -92,23 +92,10 @@ final readonly class InitPlanCommand
             ];
         }
 
-        foreach ($evidence['quality']['composer_scripts'] as $scriptName) {
-            $proposals[] = [
-                'id' => 'composer.script.' . $scriptName,
-                'kind' => 'composer_script',
-                'owner' => 'composer',
-                'source' => $evidence['quality']['source'],
-                'confidence' => 'unverified_script_name',
-                'current' => null,
-                'proposed' => $scriptName,
-                'requires_confirmation' => true,
-                'execution' => 'not_authorized',
-                'prerequisites' => [
-                    'Inspect the complete Composer script body and CI dependencies.',
-                    'Authorize the exact execution command separately.',
-                ],
-            ];
-        }
+        array_push($proposals, ...$this->composerProposals(
+            $evidence['quality']['composer_scripts'],
+            $evidence['quality']['source'],
+        ));
 
         return [
             'schema_version' => 1,
@@ -123,5 +110,45 @@ final readonly class InitPlanCommand
             ],
             'warnings' => $evidence['warnings'],
         ];
+    }
+
+    /**
+     * @param list<string> $scriptNames
+     * @return list<array{
+     *   id: string,
+     *   kind: 'composer_script',
+     *   owner: 'composer',
+     *   source: string|null,
+     *   confidence: 'unverified_script_name',
+     *   current: null,
+     *   proposed: string,
+     *   requires_confirmation: true,
+     *   execution: 'not_authorized',
+     *   prerequisites: list<string>
+     * }>
+     */
+    private function composerProposals(array $scriptNames, ?string $source): array
+    {
+        $proposals = [];
+
+        foreach ($scriptNames as $scriptName) {
+            $proposals[] = [
+                'id' => 'composer.script.' . $scriptName,
+                'kind' => 'composer_script',
+                'owner' => 'composer',
+                'source' => $source,
+                'confidence' => 'unverified_script_name',
+                'current' => null,
+                'proposed' => $scriptName,
+                'requires_confirmation' => true,
+                'execution' => 'not_authorized',
+                'prerequisites' => [
+                    'Inspect the complete Composer script body and CI dependencies.',
+                    'Authorize the exact execution command separately.',
+                ],
+            ];
+        }
+
+        return $proposals;
     }
 }
