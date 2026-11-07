@@ -301,6 +301,7 @@ final readonly class InitRecommendCommand
         }
 
         $inParameters = false;
+        $parameterChildIndent = null;
         $seen = false;
         $keyIndent = 0;
         $itemIndent = null;
@@ -314,6 +315,7 @@ final readonly class InitRecommendCommand
             }
             if ($line === 'parameters:') {
                 $inParameters = true;
+                $parameterChildIndent = null;
                 continue;
             }
             if (preg_match('/^\S/', $line) === 1) {
@@ -330,6 +332,18 @@ final readonly class InitRecommendCommand
             }
 
             if (!$seen) {
+                // A nested `paths:` is not `parameters.paths`. Establish the
+                // direct-child indent from the first actual parameter entry.
+                $indent = strspn($line, ' ');
+                if ($parameterChildIndent === null) {
+                    if ($indent !== 2 && $indent !== 4) {
+                        return null;
+                    }
+                    $parameterChildIndent = $indent;
+                }
+                if ($indent !== $parameterChildIndent) {
+                    continue;
+                }
                 if (preg_match('/^( {2}| {4})' . preg_quote($key, '/') . ':(.*)$/', $line, $field) !== 1) {
                     continue;
                 }
