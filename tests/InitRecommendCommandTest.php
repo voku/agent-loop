@@ -84,6 +84,15 @@ final class InitRecommendCommandTest extends TestCase
         self::assertNotEmpty($brief['workflow']);
         self::assertNotEmpty($brief['deliverables']);
         self::assertNotEmpty($brief['guardrails']);
+        self::assertLessThanOrEqual(
+            14,
+            count($brief['workflow']) + count($brief['deliverables']) + count($brief['guardrails']) + count($brief['preview_commands']),
+            'Do not turn a read-only PHP setup brief into another workflow manual.',
+        );
+        self::assertStringContainsString('Composer/PHPUnit/PHPStan/PHP-CS-Fixer', implode(' ', $brief['workflow']));
+        self::assertStringContainsString('approval', implode(' ', $brief['workflow']));
+        self::assertStringContainsString('Never copy PHPStan', implode(' ', $brief['guardrails']));
+        self::assertStringContainsString('three-round human Attention cap', implode(' ', $brief['guardrails']));
         self::assertContains('vendor/bin/agent-loop init sync-tools --dry-run', $brief['preview_commands']);
         self::assertStringContainsString('untrusted repository data', $brief['evidence_trust']);
 
