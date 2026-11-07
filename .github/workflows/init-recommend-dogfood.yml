@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/Init/**'
       - 'tests/InitRecommendCommandTest.php'
+      - 'tests/InitProposalCommandTest.php'
       - 'tests/InitSyncToolsCommandTest.php'
       - 'tests/InitConfigLoaderTest.php'
       - 'tests/InitCliTest.php'
@@ -47,8 +48,10 @@ jobs:
       - name: Verify syntax and focused PHPUnit coverage
         run: |
           php -l src/Init/InitRecommendCommand.php
+          php -l src/Init/InitProposalCommand.php
           php -l tests/InitRecommendCommandTest.php
-          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
+          php -l tests/InitProposalCommandTest.php
+          php vendor/bin/phpunit tests/InitProposalCommandTest.php tests/InitRecommendCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
       - name: Exercise actual CLI against isolated projects
         shell: bash
         env:
