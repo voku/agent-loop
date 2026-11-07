@@ -113,4 +113,61 @@ final class InitPlanCommandTest extends TestCase
         self::assertSame(1, $command->run(['--format=php']));
         self::assertFileDoesNotExist($this->root . '/.agent-loop/init.json');
     }
+
+    public function testExplicitLanguageProducesOnlyReviewDiffWithoutConfigMutation(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        $config = '{"version":1,"prompting":{"language":"de-DE"},"custom":{"preserve":true}}';
+        file_put_contents($this->root . '/.agent-loop/init.json', $config);
+
+        $command = new InitPlanCommand($this->root);
+        self::assertSame([], $command->inspect()['review_diffs']);
+        self::assertSame([], $command->inspect('de-de')['review_diffs']);
+
+        $plan = $command->inspect('fr-FR');
+        self::assertSame([], $plan['file_changes']);
+        self::assertCount(1, $plan['review_diffs']);
+        self::assertSame('/prompting/language', $plan['review_diffs'][0]['pointer']);
+        self::assertSame('de-de', $plan['review_diffs'][0]['before']);
+        self::assertSame('fr-fr', $plan['review_diffs'][0]['after']);
+        self::assertSame('not_authorized', $plan['review_diffs'][0]['execution']);
+        self::assertSame($config, file_get_contents($this->root . '/.agent-loop/init.json'));
+    }
+
+    public function testDefaultLanguageIsNotMistakenForAConfiguredPreference(): void
+    {
+        $plan = (new InitPlanCommand($this->root))->inspect('de-DE');
+
+        self::assertSame([], $plan['file_changes']);
+        self::assertSame(null, $plan['review_diffs'][0]['before']);
+        self::assertSame('default', $plan['review_diffs'][0]['before_source']);
+        self::assertSame('de-de', $plan['review_diffs'][0]['after']);
+    }
+
+    public function testMalformedExistingConfigBlocksLanguageDiff(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"prompting":{"language":42}}');
+
+        $this->expectException(\\RuntimeException::class);
+        $this->expectExceptionMessage('Cannot propose a language change');
+        (new InitPlanCommand($this->root))->inspect('de-DE');
+    }
+
+    public function testLanguageArgumentRejectsInvalidAndDuplicateValuesWithoutWrites(): void
+    {
+        $command = new InitPlanCommand($this->root);
+
+        foreach ([
+            ['--language='],
+            ['--language=../escape'],
+            ['--language=de-DE', '--language=fr-FR'],
+            ['--format=json', '--format=json'],
+            ['--format=xml'],
+        ] as $tokens) {
+            self::assertSame(1, $command->run($tokens));
+        }
+
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/init.json');
+    }
 }
