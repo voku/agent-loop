@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Init\InitSyncToolsCommand;
+use voku\AgentLoop\PackageResources;
 
 /**
  * @internal
@@ -79,6 +80,11 @@ final class InitSyncToolsCommandTest extends TestCase
 
         self::assertSame(0, $exit, $output);
         self::assertFileExists($consumer . '/tools/slop-scan/composer.json');
+        self::assertFileExists($consumer . '/tools/slop-scan/composer.lock');
+        self::assertSame(
+            (string) file_get_contents(PackageResources::toolsRoot() . '/slop-scan/composer.lock'),
+            (string) file_get_contents($consumer . '/tools/slop-scan/composer.lock'),
+        );
         self::assertFileExists($consumer . '/tools/slop-scan/slop-scan.php');
         self::assertStringContainsString('composer install --working-dir=tools/slop-scan', $output);
         self::assertDirectoryDoesNotExist($consumer . '/tools/slop-scan/vendor');
