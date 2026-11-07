@@ -81,7 +81,14 @@ vendor/bin/agent-loop init sync-tools
 
 Run `map build` only with confirmed paths. Execute Composer installs, existing test/formatter scripts, executable host hooks (`--with-hooks`), Git hook registration and security-policy updates **only with their own justified approval and trust boundary**. A generic request to "set up Agent Loop" does not implicitly approve privilege escalation or execution of arbitrary repository scripts.
 
-If no changes are necessary, report that instead of creating new files. If a proposed config edit lacks a supported safe owner command, present its minimal diff and stop at the approval boundary. The supported `init plan --format=json` is **read-only**; it does not implement a typed `init diff` or `init apply` operation. Do not invent those commands.
+If no changes are necessary, report that instead of creating new files. If a proposed config edit lacks a supported safe owner command, present its minimal diff and stop at the approval boundary. The supported `init plan` is **read-only**. Only the explicit `prompting.language` field has a narrow supported `init apply` writer. After the developer reviews an `init plan --format=json --language=de-DE` response, copy the exact `evidence_sha256` from that report into the commands below, first without writes, then with `--yes` **only after explicit approval**:
+
+```bash
+vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --dry-run
+vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --yes
+```
+
+This scoped writer fails on stale evidence or malformed configuration, refuses symlinked destinations, and preserves unrelated JSON fields. The lock file is created inside the existing `.agent-loop` directory; `init scaffold` must prepare that directory first. No other `init apply` fields, arbitrary patching, LLM grants, or executable tooling are supported. Do not invent a generic `init diff` or assume that `review_diffs` are already approved.
 
 ## 4. Verify and hand off
 
