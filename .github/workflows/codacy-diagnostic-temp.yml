@@ -1,0 +1,25 @@
+name: Temporary Codacy final finding diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codacy-diagnostic-temp.yml'
+permissions:
+  contents: read
+jobs:
+  codacy-findings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read current public Codacy delta and response shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pr in 953; do
+            data="$(mktemp)"
+            status="$(curl --fail-with-body -sSL --max-time 25 -o "$data" -w '%{http_code}' "https://api.codacy.com/api/v3/analysis/organizations/gh/voku/repositories/agent-loop/pull-requests/${pr}/issues?limit=100")"
+            echo "HTTP=$status; TOP_LEVEL_KEYS=$(jq -c 'keys' "$data")"
+            echo "DATA_TYPE=$(jq -r '(.data // .issues // .) | type' "$data")"
+            jq -c '.data // .issues // . | if type == "array" then .[] elif type == "object" then . end' "$data" | head -c 27000 || true
+            echo
+            rm -f "$data"
+          done
