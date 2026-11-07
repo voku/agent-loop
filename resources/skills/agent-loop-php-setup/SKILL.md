@@ -19,12 +19,13 @@ Run from the PHP project root after Composer has made the CLI available:
 
 ```bash
 vendor/bin/agent-loop init recommend --format=json
+vendor/bin/agent-loop init plan --format=json
 vendor/bin/agent-loop init host-status --format=json
 ```
 
 If `recommend` is unavailable, verify the installed Agent Loop version; do not fabricate its JSON schema or claim successful discovery.
 
-Interpret `recommend` as *suggestions*, not authority. Inspect the source files it names to verify scope and ownership. Also **read, do not execute**, relevant existing project files:
+Interpret `recommend` as *suggestions*, not authority. `init plan` converts those bounded facts into typed, source-backed **review candidates**, not authorized operations. Its `evidence_sha256` binds the read-only input snapshot; `file_changes: []` means no configuration edit is proposed or executed. Never treat `proposals` as an executable shell queue. Inspect the source files it names to verify scope and ownership. Also **read, do not execute**, relevant existing project files:
 
 - `composer.json`: `require.php`, PSR-4 paths, `scripts`, PHPStan / PHP-CS-Fixer / PHPUnit dependencies. Consume `quality.composer_scripts` from `init recommend` as **untrusted script-name evidence**, then inspect the actual script bodies and CI before proposing any validation command. Do not assume `composer test` or execute a script just because its name was detected.
 - `phpstan.neon[.dist]`: analysis paths and literal exclusions. Dynamic NEON includes/parameters are unresolved until verified by the owner tool; a discovered path is not proof it can be indexed.
@@ -80,7 +81,7 @@ vendor/bin/agent-loop init sync-tools
 
 Run `map build` only with confirmed paths. Execute Composer installs, existing test/formatter scripts, executable host hooks (`--with-hooks`), Git hook registration and security-policy updates **only with their own justified approval and trust boundary**. A generic request to "set up Agent Loop" does not implicitly approve privilege escalation or execution of arbitrary repository scripts.
 
-If no changes are necessary, report that instead of creating new files. If a proposed config edit lacks a supported safe owner command, present its minimal diff and stop at the approval boundary; do **not** invent `init plan`, `init diff` or `init apply` commands.
+If no changes are necessary, report that instead of creating new files. If a proposed config edit lacks a supported safe owner command, present its minimal diff and stop at the approval boundary. The supported `init plan --format=json` is **read-only**; it does not implement a typed `init diff` or `init apply` operation. Do not invent those commands.
 
 ## 4. Verify and hand off
 

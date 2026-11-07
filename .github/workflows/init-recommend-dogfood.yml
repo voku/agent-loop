@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/Init/**'
       - 'tests/InitRecommendCommandTest.php'
+      - 'tests/InitPlanCommandTest.php'
       - 'tests/InitSyncToolsCommandTest.php'
       - 'tests/InitConfigLoaderTest.php'
       - 'tests/InitCliTest.php'
@@ -47,8 +48,10 @@ jobs:
       - name: Verify syntax and focused PHPUnit coverage
         run: |
           php -l src/Init/InitRecommendCommand.php
+          php -l src/Init/InitPlanCommand.php
           php -l tests/InitRecommendCommandTest.php
-          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
+          php -l tests/InitPlanCommandTest.php
+          php vendor/bin/phpunit tests/InitRecommendCommandTest.php tests/InitPlanCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
       - name: Exercise actual CLI against isolated projects
         shell: bash
         env:
@@ -82,6 +85,16 @@ jobs:
             test "$(git -C "$project" rev-parse HEAD)" = "$expected_sha"
             test -z "$(git -C "$project" status --porcelain)"
             (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" init recommend --format=json) > "$proof/real-$name.json"
+            (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" init plan --format=json) > "$proof/real-$name-plan.json"
+            jq -e '
+              .schema_version == 1
+              and .mode == "read_only"
+              and (.evidence_sha256 | test("^[a-f0-9]{64}$"))
+              and .file_changes == []
+              and (.proposals | any(.id == "map.scope" and .source == "phpstan.neon" and .proposed == "vendor/bin/agent-loop map build --paths=src"))
+              and (.proposals | all(.requires_confirmation == true and .execution == "not_authorized"))
+              and .review.applied == false
+            ' "$proof/real-$name-plan.json" > /dev/null
             jq -e '
               .schema_version == 1
               and .sources.phpstan == "phpstan.neon"

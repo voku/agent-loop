@@ -18,6 +18,30 @@ The JSON document reports:
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
 - **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM. Commands use the Composer-installed `vendor/bin/agent-loop` executable, without requiring a globally installed CLI on `PATH`.
 
+## Reviewable, read-only candidate plan
+
+The next narrow slice of #947 exposes a typed proposal view without adding an unsafe
+configuration writer:
+
+```bash
+vendor/bin/agent-loop init plan --format=json
+```
+
+Its deterministic JSON includes a SHA-256 digest of the bounded `init recommend` evidence,
+proposals with owner, source, confidence and approval prerequisites, an explicit
+`execution: not_authorized` marker, and `file_changes: []`.
+
+A project with no usable map scope or quality scripts produces no candidates.
+Detected Composer script names are *not* validation authority: the host must inspect
+their bodies before proposing execution. Literal PHPStan paths, Composer declarations
+and directory-presence fallbacks have different provenance labels.
+
+This command **does not** modify `.agent-loop/init.json`, slop-scan configuration,
+map state or the human Attention safeguard. The empty file diff is intentional:
+no configuration mutation is proposed based solely on default values or tool-specific
+excludes. The coding host may present separate minimal changes for explicit approval,
+but `init diff` and `init apply` do not yet exist.
+
 ## Deliberate boundaries
 
 This command **never writes**, runs Composer, executes PHP-CS-Fixer configs, calls a model, changes host policy, alters the review Attention safeguard, or installs tooling. It can safely inspect a Finder configuration's *presence*, not its effective execution-dependent scope.
@@ -39,6 +63,6 @@ php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --l
 
 ## Next slices
 
-An LLM can use this bounded JSON as context. It cannot treat a proposal as an approved configuration. [#947](https://github.com/voku/agent-loop/issues/947) tracks the typed proposal/diff/approval step, optional host-backed guidance, per-tool ignore translation with explicit confirmation, and installed-consumer CI.
+An LLM can use this bounded JSON and the read-only candidate plan as context. It cannot treat a proposal as an approved configuration. [#947](https://github.com/voku/agent-loop/issues/947) tracks the typed proposal/diff/approval step, optional host-backed guidance, per-tool ignore translation with explicit confirmation, and installed-consumer CI.
 
 No LLM-specific model or secret is required for the read-only command.
