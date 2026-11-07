@@ -34,7 +34,21 @@ final readonly class InitComposerQualityEvidence
                 continue;
             }
 
-            if (!is_string($command) && !is_array($command)) {
+            if (is_string($command)) {
+                if (trim($command) === '') {
+                    continue;
+                }
+            } elseif (is_array($command)) {
+                if ($command === [] || !array_is_list($command)) {
+                    continue;
+                }
+
+                foreach ($command as $step) {
+                    if (!is_string($step) || trim($step) === '') {
+                        continue 2;
+                    }
+                }
+            } else {
                 continue;
             }
 
