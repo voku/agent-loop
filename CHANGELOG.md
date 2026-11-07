@@ -1,8 +1,10 @@
 ## Unreleased
 
+## [0.20.84] - 2026-11-07
+
 ### Fixed
 
-- Route explicitly requested new local cards through the Kanban owner's released `--generate-id` interface in the general workflow front door, independent of `future_work.mode`. Preserve externally assigned task IDs and existing mode/approval boundaries. Add an owner-skill regression assertion.
+- Route explicitly requested new local work through the Kanban owner's generated card IDs, independent of `future_work.mode`; select the intended configured board and lane (including required fields), fail closed when no task authority exists, and retain externally assigned IDs and governed approval boundaries. Verify generated IDs via delegated board CLI tests and prevent sequential local ID examples.
 
 ## [0.20.83] - 2026-11-07
 
