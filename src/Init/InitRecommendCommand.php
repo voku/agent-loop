@@ -324,9 +324,17 @@ final readonly class InitRecommendCommand
             }
             $itemIndent = $indent;
 
+            // PHPStan's fixed working-directory placeholder is safe to
+            // interpret relative to this repository. Other parameters are
+            // deliberately unresolved rather than evaluated as NEON.
+            $literalEntry = $entry[1];
+            if ($key === 'paths' && str_starts_with($literalEntry, '%currentWorkingDirectory%/')) {
+                $literalEntry = substr($literalEntry, strlen('%currentWorkingDirectory%/'));
+            }
+
             // The supported literal grammar is deliberately narrower than
-            // NEON: no escapes, interpolation, nested objects, or expressions.
-            if (preg_match('/\A(?:([a-zA-Z0-9_.*\/-]+)|"([a-zA-Z0-9_.*\/-]+)"|\'([a-zA-Z0-9_.*\/-]+)\')(?:\s+#.*)?\z/', $entry[1], $literal) !== 1) {
+            // NEON: no escapes, arbitrary interpolation, nested objects, or expressions.
+            if (preg_match('/\A(?:([a-zA-Z0-9_.*\/-]+)|"([a-zA-Z0-9_.*\/-]+)"|\'([a-zA-Z0-9_.*\/-]+)\')(?:\s+#.*)?\z/', $literalEntry, $literal) !== 1) {
                 return null;
             }
             $values[] = $literal[1] ?: (($literal[2] ?? '') ?: ($literal[3] ?? ''));
