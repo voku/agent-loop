@@ -48,62 +48,82 @@ final readonly class InitLanguageConfigWriter
                 throw new RuntimeException('Unable to acquire init language mutation lock.');
             }
 
-            $this->assertSafeDirectory($directory);
-            $plan = (new InitPlanCommand($root))->inspect($language);
-            if (!hash_equals($plan['evidence_sha256'], $expectedEvidenceSha256)) {
-                throw new RuntimeException('Setup evidence changed before write; refresh the reviewed plan.');
+            if (!$this->isSameFile($handle, $lockPath)) {
+                throw new RuntimeException('Init language lock changed while waiting for the lock.');
             }
 
-            if ($plan['review_diffs'] === []) {
-                return 'unchanged';
-            }
-
-            $target = $directory . '/init.json';
-            $old = $this->readTarget($target);
-            $object = $this->decodeConfig($old);
-            if (!property_exists($object, 'prompting')) {
-                $object->prompting = new stdClass();
-            }
-            if (!$object->prompting instanceof stdClass) {
-                throw new RuntimeException('Existing prompting config is not a JSON object.');
-            }
-            $object->prompting->language = strtolower($language);
-            $new = json_encode($object, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
-
-            $temporary = tempnam($directory, '.init-language-');
-            if ($temporary === false) {
-                throw new RuntimeException('Unable to create temporary init config.');
-            }
-
-            try {
-                if (dirname($temporary) !== $directory) {
-                    throw new RuntimeException('Temporary init config escaped the project directory.');
-                }
-                if (file_put_contents($temporary, $new, LOCK_EX) !== strlen($new)) {
-                    throw new RuntimeException('Unable to write complete temporary init config.');
-                }
-                $permissions = $old === null ? 0o600 : fileperms($target);
-                if ($permissions === false || !chmod($temporary, $permissions & 0o777)) {
-                    throw new RuntimeException('Unable to preserve init config permissions.');
-                }
-
-                $this->assertSafeDirectory($directory);
-                if ($this->readTarget($target) !== $old) {
-                    throw new RuntimeException('Init config changed during write; refusing to overwrite it.');
-                }
-                if (!rename($temporary, $target)) {
-                    throw new RuntimeException('Unable to atomically replace init config.');
-                }
-            } finally {
-                if (is_file($temporary) && !unlink($temporary)) {
-                    throw new RuntimeException('Unable to remove abandoned temporary init config.');
-                }
-            }
-
-            return 'applied';
+            return $this->applyLocked($root, $directory, $language, $expectedEvidenceSha256);
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
+        }
+    }
+
+    /** @return 'applied'|'unchanged' */
+    private function applyLocked(string $root, string $directory, string $language, string $expectedEvidenceSha256): string
+    {
+        $this->assertSafeDirectory($directory);
+        $plan = (new InitPlanCommand($root))->inspect($language);
+        if (!hash_equals($plan['evidence_sha256'], $expectedEvidenceSha256)) {
+            throw new RuntimeException('Setup evidence changed before write; refresh the reviewed plan.');
+        }
+
+        if ($plan['review_diffs'] === []) {
+            return 'unchanged';
+        }
+
+        $target = $directory . '/init.json';
+        $original = $this->readTarget($target);
+        $updated = $this->withLanguage($original, $language);
+        $this->publishAtomic($directory, $target, $original, $updated);
+
+        return 'applied';
+    }
+
+    private function withLanguage(?string $original, string $language): string
+    {
+        $object = $this->decodeConfig($original);
+        if (!property_exists($object, 'prompting')) {
+            $object->prompting = new stdClass();
+        }
+        if (!$object->prompting instanceof stdClass) {
+            throw new RuntimeException('Existing prompting config is not a JSON object.');
+        }
+        $object->prompting->language = strtolower($language);
+
+        return json_encode($object, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+    }
+
+    private function publishAtomic(string $directory, string $target, ?string $original, string $updated): void
+    {
+        $temporary = tempnam($directory, '.init-language-');
+        if ($temporary === false) {
+            throw new RuntimeException('Unable to create temporary init config.');
+        }
+
+        try {
+            if (dirname($temporary) !== $directory) {
+                throw new RuntimeException('Temporary init config escaped the project directory.');
+            }
+            if (file_put_contents($temporary, $updated, LOCK_EX) !== strlen($updated)) {
+                throw new RuntimeException('Unable to write complete temporary init config.');
+            }
+            $permissions = $original === null ? 0o600 : fileperms($target);
+            if ($permissions === false || !chmod($temporary, $permissions & 0o777)) {
+                throw new RuntimeException('Unable to preserve init config permissions.');
+            }
+
+            $this->assertSafeDirectory($directory);
+            if ($this->readTarget($target) !== $original) {
+                throw new RuntimeException('Init config changed during write; refusing to overwrite it.');
+            }
+            if (!rename($temporary, $target)) {
+                throw new RuntimeException('Unable to atomically replace init config.');
+            }
+        } finally {
+            if (is_file($temporary) && !unlink($temporary)) {
+                throw new RuntimeException('Unable to remove abandoned temporary init config.');
+            }
         }
     }
 
