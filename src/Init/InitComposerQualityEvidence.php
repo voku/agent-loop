@@ -34,21 +34,7 @@ final readonly class InitComposerQualityEvidence
                 continue;
             }
 
-            if (is_string($command)) {
-                if (trim($command) === '') {
-                    continue;
-                }
-            } elseif (is_array($command)) {
-                if ($command === [] || !array_is_list($command)) {
-                    continue;
-                }
-
-                foreach ($command as $step) {
-                    if (!is_string($step) || trim($step) === '') {
-                        continue 2;
-                    }
-                }
-            } else {
+            if (!$this->isValidScriptDeclaration($command)) {
                 continue;
             }
 
@@ -58,5 +44,24 @@ final readonly class InitComposerQualityEvidence
         sort($names, SORT_STRING);
 
         return $names;
+    }
+
+    private function isValidScriptDeclaration(mixed $command): bool
+    {
+        if (is_string($command)) {
+            return trim($command) !== '';
+        }
+
+        if (!is_array($command) || $command === [] || !array_is_list($command)) {
+            return false;
+        }
+
+        foreach ($command as $step) {
+            if (!is_string($step) || trim($step) === '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
