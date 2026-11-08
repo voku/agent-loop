@@ -124,6 +124,23 @@ final class InitPlanCommandTest extends TestCase
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
     }
 
+    public function testChangingSlopPolicyInvalidatesTheReviewedEvidenceDigest(): void
+    {
+        $configPath = $this->root . '/slop-scan.config.json';
+        file_put_contents($configPath, '{"scan":{"pathFilters":["src/**"]}}');
+
+        $command = new InitPlanCommand($this->root);
+        $before = $command->inspect();
+        file_put_contents($configPath, '{"scan":{"pathFilters":["tests/**"]}}');
+        $after = $command->inspect();
+
+        self::assertNotSame($before['evidence_sha256'], $after['evidence_sha256']);
+        self::assertSame([], $before['file_changes']);
+        self::assertSame([], $after['file_changes']);
+        self::assertSame([], $after['proposals']);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
     public function testInvalidOptionsFailWithoutCreatingState(): void
     {
         $command = new InitPlanCommand($this->root);
