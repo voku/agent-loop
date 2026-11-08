@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/agent-ui
-          ref: a809f93921f94af7664f9fa352571ae8d7d55241
+          ref: d8eeb4ce4f1c1963820592e668d012953b720db1
           path: agent-ui
           persist-credentials: false
 
@@ -46,6 +46,15 @@ jobs:
           composer update --no-interaction --prefer-dist --no-progress
           composer show voku/agent-loop
 
-      - name: Run the actual UI test, static-analysis and style gates
+      - name: Prove approval integration with real PHPUnit and quality tools
+        working-directory: agent-ui
+        run: |
+          set -euo pipefail
+          vendor/bin/phpunit --filter='(ContractRevisionDeltaTest|ContractDecisionDeltaPageTest)'
+          composer phpstan
+          composer cs-check
+          composer template-lint
+
+      - name: Run full consumer CI (including managed skill consistency)
         working-directory: agent-ui
         run: composer ci
