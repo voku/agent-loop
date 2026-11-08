@@ -272,7 +272,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
             throw new RuntimeException('Unable to create fake agent-ui binary directory.');
         }
         $binary = $binaryDirectory . '/agent-ui';
-        file_put_contents($binary, "#!/bin/sh\nprintf '%s\\n' '{\"status\":\"unreachable\",\"url\":null,\"detail\":\"not running\"}'\n");
+        file_put_contents($binary, "#!/bin/sh\nprintf '%s\\n' '{\"status\":\"unreachable\",\"url\":null,\"detail\":\"not running\"}'\nexit 2\n");
         chmod($binary, 0o755);
         (new TaskContractStore($this->root))->create(
             'DECISION-START',
