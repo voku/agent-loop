@@ -59,6 +59,18 @@ final readonly class TaskContract
             && !str_starts_with(trim($this->approvedBy), 'standing:');
     }
 
+    /**
+     * Historical approval evidence may survive when a Contract is superseded.
+     * A reserved standing: pseudo-actor is never evidence of human approval.
+     */
+    public function hadHumanApproval(): bool
+    {
+        return ($this->status === self::APPROVED || $this->status === self::SUPERSEDED)
+            && $this->approvedBy !== null
+            && $this->approvedAt !== null
+            && !str_starts_with(trim($this->approvedBy), 'standing:');
+    }
+
     /** @return list<string> */
     public function uncoveredAcceptanceCriteria(): array
     {
