@@ -58,6 +58,7 @@ final readonly class WorkflowContractApprovalPresentation
      * @return array{
      *     from_revision: int,
      *     to_revision: int,
+     *     previous_was_approved: bool,
      *     previous_approved_by: string|null,
      *     previous_approved_at: string|null,
      *     previous_goal: string|null,
@@ -77,11 +78,14 @@ final readonly class WorkflowContractApprovalPresentation
             ? null
             : $this->previousRevision->goal;
 
+        $wasApproved = $this->previousRevision->hasRecordedNonReservedApproval();
+
         return [
             'from_revision' => $this->previousRevision->revision,
             'to_revision' => $this->contract->revision,
-            'previous_approved_by' => $this->previousRevision->approvedBy,
-            'previous_approved_at' => $this->previousRevision->approvedAt,
+            'previous_was_approved' => $wasApproved,
+            'previous_approved_by' => $wasApproved ? $this->previousRevision->approvedBy : null,
+            'previous_approved_at' => $wasApproved ? $this->previousRevision->approvedAt : null,
             'previous_goal' => $previousGoal,
             'lists' => $lists,
             'empty' => $previousGoal === null && $lists === [],
