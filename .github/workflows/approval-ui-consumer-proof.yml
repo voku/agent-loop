@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           composer config --json repositories.agent-loop '{"type":"path","url":"../agent-loop","options":{"symlink":false,"versions":{"voku/agent-loop":"0.20.999"}}}'
-          composer update voku/agent-loop --with-all-dependencies --no-interaction --prefer-dist --no-progress
+          composer update --no-interaction --prefer-dist --no-progress
           composer show voku/agent-loop
 
       - name: Run the actual UI test, static-analysis and style gates
