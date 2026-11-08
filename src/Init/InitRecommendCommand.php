@@ -51,7 +51,7 @@ final readonly class InitRecommendCommand
      *   map: array{paths: list<string>, source: string|null, command: string|null, requires_confirmation: true},
      *   quality: array{source: string|null, composer_scripts: list<string>, requires_confirmation: true, note: string},
      *   exclusions: array{phpstan: list<string>, slop: list<string>, note: string},
-     *   slop_policy: array{source: string|null, path_filters: list<string>, rule_ids: list<string>, override_count: int, ignore_error_count: int, requires_confirmation: true, note: string},
+     *   slop_policy: array{source: string|null, path_filters: list<string>, rule_ids: list<string>, override_count: int|null, ignore_error_count: int|null, requires_confirmation: true, note: string},
      *   prompting: array{language: string, source: string},
      *   review: array{human_attention_every_changes_required: int, configurable_by_setup: false},
      *   next_actions: list<string>,
@@ -226,7 +226,7 @@ final readonly class InitRecommendCommand
      * Preserve Slop Scan policy provenance without interpreting it as Agent
      * Map or PHPStan authority. Malformed fields are reported, not adopted.
      *
-     * @return array{ignores: list<string>, path_filters: list<string>, rule_ids: list<string>, override_count: int, ignore_error_count: int, warnings: list<string>}
+     * @return array{ignores: list<string>, path_filters: list<string>, rule_ids: list<string>, override_count: int|null, ignore_error_count: int|null, warnings: list<string>}
      */
     private function slopEvidence(?string $configPath): array
     {
@@ -274,8 +274,8 @@ final readonly class InitRecommendCommand
             'ignores' => $ignores ?? [],
             'path_filters' => $pathFilters ?? [],
             'rule_ids' => $ruleIds ?? [],
-            'override_count' => $overrideCount ?? 0,
-            'ignore_error_count' => $ignoreErrorCount ?? 0,
+            'override_count' => $overrideCount,
+            'ignore_error_count' => $ignoreErrorCount,
             'warnings' => $warnings,
         ];
     }
