@@ -66,7 +66,7 @@ jobs:
       contents: read
       copilot-requests: write
     env:
-      EXPERIMENT_MODEL: claude-haiku-4.5
+      EXPERIMENT_MODEL: auto
       COPILOT_AUTO_UPDATE: 'false'
     steps:
       - uses: actions/checkout@v7
