@@ -1,0 +1,27 @@
+name: Temporary Codacy finding lookup for init #978
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/init-978-codacy-diagnostic-temp.yml'
+permissions:
+  contents: read
+jobs:
+  fetch-public-findings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch public Codacy PR issue details without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://api.codacy.com/api/v3/analysis/organizations/gh/voku/repositories/agent-loop/pull-requests/978/issues?limit=100"
+          response="$(mktemp)"
+          status="$(curl --location --silent --show-error --max-time 20 --output "$response" --write-out '%{http_code}' "$url" || true)"
+          printf 'Codacy public endpoint HTTP_STATUS=%s\n' "$status"
+          if [[ "$status" == 200 ]]; then
+            jq -c '.data // .issues // . | if type == "array" then .[] else . end' "$response" | head -c 20000 || true
+          else
+            head -c 2000 "$response" || true
+          fi
+          printf '\n'
+          rm -f "$response"
