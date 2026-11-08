@@ -252,31 +252,31 @@ final readonly class InitRecommendCommand
 
         $warnings = [];
 
-        $ignoresInput = $slop->ignores ?? [];
+        $ignoresInput = property_exists($slop, 'ignores') ? $slop->ignores : [];
         $ignores = is_array($ignoresInput) ? $this->stringList($ignoresInput) : null;
         if ($ignores === null) {
             $warnings[] = 'slop-scan ignores are not a list of strings; no excludes were adopted.';
         }
 
-        $scanInput = $slop->scan ?? new stdClass();
+        $scanInput = property_exists($slop, 'scan') ? $slop->scan : new stdClass();
         $pathFilters = $scanInput instanceof stdClass ? $this->slopPathFilters($scanInput) : null;
         if ($pathFilters === null) {
             $warnings[] = 'slop-scan scan.pathFilters are not a list of strings; no scan scope was inferred.';
         }
 
-        $rulesInput = $slop->rules ?? new stdClass();
+        $rulesInput = property_exists($slop, 'rules') ? $slop->rules : new stdClass();
         $ruleIds = $rulesInput instanceof stdClass ? $this->slopRuleIds($rulesInput) : null;
         if ($ruleIds === null) {
             $warnings[] = 'slop-scan rules contain invalid declarations; rule IDs were not inferred.';
         }
 
-        $overridesInput = $slop->overrides ?? [];
+        $overridesInput = property_exists($slop, 'overrides') ? $slop->overrides : [];
         $overrideCount = is_array($overridesInput) ? $this->objectListCount($overridesInput) : null;
         if ($overrideCount === null) {
             $warnings[] = 'slop-scan overrides are not a list of objects; override count is unknown.';
         }
 
-        $ignoreErrorsInput = $slop->ignoreErrors ?? [];
+        $ignoreErrorsInput = property_exists($slop, 'ignoreErrors') ? $slop->ignoreErrors : [];
         $ignoreErrorCount = is_array($ignoreErrorsInput) ? $this->objectListCount($ignoreErrorsInput) : null;
         if ($ignoreErrorCount === null) {
             $warnings[] = 'slop-scan ignoreErrors are not a list of objects; exception count is unknown.';
@@ -297,7 +297,7 @@ final readonly class InitRecommendCommand
      */
     private function slopPathFilters(stdClass $scan): ?array
     {
-        $filters = $scan->pathFilters ?? [];
+        $filters = property_exists($scan, 'pathFilters') ? $scan->pathFilters : [];
 
         return is_array($filters) ? $this->stringList($filters) : null;
     }
