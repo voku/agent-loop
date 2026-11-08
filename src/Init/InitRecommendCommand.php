@@ -251,7 +251,8 @@ final readonly class InitRecommendCommand
         }
 
         $scan = $slop['scan'] ?? [];
-        $pathFilters = $this->stringList(is_array($scan) ? ($scan['pathFilters'] ?? []) : null);
+        $validScan = is_array($scan) && ($scan === [] || !array_is_list($scan));
+        $pathFilters = $this->stringList($validScan ? ($scan['pathFilters'] ?? []) : null);
         if ($pathFilters === null) {
             $warnings[] = 'slop-scan scan.pathFilters are not a list of strings; no scan scope was inferred.';
         }
@@ -318,7 +319,7 @@ final readonly class InitRecommendCommand
         }
 
         foreach ($value as $entry) {
-            if (!is_array($entry)) {
+            if (!is_array($entry) || ($entry !== [] && array_is_list($entry))) {
                 return null;
             }
         }
