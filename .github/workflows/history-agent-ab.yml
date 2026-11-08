@@ -99,7 +99,7 @@ jobs:
                 -p "$(cat "$root/$arm-prompt.txt")" \
                 -s --no-ask-user --trust-folder \
                 --model "$EXPERIMENT_MODEL" \
-                --allow-tool='read,shell(git log:*),shell(git show:*),shell(git blame:*),shell(git rev-parse:*),shell(git status:*),shell(git diff:*),shell(git grep:*),shell(ls:*),shell(cat:*)' \
+                --allow-tool='read,shell(git log:*),shell(git show:*),shell(git blame:*),shell(git rev-parse:*),shell(git status:*),shell(git diff:*),shell(git grep:*),shell(ls:*)' \
                 --deny-tool='write,url,memory'
             ) > "$root/$arm-answer.txt" 2> "$root/$arm-stderr.txt"; then
               test -s "$root/$arm-answer.txt"
