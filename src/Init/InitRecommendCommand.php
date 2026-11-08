@@ -160,8 +160,9 @@ final readonly class InitRecommendCommand
     }
 
     /**
-     * Use detected PHPStan paths first, then Composer PSR-4, then existing
-     * conventional directories. All candidates pass repository confinement.
+     * Prefer the verified PHPStan scope, then Composer production autoload.
+     * A development-only project may use its separately declared autoload-dev
+     * directories when no production scope is available.
      *
      * @param list<string> $phpstanPaths
      * @param array<string, mixed>|null $composer
@@ -175,25 +176,40 @@ final readonly class InitRecommendCommand
         }
 
         if ($composer !== null) {
-            $autoload = $composer['autoload'] ?? null;
-            $psr4 = is_array($autoload) ? ($autoload['psr-4'] ?? null) : null;
-            $candidates = [];
-            foreach (is_array($psr4) ? $psr4 : [] as $directories) {
-                foreach (is_array($directories) ? $directories : [$directories] as $directory) {
-                    if (is_string($directory)) {
-                        $candidates[] = $directory;
-                    }
+            foreach (['autoload', 'autoload-dev'] as $section) {
+                $paths = $this->composerPsr4Paths($composer, $section);
+                if ($paths !== []) {
+                    $source = $section === 'autoload' ? $composerPath : $composerPath . ':autoload-dev';
+
+                    return [$paths, $source];
                 }
-            }
-            $paths = $this->existingPaths($candidates);
-            if ($paths !== []) {
-                return [$paths, $composerPath];
             }
         }
 
         $paths = $this->existingPaths(['src', 'tests']);
 
         return [$paths, $paths !== [] ? 'directory-presence' : null];
+    }
+
+    /**
+     * @param array<string, mixed> $composer
+     * @return list<string>
+     */
+    private function composerPsr4Paths(array $composer, string $section): array
+    {
+        $autoload = $composer[$section] ?? null;
+        $psr4 = is_array($autoload) ? ($autoload['psr-4'] ?? null) : null;
+        $candidates = [];
+
+        foreach (is_array($psr4) ? $psr4 : [] as $directories) {
+            foreach (is_array($directories) ? $directories : [$directories] as $directory) {
+                if (is_string($directory)) {
+                    $candidates[] = $directory;
+                }
+            }
+        }
+
+        return $this->existingPaths($candidates);
     }
 
     /**
