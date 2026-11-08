@@ -18,6 +18,11 @@ The JSON document reports:
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
 - **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM. Commands use the Composer-installed `vendor/bin/agent-loop` executable, without requiring a globally installed CLI on `PATH`.
 
+The exact-head Actions dogfood also runs the CLI against a Finder-only
+project and an empty repository. Both must yield bounded read-only evidence
+without inventing a PHP scope or executing a project-controlled PHP file;
+the proof artifact records each fixture separately.
+
 ## Reviewable, read-only candidate plan
 
 The next narrow slice of #947 exposes a typed proposal view without adding an unsafe
@@ -38,7 +43,14 @@ and refuses to propose changes against malformed existing init settings.
 A project with no usable map scope or quality scripts produces no candidates.
 Detected Composer script names are *not* validation authority: the host must inspect
 their bodies before proposing execution. Literal PHPStan paths, Composer declarations
-and directory-presence fallbacks have different provenance labels.
+and directory-presence fallbacks have different provenance labels. When there
+is no usable PHPStan or Composer production `autoload.psr-4` scope, the
+read-only inspector also considers existing `autoload-dev.psr-4` directories.
+It reports their provenance as `composer.json:autoload-dev`, never conflates
+them with production paths, and still requires explicit approval before any
+Agent Map build. PHPStan paths and production Composer declarations remain
+higher priority; unrelated Composer scripts and PHP-CS-Fixer PHP files are
+never executed by this discovery step.
 
 This command **does not** modify `.agent-loop/init.json`, slop-scan configuration,
 map state or the human Attention safeguard. The empty file diff is intentional:

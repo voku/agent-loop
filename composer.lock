@@ -1049,16 +1049,16 @@
         },
         {
             "name": "voku/agent-kanban",
-            "version": "0.4.7",
+            "version": "0.4.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-kanban.git",
-                "reference": "1a652b93f3fefa74a58054842ad68a35c85ebe8a"
+                "reference": "54f69bccb1d678c07d33f04a90faed6506c1df84"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-kanban/zipball/1a652b93f3fefa74a58054842ad68a35c85ebe8a",
-                "reference": "1a652b93f3fefa74a58054842ad68a35c85ebe8a",
+                "url": "https://api.github.com/repos/voku/agent-kanban/zipball/54f69bccb1d678c07d33f04a90faed6506c1df84",
+                "reference": "54f69bccb1d678c07d33f04a90faed6506c1df84",
                 "shasum": ""
             },
             "require": {
@@ -1112,8 +1112,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-07T21:23:15+00:00",
-            "published-time": "2026-11-07T21:24:56+00:00"
+            "time": "2026-11-07T23:22:32+00:00",
+            "published-time": "2026-11-07T23:24:22+00:00"
         },
         {
             "name": "voku/agent-learning",

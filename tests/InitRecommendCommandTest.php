@@ -135,6 +135,57 @@ PHP,
         self::assertSame('phpstan.neon', $report['sources']['phpstan']);
     }
 
+    public function testDevOnlyComposerScopeIsProposedWithoutRunningProjectFiles(): void
+    {
+        mkdir($this->root . '/spec', 0o775, true);
+        file_put_contents($this->root . '/composer.json', json_encode([
+            'autoload-dev' => ['psr-4' => ['Spec\\' => 'spec/']],
+            'scripts' => ['test' => '@php -r "file_put_contents(\'EXECUTED\', \'bad\');"'],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents(
+            $this->root . '/.php-cs-fixer.dist.php',
+            '<?php file_put_contents(__DIR__ . "/EXECUTED", "bad"); return [];',
+        );
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['spec'], $report['map']['paths']);
+        self::assertSame('composer.json:autoload-dev', $report['map']['source']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=spec', $report['map']['command']);
+        self::assertSame(['test'], $report['quality']['composer_scripts']);
+        self::assertSame('.php-cs-fixer.dist.php', $report['sources']['php_cs_fixer']);
+        self::assertFileDoesNotExist($this->root . '/EXECUTED');
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
+    public function testProductionComposerScopeTakesPrecedenceOverDevelopmentScope(): void
+    {
+        mkdir($this->root . '/lib', 0o775, true);
+        mkdir($this->root . '/spec', 0o775, true);
+        file_put_contents($this->root . '/composer.json', json_encode([
+            'autoload' => ['psr-4' => ['App\\' => 'lib/']],
+            'autoload-dev' => ['psr-4' => ['Spec\\' => 'spec/']],
+        ], JSON_THROW_ON_ERROR));
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['lib'], $report['map']['paths']);
+        self::assertSame('composer.json', $report['map']['source']);
+    }
+
+    public function testUnsafeDevOnlyComposerScopeDoesNotEscapeRepository(): void
+    {
+        file_put_contents($this->root . '/composer.json', json_encode([
+            'autoload-dev' => ['psr-4' => ['Spec\\' => '../external']],
+        ], JSON_THROW_ON_ERROR));
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame([], $report['map']['paths']);
+        self::assertNull($report['map']['source']);
+        self::assertNull($report['map']['command']);
+    }
+
     public function testLiteralRootScopeAndNestedExcludePathsStaySeparate(): void
     {
         file_put_contents($this->root . '/phpstan.neon', "parameters:\n  paths:\n    - .\n  excludePaths:\n    analyse:\n      - tests/fixtures/*\n");

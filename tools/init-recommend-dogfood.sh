@@ -105,6 +105,91 @@ printf '{"name":"setup/dogfood","autoload":{"psr-4":{"Demo\\\\":"app/"}}}\n' > "
 (cd "$work/nested" && php "$root/bin/agent-loop" init recommend --format=json > "$evidence/nested.json")
 jq -e '.map.paths == ["app"] and .map.source == "composer.json"' "$evidence/nested.json" >/dev/null
 
+# B2. A development-only PHP library with nonconventional scope must not be invisible.
+# Capture real CLI JSON, enforce provenance and ensure project-owned code was not run.
+mkdir -p "$work/dev-only/spec"
+cat > "$work/dev-only/composer.json" <<'JSON'
+{"name":"example/dev-only","autoload-dev":{"psr-4":{"Project\\Tests\\":"spec/"}},"scripts":{"test":"@php -r \"file_put_contents('EXECUTED_UNEXPECTEDLY', 'bad');\""}}
+JSON
+cat > "$work/dev-only/.php-cs-fixer.dist.php" <<'PHP'
+<?php file_put_contents(__DIR__ . '/EXECUTED_UNEXPECTEDLY', 'bad'); return [];
+PHP
+sha256sum "$work/dev-only/composer.json" "$work/dev-only/.php-cs-fixer.dist.php" > "$evidence/dev-only-input-sha256-before.txt"
+(cd "$work/dev-only" && php "$root/bin/agent-loop" init recommend --format=json) > "$evidence/dev-only-recommend.json"
+(cd "$work/dev-only" && php "$root/bin/agent-loop" init plan --format=json) > "$evidence/dev-only-plan.json"
+jq -e '
+  .schema_version == 1
+  and .map.paths == ["spec"]
+  and .map.source == "composer.json:autoload-dev"
+  and .map.command == "vendor/bin/agent-loop map build --paths=spec"
+  and .exclusions.slop == []
+  and .quality.composer_scripts == ["test"]
+  and .review.configurable_by_setup == false
+' "$evidence/dev-only-recommend.json" > /dev/null
+jq -e '
+  .mode == "read_only"
+  and .file_changes == []
+  and .review_diffs == []
+  and (.proposals | length) == 2
+  and (.proposals[0].id == "map.scope"
+    and .proposals[0].owner == "agent-map"
+    and .proposals[0].source == "composer.json:autoload-dev"
+    and .proposals[0].confidence == "declared_config"
+    and .proposals[0].requires_confirmation == true
+    and .proposals[0].execution == "not_authorized")
+' "$evidence/dev-only-plan.json" > /dev/null
+sha256sum "$work/dev-only/composer.json" "$work/dev-only/.php-cs-fixer.dist.php" > "$evidence/dev-only-input-sha256-after.txt"
+cmp "$evidence/dev-only-input-sha256-before.txt" "$evidence/dev-only-input-sha256-after.txt"
+test ! -e "$work/dev-only/EXECUTED_UNEXPECTEDLY"
+test ! -e "$work/dev-only/.agent-loop"
+
+# B3. A Finder-only project reports detection without evaluating its PHP config.
+# With no PHPStan/Composer scope it must not invent an index command.
+mkdir -p "$work/fixer-only"
+cat > "$work/fixer-only/.php-cs-fixer.php" <<'PHP'
+<?php file_put_contents(__DIR__ . '/EXECUTED_UNEXPECTEDLY', 'bad'); return [];
+PHP
+(cd "$work/fixer-only" && php "$root/bin/agent-loop" init recommend --format=json) > "$evidence/fixer-only-recommend.json"
+(cd "$work/fixer-only" && php "$root/bin/agent-loop" init plan --format=json) > "$evidence/fixer-only-plan.json"
+jq -e '
+  .sources.php_cs_fixer == ".php-cs-fixer.php"
+  and .sources.phpstan == null
+  and .sources.composer == null
+  and .map.paths == []
+  and .map.command == null
+  and .quality.composer_scripts == []
+  and .review.configurable_by_setup == false
+' "$evidence/fixer-only-recommend.json" > /dev/null
+jq -e '
+  .mode == "read_only"
+  and .proposals == []
+  and .file_changes == []
+  and .review_diffs == []
+  and .review.applied == false
+' "$evidence/fixer-only-plan.json" > /dev/null
+test ! -e "$work/fixer-only/EXECUTED_UNEXPECTEDLY"
+test ! -e "$work/fixer-only/.agent-loop"
+
+# B4. An empty repository produces evidence, not guessed PHP setup actions.
+mkdir -p "$work/empty-project"
+(cd "$work/empty-project" && php "$root/bin/agent-loop" init recommend --format=json) > "$evidence/empty-recommend.json"
+(cd "$work/empty-project" && php "$root/bin/agent-loop" init plan --format=json) > "$evidence/empty-plan.json"
+jq -e '
+  (.sources | all(.[]; . == null))
+  and .map.paths == []
+  and .map.command == null
+  and .quality.composer_scripts == []
+  and .next_actions == ["vendor/bin/agent-loop init sync-tools --dry-run"]
+  and .review.human_attention_every_changes_required == 3
+' "$evidence/empty-recommend.json" > /dev/null
+jq -e '
+  .mode == "read_only"
+  and .proposals == []
+  and .file_changes == []
+  and .review_diffs == []
+' "$evidence/empty-plan.json" > /dev/null
+test -z "$(find "$work/empty-project" -mindepth 1 -print -quit)"
+
 # C. Reject repo-controlled symlink to external file.
 printf 'parameters:\n  paths:\n    - .\n' > "$work/outside.neon"
 mkdir -p "$work/escape"
@@ -168,6 +253,9 @@ jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id
   cases: [
     "phpstan-and-slop-isolation",
     "composer-fallback-for-nested-scope",
+    "dev-only-composer-scope-without-project-execution",
+    "finder-only-no-project-php-execution",
+    "empty-project-no-invented-setup",
     "out-of-root-symlink-rejection",
     "actual-agent-loop-repository",
     "composer-installed-consumer-default-tool-installation"
