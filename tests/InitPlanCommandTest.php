@@ -105,6 +105,25 @@ final class InitPlanCommandTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/PWNED');
     }
 
+    public function testDevOnlyComposerDeclarationRetainsOwnerAndConfidence(): void
+    {
+        mkdir($this->root . '/spec', 0o775, true);
+        file_put_contents($this->root . '/composer.json', json_encode([
+            'autoload-dev' => ['psr-4' => ['Project\\Tests\\' => 'spec/']],
+        ], JSON_THROW_ON_ERROR));
+
+        $plan = (new InitPlanCommand($this->root))->inspect();
+
+        self::assertSame(['map.scope'], array_column($plan['proposals'], 'id'));
+        self::assertSame('agent-map', $plan['proposals'][0]['owner']);
+        self::assertSame('composer.json:autoload-dev', $plan['proposals'][0]['source']);
+        self::assertSame('declared_config', $plan['proposals'][0]['confidence']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=spec', $plan['proposals'][0]['proposed']);
+        self::assertSame('not_authorized', $plan['proposals'][0]['execution']);
+        self::assertSame([], $plan['file_changes']);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
     public function testInvalidOptionsFailWithoutCreatingState(): void
     {
         $command = new InitPlanCommand($this->root);

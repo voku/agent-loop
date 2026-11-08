@@ -123,6 +123,7 @@ final readonly class InitPlanCommand
         $confidence = match ($source) {
             'directory-presence' => 'directory_presence',
             'composer.json' => 'declared_config',
+            'composer.json:autoload-dev' => 'declared_config',
             default => 'literal_config',
         };
 
