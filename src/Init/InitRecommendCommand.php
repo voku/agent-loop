@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use JsonException;
 use RuntimeException;
+use stdClass;
 use voku\AgentLoop\Execution\ExecutionStateStore;
 
 /**
@@ -242,34 +243,40 @@ final readonly class InitRecommendCommand
             return $empty;
         }
 
-        $slop = $this->readJson($configPath);
+        // Decode as objects: associative arrays erase the JSON distinction
+        // between {} and [], especially for empty policy containers.
+        $slop = json_decode($this->readBounded($configPath), false, 512, JSON_THROW_ON_ERROR);
+        if (!$slop instanceof stdClass) {
+            throw new RuntimeException('Config must be a JSON object: ' . $configPath);
+        }
+
         $warnings = [];
 
-        $ignoresInput = $slop['ignores'] ?? [];
+        $ignoresInput = property_exists($slop, 'ignores') ? $slop->ignores : [];
         $ignores = is_array($ignoresInput) ? $this->stringList($ignoresInput) : null;
         if ($ignores === null) {
             $warnings[] = 'slop-scan ignores are not a list of strings; no excludes were adopted.';
         }
 
-        $scanInput = $slop['scan'] ?? [];
-        $pathFilters = is_array($scanInput) ? $this->slopPathFilters($scanInput) : null;
+        $scanInput = property_exists($slop, 'scan') ? $slop->scan : new stdClass();
+        $pathFilters = $scanInput instanceof stdClass ? $this->slopPathFilters($scanInput) : null;
         if ($pathFilters === null) {
             $warnings[] = 'slop-scan scan.pathFilters are not a list of strings; no scan scope was inferred.';
         }
 
-        $rulesInput = $slop['rules'] ?? [];
-        $ruleIds = is_array($rulesInput) ? $this->slopRuleIds($rulesInput) : null;
+        $rulesInput = property_exists($slop, 'rules') ? $slop->rules : new stdClass();
+        $ruleIds = $rulesInput instanceof stdClass ? $this->slopRuleIds($rulesInput) : null;
         if ($ruleIds === null) {
             $warnings[] = 'slop-scan rules contain invalid declarations; rule IDs were not inferred.';
         }
 
-        $overridesInput = $slop['overrides'] ?? [];
+        $overridesInput = property_exists($slop, 'overrides') ? $slop->overrides : [];
         $overrideCount = is_array($overridesInput) ? $this->objectListCount($overridesInput) : null;
         if ($overrideCount === null) {
             $warnings[] = 'slop-scan overrides are not a list of objects; override count is unknown.';
         }
 
-        $ignoreErrorsInput = $slop['ignoreErrors'] ?? [];
+        $ignoreErrorsInput = property_exists($slop, 'ignoreErrors') ? $slop->ignoreErrors : [];
         $ignoreErrorCount = is_array($ignoreErrorsInput) ? $this->objectListCount($ignoreErrorsInput) : null;
         if ($ignoreErrorCount === null) {
             $warnings[] = 'slop-scan ignoreErrors are not a list of objects; exception count is unknown.';
@@ -286,27 +293,23 @@ final readonly class InitRecommendCommand
     }
 
     /**
-     * @param array<array-key, mixed> $scan
      * @return list<string>|null
      */
-    private function slopPathFilters(array $scan): ?array
+    private function slopPathFilters(stdClass $scan): ?array
     {
-        if ($scan !== [] && array_is_list($scan)) {
-            return null;
-        }
+        $filters = property_exists($scan, 'pathFilters') ? $scan->pathFilters : [];
 
-        return $this->stringList($scan['pathFilters'] ?? []);
+        return is_array($filters) ? $this->stringList($filters) : null;
     }
 
     /**
-     * @param array<array-key, mixed> $rules
      * @return list<string>|null
      */
-    private function slopRuleIds(array $rules): ?array
+    private function slopRuleIds(stdClass $rules): ?array
     {
         $ids = [];
-        foreach ($rules as $id => $definition) {
-            if (!is_string($id) || !is_array($definition)) {
+        foreach (get_object_vars($rules) as $id => $definition) {
+            if (!is_string($id) || !$definition instanceof stdClass) {
                 return null;
             }
             $ids[] = $id;
@@ -346,7 +349,7 @@ final readonly class InitRecommendCommand
         }
 
         foreach ($value as $entry) {
-            if (!is_array($entry) || ($entry !== [] && array_is_list($entry))) {
+            if (!$entry instanceof stdClass) {
                 return null;
             }
         }

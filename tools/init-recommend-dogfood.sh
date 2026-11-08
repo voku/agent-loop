@@ -222,6 +222,35 @@ sha256sum "$work/slop-policy/slop-scan.config.json" > "$evidence/slop-policy-aft
 cmp "$evidence/slop-policy-before.sha256" "$evidence/slop-policy-after.sha256"
 test ! -e "$work/slop-policy/.agent-loop"
 
+# B6. Empty JSON objects and arrays retain distinct policy types.
+mkdir -p "$work/slop-json-shapes"
+cat > "$work/slop-json-shapes/slop-scan.config.json" <<'JSON'
+{"ignores":{},"scan":[],"rules":[],"overrides":[[]],"ignoreErrors":[[]]}
+JSON
+sha256sum "$work/slop-json-shapes/slop-scan.config.json" > "$evidence/slop-json-shapes-before.sha256"
+(cd "$work/slop-json-shapes" && php "$root/bin/agent-loop" init recommend --format=json) > "$evidence/slop-json-shapes-recommend.json"
+(cd "$work/slop-json-shapes" && php "$root/bin/agent-loop" init plan --format=json) > "$evidence/slop-json-shapes-plan.json"
+jq -e '
+  .slop_policy.source == "slop-scan.config.json"
+  and .exclusions.slop == []
+  and .slop_policy.path_filters == []
+  and .slop_policy.rule_ids == []
+  and .slop_policy.override_count == null
+  and .slop_policy.ignore_error_count == null
+  and .slop_policy.requires_confirmation == true
+  and (.warnings | length == 5)
+' "$evidence/slop-json-shapes-recommend.json" > /dev/null
+jq -e '
+  .mode == "read_only"
+  and .proposals == []
+  and .file_changes == []
+  and .review_diffs == []
+  and .review.applied == false
+' "$evidence/slop-json-shapes-plan.json" > /dev/null
+sha256sum "$work/slop-json-shapes/slop-scan.config.json" > "$evidence/slop-json-shapes-after.sha256"
+cmp "$evidence/slop-json-shapes-before.sha256" "$evidence/slop-json-shapes-after.sha256"
+test ! -e "$work/slop-json-shapes/.agent-loop"
+
 # C. Reject repo-controlled symlink to external file.
 printf 'parameters:\n  paths:\n    - .\n' > "$work/outside.neon"
 mkdir -p "$work/escape"
@@ -289,6 +318,7 @@ jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id
     "finder-only-no-project-php-execution",
     "empty-project-no-invented-setup",
     "slop-policy-evidence-without-cross-tool-projection",
+    "slop-json-container-shapes-fail-closed",
     "out-of-root-symlink-rejection",
     "actual-agent-loop-repository",
     "composer-installed-consumer-default-tool-installation"
