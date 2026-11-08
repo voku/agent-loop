@@ -112,6 +112,34 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         self::assertStringNotContainsString('git --no-pager log --follow', $bootstrap);
     }
 
+    public function testSurgicalBugFixRoutesToReadOnlyHistoryInvestigationWithoutDuplicatingIt(): void
+    {
+        $root = dirname(__DIR__);
+        $skill = file_get_contents($root . '/resources/skills/agent-loop-surgical-edit/SKILL.md');
+        $builder = file_get_contents($root . '/resources/subagents/agent-loop-surgical-builder.md');
+        $investigator = file_get_contents($root . '/resources/skills/agent-loop-investigate/SKILL.md');
+        $bootstrap = file_get_contents($root . '/resources/skills/agent-loop-discipline/SKILL.md');
+
+        self::assertIsString($skill);
+        self::assertIsString($builder);
+        self::assertIsString($investigator);
+        self::assertIsString($bootstrap);
+
+        foreach ([$skill, $builder] as $guidance) {
+            self::assertStringContainsString('agent-loop-investigate', $guidance);
+            self::assertStringContainsStringIgnoringCase('regression', $guidance);
+            self::assertStringContainsStringIgnoringCase('security fix', $guidance);
+            self::assertStringContainsStringIgnoringCase('before edit', $guidance);
+            self::assertStringContainsStringIgnoringCase('greenfield', $guidance);
+            self::assertStringContainsStringIgnoringCase('scope_expanded', $guidance);
+            self::assertStringNotContainsString('git --no-pager log', $guidance);
+        }
+
+        self::assertStringContainsString('## Bounded Git History Investigation', $investigator);
+        self::assertStringNotContainsString('## Bounded Git History Investigation', $skill);
+        self::assertStringNotContainsString('agent-loop-investigate', $bootstrap);
+    }
+
     public function testPackageOwnedAgentAssetsContainNoRemoteBootstrap(): void
     {
         $root = dirname(__DIR__) . '/resources';

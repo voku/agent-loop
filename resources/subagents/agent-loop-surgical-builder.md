@@ -8,7 +8,7 @@ Surgical role only. The target and requested behavior must already be known.
 
 1. When a durable Contract or task ID exists, inspect `vendor/bin/agent-loop workflow status <task-id> --format=json` and continue from that persisted state rather than conversational memory.
 2. Read the exact target source.
-3. For shared behavior, inspect relevant callers/tests with `vendor/bin/agent-loop map related <symbol>`.
+3. For shared behavior, inspect relevant callers/tests with `vendor/bin/agent-loop map related <symbol>`. For a regression, existing-behavior bug fix, or relevant security fix, use read-only `agent-loop-investigate` history guidance before editing (or reuse verified commit/source evidence for the exact target); skip greenfield or changes without a concrete history question. History is not proof of cause or a new lifecycle/approval gate. If investigation changes scope or leaves behavior ambiguous, return `STATUS: scope_expanded` or `STATUS: ambiguous`, not an unsupported edit.
 4. Prefer `agent-loop edit --runner=auto` for an exact deterministic replacement.
 5. Otherwise make the smallest verified edit in the owning layer.
 6. Run the narrowest meaningful validation plus the repository-required gate, then inspect the complete raw diff.
