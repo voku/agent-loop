@@ -165,6 +165,10 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
             "culprit_identified": oracle["culprit_sha"] in commit_ids,
             "relevant_file_identified": "AccessPolicy.php" in answer,
             "mentions_role_predicate": "in_array" in answer,
+            "reported_missing_repo_tools": bool(re.search(
+                r"no shell|no git tool|tools aren|tools are not available|can.t inspect the repository|cannot inspect the repository",
+                answer, re.IGNORECASE,
+            )),
         }
     baseline = results["baseline"]["culprit_identified"]
     history = results["history"]["culprit_identified"]
@@ -173,7 +177,9 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
         else "baseline_only" if baseline and not history
         else "equivalent_on_commit_identification"
     )
+    invalid_tools = any(result["reported_missing_repo_tools"] for result in results.values())
     report = {
+        "status": "invalid_tools_unavailable" if invalid_tools else "observed",
         "schema_version": "1.0",
         "evidence_class": "real_copilot_cli_one_pair",
         "model_requested": model,
@@ -184,7 +190,7 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
         "observed_commit_identification_difference": difference,
         "limitations": [
             "One small synthetic PHP regression with an unrelated newer commit and rename.",
-            "Both agents had equal Git/read access; only injected investigator guidance differs.",
+            "Both agents have the same declared Git/read grants; actual tool access is evaluated separately.",
             "A model answer is not proof that it invoked Git; inspect full host receipts if available.",
             "Exact SHA identification is a narrow outcome, not general bugfix correctness.",
             "A single pair cannot establish causal benefit or reliable cost/performance.",
@@ -197,6 +203,8 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
         f"baseline culprit={baseline}, history culprit={history}, "
         f"comparison={difference}"
     )
+    if invalid_tools:
+        raise SystemExit("Invalid A/B: at least one agent reported unavailable repository tools")
 
 
 def main() -> None:
