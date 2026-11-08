@@ -55,6 +55,14 @@ jobs:
           composer cs-check
           composer template-lint
 
-      - name: Run full consumer CI (including managed skill consistency)
+      - name: Synchronize owner-managed skills in disposable consumer workspace
+        working-directory: agent-ui
+        run: |
+          set -euo pipefail
+          vendor/bin/agent-loop init install-assets --agent=claude
+          git status --short -- .claude/skills
+          git diff --stat -- .claude/skills
+
+      - name: Run full consumer CI with current owner-managed projections
         working-directory: agent-ui
         run: composer ci
