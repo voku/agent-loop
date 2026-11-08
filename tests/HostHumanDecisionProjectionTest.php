@@ -276,13 +276,13 @@ final class HostHumanDecisionProjectionTest extends TestCase
     public function testPromptReorderingIsVisibleToTheHumanApprover(): void
     {
         $contracts = new TaskContractStore($this->root);
-        $id = 'DECISION-PROMPT-ORDER';
+        $taskId = 'DECISION-PROMPT-ORDER';
         $first = [
             ['id' => 'lint', 'arguments' => []],
             ['id' => 'audit', 'arguments' => []],
         ];
         $contracts->create(
-            $id,
+            $taskId,
             'Keep prompt constraints.',
             ['src/A.php'],
             [],
@@ -291,9 +291,9 @@ final class HostHumanDecisionProjectionTest extends TestCase
             operatingPromptManifest: 'prompts/catalog.json',
             operatingPrompts: $first,
         );
-        $contracts->approve($id, 'owner', 1);
+        $contracts->approve($taskId, 'owner', 1);
         $contracts->revise(
-            $id,
+            $taskId,
             'Keep prompt constraints.',
             ['src/A.php'],
             [],
@@ -303,14 +303,14 @@ final class HostHumanDecisionProjectionTest extends TestCase
             operatingPrompts: [$first[1], $first[0]],
         );
 
-        $json = $this->runBinary(['enter', $id, '--format=json']);
+        $json = $this->runBinary(['enter', $taskId, '--format=json']);
         $delta = $this->json($json['stdout'])['human_decision']['subject']['revision_delta'] ?? null;
         self::assertSame(1, $json['exit'], $json['stderr']);
         self::assertSame(['audit -> lint'], $delta['lists']['Operating prompt order']['added'] ?? null);
         self::assertSame(['lint -> audit'], $delta['lists']['Operating prompt order']['removed'] ?? null);
         self::assertFalse($delta['empty'] ?? true);
 
-        $text = $this->runBinary(['enter', $id]);
+        $text = $this->runBinary(['enter', $taskId]);
         self::assertSame(1, $text['exit'], $text['stderr']);
         self::assertStringContainsString('Operating prompt order:', $text['stdout']);
         self::assertStringContainsString('+ audit -> lint', $text['stdout']);
@@ -320,13 +320,13 @@ final class HostHumanDecisionProjectionTest extends TestCase
     public function testAddedPromptCannotMaskReorderingExistingPrompts(): void
     {
         $contracts = new TaskContractStore($this->root);
-        $id = 'DECISION-PROMPT-MIXED-ORDER';
+        $taskId = 'DECISION-PROMPT-MIXED-ORDER';
         $first = [
             ['id' => 'lint', 'arguments' => []],
             ['id' => 'audit', 'arguments' => []],
         ];
         $contracts->create(
-            $id,
+            $taskId,
             'Keep prompt constraints.',
             ['src/A.php'],
             [],
@@ -335,9 +335,9 @@ final class HostHumanDecisionProjectionTest extends TestCase
             operatingPromptManifest: 'prompts/catalog.json',
             operatingPrompts: $first,
         );
-        $contracts->approve($id, 'owner', 1);
+        $contracts->approve($taskId, 'owner', 1);
         $contracts->revise(
-            $id,
+            $taskId,
             'Keep prompt constraints.',
             ['src/A.php'],
             [],
@@ -351,14 +351,14 @@ final class HostHumanDecisionProjectionTest extends TestCase
             ],
         );
 
-        $json = $this->runBinary(['enter', $id, '--format=json']);
+        $json = $this->runBinary(['enter', $taskId, '--format=json']);
         $delta = $this->json($json['stdout'])['human_decision']['subject']['revision_delta'] ?? null;
         self::assertSame(1, $json['exit'], $json['stderr']);
         self::assertSame(['scan'], $delta['lists']['Operating prompts']['added'] ?? null);
         self::assertSame(['audit -> lint -> scan'], $delta['lists']['Operating prompt order']['added'] ?? null);
         self::assertSame(['lint -> audit'], $delta['lists']['Operating prompt order']['removed'] ?? null);
 
-        $text = $this->runBinary(['enter', $id]);
+        $text = $this->runBinary(['enter', $taskId]);
         self::assertSame(1, $text['exit'], $text['stderr']);
         self::assertStringContainsString('Operating prompt order:', $text['stdout']);
         self::assertStringContainsString('+ audit -> lint -> scan', $text['stdout']);
