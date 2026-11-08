@@ -250,26 +250,14 @@ final readonly class InitRecommendCommand
             $warnings[] = 'slop-scan ignores are not a list of strings; no excludes were adopted.';
         }
 
-        $scan = $slop['scan'] ?? [];
-        $validScan = is_array($scan) && ($scan === [] || !array_is_list($scan));
-        $pathFilters = $this->stringList($validScan ? ($scan['pathFilters'] ?? []) : null);
+        $pathFilters = $this->slopPathFilters($slop['scan'] ?? []);
         if ($pathFilters === null) {
             $warnings[] = 'slop-scan scan.pathFilters are not a list of strings; no scan scope was inferred.';
         }
 
-        $ruleIds = [];
-        $rules = $slop['rules'] ?? [];
-        if (!is_array($rules)) {
-            $warnings[] = 'slop-scan rules are not an object; rule declarations were not inferred.';
-        } else {
-            foreach ($rules as $ruleId => $definition) {
-                if (!is_string($ruleId) || !is_array($definition)) {
-                    $ruleIds = [];
-                    $warnings[] = 'slop-scan rules contain invalid declarations; rule IDs were not inferred.';
-                    break;
-                }
-                $ruleIds[] = $ruleId;
-            }
+        $ruleIds = $this->slopRuleIds($slop['rules'] ?? []);
+        if ($ruleIds === null) {
+            $warnings[] = 'slop-scan rules contain invalid declarations; rule IDs were not inferred.';
         }
 
         $overrideCount = $this->objectListCount($slop['overrides'] ?? []);
@@ -285,11 +273,43 @@ final readonly class InitRecommendCommand
         return [
             'ignores' => $ignores ?? [],
             'path_filters' => $pathFilters ?? [],
-            'rule_ids' => $ruleIds,
+            'rule_ids' => $ruleIds ?? [],
             'override_count' => $overrideCount ?? 0,
             'ignore_error_count' => $ignoreErrorCount ?? 0,
             'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function slopPathFilters(mixed $scan): ?array
+    {
+        if (!is_array($scan) || ($scan !== [] && array_is_list($scan))) {
+            return null;
+        }
+
+        return $this->stringList($scan['pathFilters'] ?? []);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function slopRuleIds(mixed $rules): ?array
+    {
+        if (!is_array($rules)) {
+            return null;
+        }
+
+        $ids = [];
+        foreach ($rules as $id => $definition) {
+            if (!is_string($id) || !is_array($definition)) {
+                return null;
+            }
+            $ids[] = $id;
+        }
+
+        return $ids;
     }
 
     /**
