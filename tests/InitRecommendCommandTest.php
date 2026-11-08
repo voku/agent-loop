@@ -119,6 +119,57 @@ PHP,
         self::assertSame([], $report['warnings']);
     }
 
+    public function testSlopPolicyEvidenceReportsScopeRulesAndExceptionsWithoutWrites(): void
+    {
+        $config = json_encode([
+            'ignores' => ['**/vendor/**'],
+            'scan' => ['pathFilters' => ['src/**', 'tests/**']],
+            'rules' => ['php.magic-numbers' => ['enabled' => false]],
+            'overrides' => [['path' => 'tests/**', 'rules' => ['php.magic-numbers' => ['enabled' => true]]]],
+            'ignoreErrors' => [['ruleId' => 'php.magic-numbers', 'path' => 'tests/Example.php', 'count' => 1]],
+        ], JSON_THROW_ON_ERROR);
+        file_put_contents($this->root . '/slop-scan.config.json', $config);
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame('slop-scan.config.json', $report['slop_policy']['source']);
+        self::assertSame(['src/**', 'tests/**'], $report['slop_policy']['path_filters']);
+        self::assertSame(['php.magic-numbers'], $report['slop_policy']['rule_ids']);
+        self::assertSame(1, $report['slop_policy']['override_count']);
+        self::assertSame(1, $report['slop_policy']['ignore_error_count']);
+        self::assertTrue($report['slop_policy']['requires_confirmation']);
+        self::assertSame(['**/vendor/**'], $report['exclusions']['slop']);
+        self::assertSame([], $report['exclusions']['phpstan']);
+        self::assertNull($report['map']['command']);
+        self::assertSame([], $report['warnings']);
+        self::assertSame($config, file_get_contents($this->root . '/slop-scan.config.json'));
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
+    public function testMalformedSlopPolicyFieldsEmitWarningsWithoutInventingSettings(): void
+    {
+        file_put_contents($this->root . '/slop-scan.config.json', json_encode([
+            'ignores' => ['**/vendor/**'],
+            'scan' => ['pathFilters' => ['src/**', 7]],
+            'rules' => ['php.magic-numbers' => 'not-an-object'],
+            'overrides' => [['path' => 'tests/**'], 'invalid-entry'],
+            'ignoreErrors' => ['unexpected' => ['ruleId' => 'php.magic-numbers']],
+        ], JSON_THROW_ON_ERROR));
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['**/vendor/**'], $report['exclusions']['slop']);
+        self::assertSame([], $report['slop_policy']['path_filters']);
+        self::assertSame([], $report['slop_policy']['rule_ids']);
+        self::assertSame(0, $report['slop_policy']['override_count']);
+        self::assertSame(0, $report['slop_policy']['ignore_error_count']);
+        self::assertCount(4, $report['warnings']);
+        self::assertStringContainsString('scan.pathFilters', $report['warnings'][0]);
+        self::assertStringContainsString('rules', $report['warnings'][1]);
+        self::assertStringContainsString('overrides', $report['warnings'][2]);
+        self::assertStringContainsString('ignoreErrors', $report['warnings'][3]);
+    }
+
     public function testComposerPsr4ScopeIsFallbackWhenPhpstanScopeCannotBeReadStatically(): void
     {
         mkdir($this->root . '/app', 0o775, true);
