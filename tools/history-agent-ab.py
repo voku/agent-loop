@@ -163,7 +163,9 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
             "answer_excerpt": answer[:2500],
             "commit_ids": commit_ids,
             "culprit_identified": oracle["culprit_sha"] in commit_ids,
-            "relevant_file_identified": "AccessPolicy.php" in answer,
+            "relevant_file_identified": (
+                "AccessPolicy.php" in answer or "AccessPolicy::canRead" in answer
+            ),
             "mentions_role_predicate": "in_array" in answer,
             "reported_missing_repo_tools": bool(re.search(
                 r"no shell|no git tool|tools aren|tools are not available|can.t inspect the repository|cannot inspect the repository",
