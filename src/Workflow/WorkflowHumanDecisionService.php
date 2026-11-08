@@ -40,6 +40,9 @@ final readonly class WorkflowHumanDecisionService
                 null,
             );
         }
+        if (!$contract->hasNonReservedApproval()) {
+            return new WorkflowHumanDecisionProjection($task->value, [], null);
+        }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($task->value);
         $reviewState = $manifest->references['review']['state'] ?? null;
@@ -158,7 +161,7 @@ final readonly class WorkflowHumanDecisionService
         $session = $this->sessionForRun($run)
             ?? throw new RuntimeException('Human decision requires the active Session bound to the governed Run.');
 
-        if ($contract->status !== TaskContract::APPROVED || $contract->revision !== $run->contractRevision) {
+        if (!$contract->hasNonReservedApproval() || $contract->revision !== $run->contractRevision) {
             throw new RuntimeException('Human decision requires the governed Run to match the current approved Contract.');
         }
 

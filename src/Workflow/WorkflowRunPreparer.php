@@ -155,8 +155,8 @@ final readonly class WorkflowRunPreparer
         TaskContract $contract,
         MapReadiness $mapReadiness,
     ): WorkflowRunPreparationResult {
-        if ($contract->status !== TaskContract::APPROVED) {
-            throw new RuntimeException('Governed Run preparation requires an approved Contract.');
+        if (!$contract->hasNonReservedApproval()) {
+            throw new RuntimeException('Governed Run preparation requires a non-reserved approved Contract.');
         }
 
         $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();

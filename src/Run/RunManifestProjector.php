@@ -503,6 +503,17 @@ final class RunManifestProjector
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'missing', 'observation_mode' => 'checked'];
         }
+        if ($contract->approvedBy !== null && str_starts_with(trim($contract->approvedBy), 'standing:')) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'invalid',
+                'observation_mode' => 'checked',
+                'revision' => $contract->revision,
+                'run_revision' => $run?->contractRevision,
+                'reason' => 'Persisted Contract approval uses an unverified reserved standing: actor.',
+                'source' => $this->artifact($contract->path),
+            ];
+        }
 
         return [
             'owner' => 'agent-loop',
@@ -521,6 +532,21 @@ final class RunManifestProjector
     {
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'unavailable', 'observation_mode' => 'checked'];
+        }
+        if ($contract->approvedBy !== null && str_starts_with(trim($contract->approvedBy), 'standing:')) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'invalid',
+                'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'reason' => 'Persisted Contract approval uses an unverified reserved standing: actor.',
+                'repair_action' => 'reconcile the invalid Contract approval for ' . $contract->taskId
+                    . ': use agent-loop workflow plan ' . $contract->taskId
+                    . ' --by <planner> --file <task-context-file> --scope <scope-entry-1> --scope <scope-entry-2> ...'
+                    . ' --goal <goal> --validation <command> --supersede, preserving every current Contract scope entry,'
+                    . ' then obtain explicit named-actor approval of the new revision',
+                'source' => $this->artifact($contract->path),
+            ];
         }
         if ($contract->status !== TaskContract::APPROVED || $contract->approvedBy === null || $contract->approvedAt === null) {
             $reference = [
@@ -1047,6 +1073,16 @@ final class RunManifestProjector
         }
         if ($decision === null) {
             return ['owner' => 'agent-learning', 'state' => 'missing', 'observation_mode' => 'checked', 'run_id' => $run->runId];
+        }
+        if (str_starts_with($decision->decidedBy, 'standing:')) {
+            return [
+                'owner' => 'agent-learning',
+                'state' => 'invalid',
+                'observation_mode' => 'checked',
+                'run_id' => $run->runId,
+                'reason' => 'Persisted Learning decision uses an unverified reserved standing: actor.',
+                'source' => $this->artifact($decision->path),
+            ];
         }
 
         $reference = [

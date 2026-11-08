@@ -12,9 +12,11 @@ use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
-use voku\AgentLoop\Workflow\WorkflowLearningRoot;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionService;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -54,7 +56,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertTrue($result['payload']['complete'] ?? false);
         self::assertSame('accepted', $result['payload']['mutation_status'] ?? null);
 
-        $decision = (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($run->runId);
+        $decision = (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId);
         self::assertNotNull($decision);
         self::assertSame($findingIds, $decision->findingIds);
     }
@@ -83,7 +85,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertSame(0, $exit, $stdout);
         self::assertStringContainsString('Complete: yes', $stdout);
 
-        $decision = (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($run->runId);
+        $decision = (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId);
         self::assertNotNull($decision);
         self::assertSame($findingIds, $decision->findingIds);
     }
@@ -104,6 +106,81 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
         self::assertSame('finish.closeout_failed', $result['payload']['error']['code'] ?? null);
         self::assertStringContainsString('finding id', (string) ($result['payload']['error']['message'] ?? ''));
+    }
+
+    public function testFindingIdFinishRefusesReservedStandingActorWithoutWritingAcknowledgement(): void
+    {
+        [$run, $session, $reviewSha256] = $this->prepareReview('FINISH-879-FINDING');
+        $findingId = $this->createFindings($run, $session, 1)[0];
+
+        $result = $this->finishJson('FINISH-879-FINDING', [
+            '--reviewed-report-sha256', $reviewSha256,
+            '--by', 'standing:spoofed',
+            '--finding', $findingId,
+        ]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
+        self::assertStringContainsString('standing:', (string) ($result['payload']['error']['message'] ?? ''));
+        self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-879-FINDING'));
+        self::assertNull((new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId));
+    }
+
+    public function testLegacyReservedContractDoesNotOfferHumanReviewAction(): void
+    {
+        $taskId = 'FINISH-879-LEGACY-ACTION';
+        [$run] = $this->prepareReview($taskId);
+        $contracts = new TaskContractStore($this->root);
+        $contract = $contracts->load($taskId);
+        $contractData = json_decode((string) file_get_contents($contract->path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($contractData);
+        $contractData['approved_by'] = 'standing:legacy-spoof';
+        self::assertNotFalse(file_put_contents(
+            $contract->path,
+            json_encode($contractData, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        ));
+
+        $contractDigest = hash_file('sha256', $contract->path);
+        self::assertIsString($contractDigest);
+        $runData = json_decode((string) file_get_contents($run->path), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($runData);
+        self::assertIsArray($runData['contract_source'] ?? null);
+        $runData['contract_source']['sha256'] = 'sha256:' . $contractDigest;
+        self::assertNotFalse(file_put_contents(
+            $run->path,
+            json_encode($runData, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        ));
+
+        $manifest = (new RunManifestProjector($this->root))->project($taskId);
+        self::assertSame('warn', $manifest->references['review']['state']);
+        $review = (new WorkflowReviewReportReader($this->root))->read($taskId);
+        self::assertTrue($review['exists']);
+        self::assertSame('warn', $review['report_status']);
+        self::assertSame('warn', $review['status']);
+        self::assertSame([], (new WorkflowHumanDecisionService($this->root))->availableActions($taskId)->actions);
+    }
+
+    public function testLearningDispositionRefusesReservedStandingActorAfterOrdinaryReviewAck(): void
+    {
+        [$run, , $reviewSha256] = $this->prepareReview('FINISH-879-LEARNING');
+
+        $ack = $this->finishJson('FINISH-879-LEARNING', [
+            '--reviewed-report-sha256', $reviewSha256,
+            '--by', 'fixture-reviewer',
+        ]);
+        self::assertSame(1, $ack['exit']);
+        $acknowledgement = (new ReviewAcknowledgementStore($this->root))->find('FINISH-879-LEARNING');
+        self::assertNotNull($acknowledgement);
+        self::assertSame('fixture-reviewer', $acknowledgement->acknowledgedBy);
+
+        $result = $this->finishJson('FINISH-879-LEARNING', [
+            '--by', 'standing:spoofed',
+            '--learning', 'no_durable_learning',
+        ]);
+        self::assertSame(1, $result['exit']);
+        self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
+        self::assertStringContainsString('standing:', (string) ($result['payload']['error']['message'] ?? ''));
+        self::assertNull((new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId));
     }
 
     public function testJsonFinishRefusesMissingFindingId(): void
@@ -146,6 +223,7 @@ final class HostFinishFindingIdContractTest extends TestCase
             (string) ($result['payload']['error']['message'] ?? ''),
         );
     }
+
 
     /** @return array{0: GovernedRun, 1: Session, 2: string} */
     private function prepareReview(string $taskId): array
@@ -196,7 +274,7 @@ final class HostFinishFindingIdContractTest extends TestCase
         ?string $taskId = null,
     ): array {
         $creator = new FindingCreator();
-        $root = WorkflowLearningRoot::forRun($this->root, $run);
+        $root = $this->root . '/.agent-loop/learning';
         $ids = [];
         for ($index = 1; $index <= $count; ++$index) {
             $created = $creator->createValidated(

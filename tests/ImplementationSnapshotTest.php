@@ -55,6 +55,18 @@ final class ImplementationSnapshotTest extends TestCase
 
         file_put_contents($probeFile, "<?php echo 'first';\n");
         $afterCreate = ImplementationSnapshot::capture($this->root, $sourceOnly)->digest;
+
+        // Execute the actual ignored experiment: creating and running it must not enter the source snapshot.
+        $process = proc_open([PHP_BINARY, $probeFile], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
+        self::assertIsResource($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        self::assertSame(0, proc_close($process), (string) $stderr);
+        self::assertSame('first', $stdout);
+        self::assertSame($sourceSnapshot, ImplementationSnapshot::capture($this->root, $sourceOnly)->digest);
+
         $bound = $this->contract('SNAP-WORK-BOUND', ['src/A.php', $probeDir]);
         $boundSnapshot = ImplementationSnapshot::capture($this->root, $bound)->digest;
 

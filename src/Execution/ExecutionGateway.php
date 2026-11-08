@@ -831,6 +831,7 @@ final readonly class ExecutionGateway
         ];
 
         if ($stage->kind === ExecutionStageKind::AGENT && $stage->mayMutate) {
+            $lines[] = 'When an implementation question needs an executable experiment, create and run a disposable work check in an explicitly permitted scratch area. Experiments are not automatically regression tests: add maintained tests only for contract-backed behavior, and record consequential observations using existing evidence.';
             $lines[] = 'Use --workspace <path> to identify the checkout containing your edits. An explicit --candidate <identity> is optional except for an intentional revert to the base; supplied claims are checked against the workspace.';
         }
 

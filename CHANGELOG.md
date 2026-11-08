@@ -1,5 +1,75 @@
 ## Unreleased
 
+## [0.20.84] - 2026-11-07
+
+### Fixed
+
+- Route explicitly requested new local work through the Kanban owner's generated card IDs, independent of `future_work.mode`; select the intended configured board and lane (including required fields), fail closed when no task authority exists, and retain externally assigned IDs and governed approval boundaries. Verify generated IDs via delegated board CLI tests and prevent sequential local ID examples.
+
+## [0.20.83] - 2026-11-07
+
+### Added
+
+- Provide `agent-loop init plan --format=json`, a typed read-only proposal with source-linked map and Composer script candidates, bounded SHA-256 provenance, explicit confirmation requirements, and no configuration writes or implicit execution (#963).
+
+### Fixed
+
+- Emit Composer-installed `vendor/bin/agent-loop` paths in project-aware PHP onboarding recommendations and prove their read-only dry-run behavior in a real installed PHP consumer (#961).
+- Ignore nested, unrelated PHPStan `paths` keys when reading project analysis scope; only direct `parameters.paths` is used for project-aware setup recommendations, with installed-consumer regression coverage (#959).
+- Align both candidate dogfood workflow pins and immutable release-commit proofs with `voku/agent-recall-compiler` 0.27.0; keep the release-contract tests and approval boundaries intact (#958).
+
+### Changed
+
+- Update released `voku/agent-map` to 0.22.6 and `voku/agent-edit` to 0.6.2 for improved PHPStan exclusion preservation and safer refactor-plan interoperability (#945, #946).
+- Update `voku/agent-recall-compiler` to 0.27.0, exposing its explicit, non-mutating exploration capability without implicit model routing or task execution authority (#958).
+- Refresh development dependencies `phpstan/phpstan` to 2.3.5, `friendsofphp/php-cs-fixer` to 3.95.29, and `composer/semver` to 3.6.0 (#939, #943, #883).
+- Update runtime dependency `helgesverre/toon` to 3.3.0 while retaining its previously selected default wire-format behavior (#955).
+
+### Tests
+
+- Validate the installed Composer PHP setup recommendations, matching release-pinned Recall candidate dogfood, real-project guidance, refactor lifecycles, and PHP 8.3/8.4/8.5 CI on exact release-candidate commits before publishing the release marker.
+
+## [0.20.82] - 2026-11-07
+
+### Added
+
+- Expose read-only, project-aware PHP setup evidence with `agent-loop init recommend --format=json`. Detect literal PHPStan paths and exclusions, Composer autoload, existing Slop Scan ignores, and PHP-CS-Fixer configuration without running project scripts or PHP configuration (#948).
+- Ship the `agent-loop-php-setup` coding-host skill for evidence-based proposals, dry runs, and explicitly approved configuration changes. The skill does not introduce another model client or bypass human review (#951).
+- Report syntactically safe Composer quality-script names as untrusted setup evidence, without executing or trusting script bodies (#953).
+- Integrate the released `voku/agent-recall-compiler` 0.26.0 bounded-choice validation API, with installed-consumer regression coverage. Workflow selection remains opt-in and advisory; there is no implicit model routing (#952).
+
+### Changed
+
+- Remove an unused follow-up budget setting from the discover-only project configuration while retaining the existing no-automatic-follow-up boundary (#931).
+- Update development dependency `symfony/yaml` to the 7.4.23 security release (#944).
+
+### Tests
+
+- Cover project-aware setup boundaries, malformed and hostile tooling configuration, installed PHP-consumer skill projection, safe Composer script-name discovery, and the optional Recall bounded-choice API (#948, #951, #952, #953).
+- Require exact-head PHP 8.3/8.4/8.5 `composer ci` and relevant installed-consumer GitHub Actions dogfood before tagging this release.
+
+## [0.20.81] - 2026-11-04
+
+### Fixed
+
+- Reconcile stale validation and review evidence during `finish` while preserving current failures and refusing Learning until validation passes.
+
+## [0.20.80] - 2026-11-02
+
+### Added
+
+- Attach source-linked ITP architecture guidance to workflow actor validation and expose advisory ITP context through the normal PHPStan Agent Format path. The existing L2 skill requests exact-symbol context before editing annotated targets; no runtime dependency or behavior change is introduced (#926).
+
+### Tests
+
+- Verify actor-attribution rule metadata, the dev-only Agent Format configuration, and the pre-edit L2 context instructions (#926).
+
+## [0.20.79] - 2026-11-02
+
+### Fixed
+
+- Reject caller-controlled `standing:` actors across Contract approval, review acknowledgement, Learning decisions, and Finding-ID finish boundaries; invalidate legacy pseudo-actor authority and preserve auditable recovery. A named Learning decision can replace a bound legacy reserved decision at the same complete evidence boundary using agent-learning 0.18.39, while ordinary same-binding decisions remain immutable. This does not introduce a standing-approval grant (#879, #919).
+
 ## [0.20.78] - 2026-11-01
 
 ### Added

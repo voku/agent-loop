@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Init\InitSyncToolsCommand;
+use voku\AgentLoop\PackageResources;
 
 /**
  * @internal
@@ -51,6 +52,44 @@ final class InitSyncToolsCommandTest extends TestCase
     }
 
     /** A runner that is not executable is a runner an agent cannot invoke. */
+    public function testInstalledConsumerFindsBundledToolProjectsWithoutProjectResources(): void
+    {
+        $consumer = $this->root . '/consumer';
+        mkdir($consumer, 0o775, true);
+        $command = new InitSyncToolsCommand($consumer);
+
+        ob_start();
+        try {
+            $exit = $command->run(['--dry-run']);
+            $preview = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $exit, $preview);
+        self::assertStringContainsString('would write tools/slop-scan/composer.json', $preview);
+        self::assertFileDoesNotExist($consumer . '/tools/slop-scan/composer.json');
+
+        ob_start();
+        try {
+            $exit = $command->run([]);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $exit, $output);
+        self::assertFileExists($consumer . '/tools/slop-scan/composer.json');
+        self::assertFileExists($consumer . '/tools/slop-scan/composer.lock');
+        self::assertSame(
+            (string) file_get_contents(PackageResources::toolsRoot() . '/slop-scan/composer.lock'),
+            (string) file_get_contents($consumer . '/tools/slop-scan/composer.lock'),
+        );
+        self::assertFileExists($consumer . '/tools/slop-scan/slop-scan.php');
+        self::assertStringContainsString('composer install --working-dir=tools/slop-scan', $output);
+        self::assertDirectoryDoesNotExist($consumer . '/tools/slop-scan/vendor');
+    }
+
     public function testRunnerKeepsItsExecutableBit(): void
     {
         $this->runSync([]);
@@ -144,11 +183,89 @@ final class InitSyncToolsCommandTest extends TestCase
         self::assertStringContainsString('composer install --working-dir=dev-tools/slop-scan', $result['output']);
     }
 
+    public function testCustomToolsDirAcceptsTrailingSeparator(): void
+    {
+        $result = $this->runSync(['--tools-dir=dev-tools/']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertFileExists($this->root . '/dev-tools/slop-scan/composer.json');
+    }
+
+    public function testDriveAbsoluteToolsDirectoryIsRejected(): void
+    {
+        $result = $this->runSync(['--tools-dir=C:/outside']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertDirectoryDoesNotExist($this->root . '/C:');
+    }
+
     public function testMissingToolRootFails(): void
     {
         $result = $this->runSync(['--tools-root=does/not/exist']);
 
         self::assertSame(1, $result['exit']);
+    }
+
+    public function testSymlinkedToolsDirectoryIsNotFollowedEvenWithForce(): void
+    {
+        $outside = sys_get_temp_dir() . '/agent-loop-tools-root-outside-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($outside, 0o775, true));
+        self::assertNotFalse(file_put_contents($outside . '/sentinel.txt', 'unchanged'));
+        self::assertTrue(symlink($outside, $this->root . '/tools'));
+
+        try {
+            self::assertSame(1, $this->runSync(['--force'])['exit']);
+            self::assertSame(1, $this->runSync(['--dry-run'])['exit']);
+            self::assertSame('unchanged', file_get_contents($outside . '/sentinel.txt'));
+            self::assertFileDoesNotExist($outside . '/.agent-loop-manifest.json');
+            self::assertFileDoesNotExist($outside . '/slop-scan/composer.json');
+        } finally {
+            unlink($this->root . '/tools');
+            unlink($outside . '/sentinel.txt');
+            rmdir($outside);
+        }
+    }
+
+    public function testSymlinkedToolTargetIsNotFollowedEvenWithForce(): void
+    {
+        $outside = sys_get_temp_dir() . '/agent-loop-tools-outside-' . bin2hex(random_bytes(6));
+        mkdir($outside, 0o775, true);
+        mkdir($this->root . '/tools', 0o775, true);
+        file_put_contents($outside . '/composer.json', 'sentinel');
+        symlink($outside, $this->root . '/tools/slop-scan');
+
+        try {
+            $result = $this->runSync(['--force']);
+
+            self::assertSame(1, $result['exit']);
+            self::assertSame('sentinel', file_get_contents($outside . '/composer.json'));
+            self::assertFileDoesNotExist($this->root . '/tools/.agent-loop-manifest.json');
+        } finally {
+            unlink($this->root . '/tools/slop-scan');
+            unlink($outside . '/composer.json');
+            rmdir($outside);
+        }
+    }
+
+    public function testUnsafeStaleManifestEntryCannotDeleteOutsideTools(): void
+    {
+        mkdir($this->root . '/tools', 0o775, true);
+        file_put_contents($this->root . '/sentinel.txt', 'untouched');
+        file_put_contents($this->root . '/tools/.agent-loop-manifest.json', '{"version":1,"kind":"tools","agent":"evidence","entries":["../sentinel.txt"]}');
+
+        $result = $this->runSync([]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame('untouched', file_get_contents($this->root . '/sentinel.txt'));
+        self::assertFileDoesNotExist($this->root . '/tools/slop-scan/composer.json');
+    }
+
+    public function testAbsoluteToolsDirectoryIsRejectedInsteadOfSilentlyStripped(): void
+    {
+        $result = $this->runSync(['--tools-dir=/outside']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertDirectoryDoesNotExist($this->root . '/outside');
     }
 
     public function testUnknownOptionFails(): void

@@ -100,6 +100,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertFalse($investigate["may_mutate"]);
         self::assertStringNotContainsString("--workspace", $investigate["next_action"]);
         self::assertStringNotContainsString('Use --workspace <path> to identify the checkout containing your edits.', $investigate["prompt"]);
+        self::assertStringNotContainsString('Experiments are not automatically regression tests', $investigate["prompt"]);
 
         $submitted = $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed"]);
         self::assertSame(0, $submitted["exit"]);
@@ -110,6 +111,9 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertTrue($build["may_mutate"]);
         self::assertStringContainsString('--workspace "<workspace-with-edits>"', $build["next_action"]);
         self::assertStringContainsString('--workspace <path>', $build["prompt"]);
+        self::assertStringContainsString('When an implementation question needs an executable experiment', $build["prompt"]);
+        self::assertStringContainsString('Experiments are not automatically regression tests', $build["prompt"]);
+        self::assertStringContainsString('record consequential observations using existing evidence', $build["prompt"]);
         self::assertStringContainsString('--candidate <identity>', $build["prompt"]);
         self::assertStringContainsString('optional except for an intentional revert to the base', $build["prompt"]);
         self::assertStringContainsString('checked against the workspace', $build["prompt"]);
@@ -141,6 +145,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertTrue($briefing["may_mutate"]);
         self::assertStringNotContainsString("--workspace", $briefing["next_action"]);
         self::assertStringNotContainsString("Use --workspace <path>", $briefing["prompt"]);
+        self::assertStringNotContainsString('Experiments are not automatically regression tests', $briefing["prompt"]);
     }
 
     /** Persist a valid plan and its bound state with a deterministic stage marked mutating. */

@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentLoop\Workflow\WorkflowTaskId;
 use PHPUnit\Framework\Attributes\Group;
 
 #[Group('slow')]
@@ -65,6 +66,100 @@ final class DispatcherTest extends TestCase
             $exit = (new Dispatcher('.'))->run(['agent-loop', ...$args]);
             ob_end_clean();
             self::assertSame(0, $exit, implode(' ', $args));
+        }
+    }
+
+    public function testDelegatedBoardGeneratesDistinctPersistentLocalTaskIds(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-generated-card-' . bin2hex(random_bytes(6));
+        mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $root . '/.agent-loop/todo/kanban.config.json',
+            json_encode(['projectPrefix' => 'LOCAL'], JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            $dispatcher = new Dispatcher($root);
+            $createdIds = [];
+
+            foreach (['First follow-up', 'Second follow-up'] as $title) {
+                ob_start();
+                $exit = $dispatcher->run([
+                    'agent-loop',
+                    'board',
+                    'card',
+                    'create',
+                    '--generate-id',
+                    '--title=' . $title,
+                    '--format=json',
+                ]);
+                $output = (string) ob_get_clean();
+
+                self::assertSame(0, $exit, $output);
+                /** @var array{card: string} $payload */
+                $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+                $id = $payload['card'];
+
+                self::assertMatchesRegularExpression('/^LOCAL-[1-9][0-9]*$/', $id);
+                self::assertFileExists($root . '/.agent-loop/todo/cards/' . $id . '.md');
+                self::assertTrue(WorkflowTaskId::isValid($id));
+
+                ob_start();
+                $showExit = $dispatcher->run(['agent-loop', 'board', 'card', 'show', $id, '--format=json']);
+                $shown = (string) ob_get_clean();
+
+                self::assertSame(0, $showExit, $shown);
+                self::assertStringContainsString($title, $shown);
+                $createdIds[] = $id;
+            }
+
+            self::assertNotSame($createdIds[0], $createdIds[1]);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testGeneratedLocalCardRespectsConfiguredLaneAndRequiredBrief(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-custom-board-' . bin2hex(random_bytes(6));
+        mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $root . '/.agent-loop/todo/kanban.config.json',
+            json_encode([
+                'projectPrefix' => 'LOCAL',
+                'lanes' => ['PLANNED', 'DOING'],
+                'requiredFieldsByLane' => ['PLANNED' => ['taskBrief']],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            ob_start();
+            $exit = (new Dispatcher($root))->run([
+                'agent-loop',
+                'board',
+                'card',
+                'create',
+                '--generate-id',
+                '--title=Local implementation',
+                '--lane=PLANNED',
+                '--brief=Prove the configured creation lane',
+                '--format=json',
+            ]);
+            $output = (string) ob_get_clean();
+
+            self::assertSame(0, $exit, $output);
+            /** @var array{card: string} $payload */
+            $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+            $id = $payload['card'];
+            self::assertMatchesRegularExpression('/^LOCAL-[1-9][0-9]*$/', $id);
+
+            $path = $root . '/.agent-loop/todo/cards/' . $id . '.md';
+            self::assertFileExists($path);
+            $card = (string) file_get_contents($path);
+            self::assertStringContainsString('**Lane:** PLANNED', $card);
+            self::assertStringContainsString('Prove the configured creation lane', $card);
+        } finally {
+            $this->removeDirectory($root);
         }
     }
 

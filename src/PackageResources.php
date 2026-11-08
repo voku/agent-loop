@@ -66,6 +66,11 @@ final class PackageResources
         return self::path(self::MAKE_INCLUDE);
     }
 
+    public static function toolsRoot(): string
+    {
+        return self::path(self::TOOLS);
+    }
+
     public static function subagentsRoot(): string
     {
         return self::path(self::SUBAGENTS);

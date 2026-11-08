@@ -46,6 +46,19 @@ final readonly class TaskContract
     ) {
     }
 
+    /**
+     * A reserved pseudo-actor cannot authorize an approved Contract.
+     *
+     * This does not authenticate ordinary named actors or grant standing authority.
+     */
+    public function hasNonReservedApproval(): bool
+    {
+        return $this->status === self::APPROVED
+            && $this->approvedBy !== null
+            && $this->approvedAt !== null
+            && !str_starts_with(trim($this->approvedBy), 'standing:');
+    }
+
     /** @return list<string> */
     public function uncoveredAcceptanceCriteria(): array
     {

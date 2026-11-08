@@ -93,11 +93,21 @@ final readonly class WorkflowCloseReadinessInspector
             $nonWaivable[] = ['gate' => 'execution_review', 'detail' => $executionReviewFailure];
         }
 
+        $validation = $this->validationSnapshot($contract, $boundary);
         if ($nonWaivable !== []) {
-            return new WorkflowCloseReadiness($boundary, $nonWaivable, [], [], []);
+            foreach ($validation['obligations'] as $obligation) {
+                if ($obligation['status'] === 'failed' && !$recoveredExecutionPending) {
+                    array_unshift($nonWaivable, [
+                        'gate' => 'validation',
+                        'detail' => $validation['detail'] ?? 'current validation failed',
+                    ]);
+                    break;
+                }
+            }
+
+            return new WorkflowCloseReadiness($boundary, $nonWaivable, [], $validation['obligations'], $validation['passed_messages']);
         }
 
-        $validation = $this->validationSnapshot($contract, $boundary);
         $failures = [];
         $passedMessages = $validation['passed_messages'];
 
@@ -406,6 +416,9 @@ final readonly class WorkflowCloseReadinessInspector
         $decision = (new RunLearningDecisionStore($learningRoot))->find($run->runId);
         if ($decision === null) {
             return null;
+        }
+        if (str_starts_with($decision->decidedBy, 'standing:')) {
+            return 'Persisted Learning decision uses an unverified reserved standing: actor.';
         }
         if (
             $decision->contractRevision !== $boundary->implementation->contractRevision

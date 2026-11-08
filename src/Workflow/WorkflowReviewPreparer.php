@@ -25,8 +25,8 @@ final readonly class WorkflowReviewPreparer
      */
     public function prepare(TaskContract $contract): array
     {
-        if ($contract->status !== TaskContract::APPROVED) {
-            throw new RuntimeException('Finish-owned review preparation requires an approved Contract.');
+        if (!$contract->hasNonReservedApproval()) {
+            throw new RuntimeException('Finish-owned review preparation requires a non-reserved approved Contract.');
         }
 
         $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);

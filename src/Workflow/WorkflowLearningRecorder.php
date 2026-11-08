@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use ItpContext\Attribute\Rule;
 use InvalidArgumentException;
 use RuntimeException;
+use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\RunLearningDecision;
@@ -48,6 +50,20 @@ final readonly class WorkflowLearningRecorder
         return $explicit ?? $implied;
     }
 
+    #[Rule(ArchitectureRules::WorkflowActorIsAttribution)]
+    public static function assertAllowedActor(string $actor): string
+    {
+        $actor = trim($actor);
+        if ($actor === '') {
+            throw new RuntimeException('Finish learning disposition requires --by.');
+        }
+        if (str_starts_with($actor, 'standing:')) {
+            throw new RuntimeException('The standing: actor prefix is reserved and cannot record a Learning decision.');
+        }
+
+        return $actor;
+    }
+
     /**
      * @param list<FinishFindingInput> $findingInputs
      * @param list<string> $findingIds
@@ -65,14 +81,11 @@ final readonly class WorkflowLearningRecorder
     ): RunLearningDecision {
         $decision = RunLearningDecisionStatus::tryFrom($decisionValue)
             ?? throw new RuntimeException('Unknown finish learning decision: ' . $decisionValue . '.');
-        $decidedBy = trim($decidedBy);
+        $decidedBy = self::assertAllowedActor($decidedBy);
         // The decision and its Finding ids or follow-up reference are the
         // evidence. 74% of real decisions were no_durable_learning plus a
         // filler sentence, so a reason is optional context, never a gate.
         $reason = $reason === null || trim($reason) === '' ? null : trim($reason);
-        if ($decidedBy === '') {
-            throw new RuntimeException('Finish learning disposition requires --by.');
-        }
         if ($run->taskId !== $contract->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Finish learning disposition does not match the governed task lineage.');
         }

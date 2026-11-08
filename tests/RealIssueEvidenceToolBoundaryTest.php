@@ -15,9 +15,10 @@ use voku\AgentLoop\Context\ArchitectureRules;
  *
  * `voku/itp-context` validates the package's architecture metadata during this
  * repository's development and CI. The rule enum itself lives under tools/ and
- * the dependency is therefore dev-only. Production classes do not carry the
- * Rule attributes or ArchitectureRules namespace; the rule definitions instead
- * name concrete tests/PHPStan checks that CI executes.
+ * the dependency is therefore dev-only. A narrowly scoped production-source
+ * Rule attribute may point to that enum as inert source metadata; production
+ * code must not call ITP APIs or require ITP at runtime. Rule definitions name
+ * concrete tests/PHPStan checks that CI executes.
  *
  * `voku/slop-scan` remains an isolated tool project so repository-quality
  * evidence stays versioned independently and does not enlarge the runtime graph.
@@ -93,6 +94,34 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
             dirname(__DIR__) . '/src/Context/ArchitectureRules.php',
             'The old production ArchitectureRules path must not survive as a compatibility copy.',
         );
+    }
+
+    public function testPhpstanAgentFormatIsDevOnlyAndEmitsItpDiagnosticContext(): void
+    {
+        $manifest = $this->composerManifest();
+        $require = $manifest['require'] ?? [];
+        $requireDev = $manifest['require-dev'] ?? [];
+        self::assertIsArray($require);
+        self::assertIsArray($requireDev);
+
+        self::assertArrayNotHasKey('voku/phpstan-agent-format', $require);
+        self::assertArrayHasKey('voku/phpstan-agent-format', $requireDev);
+
+        $configuration = (string) file_get_contents(dirname(__DIR__) . '/phpstan.neon.dist');
+        self::assertStringContainsString('vendor/voku/phpstan-agent-format/extension.neon', $configuration);
+        self::assertStringContainsString('errorFormat: agent', $configuration);
+        self::assertStringContainsString('itpContext: true', $configuration);
+    }
+
+    public function testL2ContextSkillRoutesPreEditAndDiagnosticItpContext(): void
+    {
+        $skill = (string) file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-l2-context/SKILL.md');
+
+        self::assertStringContainsString('itp-context-summarize <file>', $skill);
+        self::assertStringContainsString('before the first edit', $skill);
+        self::assertStringContainsString('composer phpstan', $skill);
+        self::assertStringContainsString('green', $skill);
+        self::assertStringContainsString('pre-edit symbol summary', $skill);
     }
 
     /** `verified_by` is executable proof for a dev-only rule, not a runtime annotation contract. */
