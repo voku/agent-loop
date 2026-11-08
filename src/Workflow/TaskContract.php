@@ -47,6 +47,24 @@ final readonly class TaskContract
     }
 
     /**
+     * Classify recorded approval metadata independently of the current status.
+     *
+     * Archived, formerly approved revisions have status SUPERSEDED. This
+     * classification is evidence for display, not current authorization.
+     * A reserved pseudo-actor is never evidence of human approval.
+     */
+    public function hasRecordedNonReservedApproval(): bool
+    {
+        $actor = $this->approvedBy === null ? null : trim($this->approvedBy);
+
+        return $actor !== null
+            && $actor !== ''
+            && $this->approvedAt !== null
+            && trim($this->approvedAt) !== ''
+            && !str_starts_with($actor, 'standing:');
+    }
+
+    /**
      * A reserved pseudo-actor cannot authorize an approved Contract.
      *
      * This does not authenticate ordinary named actors or grant standing authority.
@@ -54,9 +72,7 @@ final readonly class TaskContract
     public function hasNonReservedApproval(): bool
     {
         return $this->status === self::APPROVED
-            && $this->approvedBy !== null
-            && $this->approvedAt !== null
-            && !str_starts_with(trim($this->approvedBy), 'standing:');
+            && $this->hasRecordedNonReservedApproval();
     }
 
     /** @return list<string> */
