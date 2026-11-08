@@ -103,6 +103,10 @@ final readonly class ControlPlanePresentationProjector
             : null;
 
         if ($status !== 'ready') {
+            if ($process->exitCode !== 2) {
+                return $this->result('probe_failed', null, 'agent-ui reported a non-ready state with an unexpected exit code.');
+            }
+
             // Never start a process during a read-only status projection. A
             // launch hint is safe only for an unoccupied local endpoint.
             $startCommand = $status === 'unreachable' ? [
