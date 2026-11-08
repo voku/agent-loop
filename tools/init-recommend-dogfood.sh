@@ -190,6 +190,38 @@ jq -e '
 ' "$evidence/empty-plan.json" > /dev/null
 test -z "$(find "$work/empty-project" -mindepth 1 -print -quit)"
 
+# B5. Existing Slop policy is evidence only, never another tool's scope.
+mkdir -p "$work/slop-policy"
+cat > "$work/slop-policy/slop-scan.config.json" <<'JSON'
+{"ignores":["**/vendor/**"],"scan":{"pathFilters":["src/**","tests/**"]},"rules":{"php.magic-numbers":{"enabled":false}},"overrides":[{"path":"tests/**","rules":{"php.magic-numbers":{"enabled":true}}}],"ignoreErrors":[{"ruleId":"php.magic-numbers","path":"tests/Example.php","count":1}]}
+JSON
+sha256sum "$work/slop-policy/slop-scan.config.json" > "$evidence/slop-policy-before.sha256"
+(cd "$work/slop-policy" && php "$root/bin/agent-loop" init recommend --format=json) > "$evidence/slop-policy-recommend.json"
+(cd "$work/slop-policy" && php "$root/bin/agent-loop" init plan --format=json) > "$evidence/slop-policy-plan.json"
+jq -e '
+  .sources.slop == "slop-scan.config.json"
+  and .slop_policy.source == "slop-scan.config.json"
+  and .slop_policy.path_filters == ["src/**","tests/**"]
+  and .slop_policy.rule_ids == ["php.magic-numbers"]
+  and .slop_policy.override_count == 1
+  and .slop_policy.ignore_error_count == 1
+  and .slop_policy.requires_confirmation == true
+  and .exclusions.slop == ["**/vendor/**"]
+  and .exclusions.phpstan == []
+  and .map.paths == []
+  and .warnings == []
+' "$evidence/slop-policy-recommend.json" > /dev/null
+jq -e '
+  .mode == "read_only"
+  and .file_changes == []
+  and .review_diffs == []
+  and .proposals == []
+  and .review.applied == false
+' "$evidence/slop-policy-plan.json" > /dev/null
+sha256sum "$work/slop-policy/slop-scan.config.json" > "$evidence/slop-policy-after.sha256"
+cmp "$evidence/slop-policy-before.sha256" "$evidence/slop-policy-after.sha256"
+test ! -e "$work/slop-policy/.agent-loop"
+
 # C. Reject repo-controlled symlink to external file.
 printf 'parameters:\n  paths:\n    - .\n' > "$work/outside.neon"
 mkdir -p "$work/escape"
@@ -256,6 +288,7 @@ jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id
     "dev-only-composer-scope-without-project-execution",
     "finder-only-no-project-php-execution",
     "empty-project-no-invented-setup",
+    "slop-policy-evidence-without-cross-tool-projection",
     "out-of-root-symlink-rejection",
     "actual-agent-loop-repository",
     "composer-installed-consumer-default-tool-installation"

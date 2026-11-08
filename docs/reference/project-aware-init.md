@@ -14,6 +14,10 @@ The JSON document reports:
 - **map**: a proposed `--paths` scope, source and copyable command, always marked `requires_confirmation`;
 - **quality**: names of declared Composer check/test/analyse scripts only; script bodies, side effects and dependencies remain unverified and require approval before execution;
 - **exclusions**: literal PHPStan `excludePaths` and existing slop-scan `ignores`, **not** automatically merged;
+- **slop_policy**: read-only Slop Scan `scan.pathFilters`, configured rule IDs,
+  override and `ignoreErrors` counts, with owner/source provenance and a
+  confirmation boundary. Malformed fields emit warnings; scanner settings are
+  never inferred from malformed input;
 - **prompting**: the current `.agent-loop/init.json` language or the `en` default, without claiming a user preference;
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
 - **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM. Commands use the Composer-installed `vendor/bin/agent-loop` executable, without requiring a globally installed CLI on `PATH`.
