@@ -1,5 +1,27 @@
 ## Unreleased
 
+## [0.20.86] - 2026-11-08
+
+### Added
+
+- Report the existing Slop Scan policy as read-only, owner-sourced project setup evidence, including path filters and rule overrides without mutating scanner configuration (#981).
+
+### Fixed
+
+- Distinguish genuine historical human Contract approvals from incomplete or reserved `standing:` pseudo-actor metadata when selecting and displaying the revision comparison baseline. Preserve current approval authorization boundaries and suppress false human attribution (#986).
+- Require explicitly approved PHP project scaffolding before generating and reviewing the final language-specific setup plan, so `init apply` cannot use stale pre-scaffold evidence (#990).
+- Preserve Slop Scan JSON object-versus-array policy shapes and reject malformed nested or explicitly null values with warnings, without writing project configuration (#988).
+
+### Changed
+
+- Clarify prerequisites for source-linked PHPStan notice guidance in the owned ITP context skill (#936).
+
+### Tests
+
+- Cover archived named approval, legacy pseudo-actors, missing approval metadata and rendered CLI decision evidence; check Slop Scan policy projection and installed project recommendations (#986, #981).
+- Verify existing source-linked ITP context in CI dogfood without changing its runtime authorization (#930).
+- Add malformed Slop JSON shape/null regressions and a tenth exact-head project-init installed CLI dogfood case (#988).
+
 ## [0.20.85] - 2026-11-08
 
 ### Added
