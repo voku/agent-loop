@@ -83,6 +83,37 @@ final class WorkflowApprovalBaselineClassificationTest extends TestCase
             self::assertNotNull($delta);
             self::assertSame('standing:legacy-runner', $delta['previous_approved_by']);
             self::assertFalse($delta['previous_was_approved']);
+
+            // A newer pseudo-approved revision must not hide the older
+            // genuinely named approval when the next candidate is reviewed.
+            $document['approved_by'] = 'maintainer';
+            self::assertNotFalse(file_put_contents($path, json_encode($document, JSON_THROW_ON_ERROR)));
+            $store->approve('APPROVAL-1', 'reviewer-two', 2);
+            $store->revise('APPROVAL-1', 'Third goal', ['src/C.php'], [], ['composer ci'], 'planner');
+
+            $history = $store->supersededRevisions('APPROVAL-1');
+            self::assertCount(2, $history);
+            $laterPath = $history[1]->path;
+            $laterRaw = file_get_contents($laterPath);
+            self::assertIsString($laterRaw);
+            /** @var array<string, mixed> $laterDocument */
+            $laterDocument = json_decode($laterRaw, true, 512, JSON_THROW_ON_ERROR);
+            $laterDocument['approved_by'] = 'standing:legacy-runner';
+            self::assertNotFalse(file_put_contents($laterPath, json_encode($laterDocument, JSON_THROW_ON_ERROR)));
+
+            $presentation = (new WorkflowHumanDecisionProjector($root))->projectContractApprovalPresentation(
+                'APPROVAL-1',
+                'agent-loop workflow approve APPROVAL-1 --revision 3 --by <named-actor>',
+                RunPolicyEvaluation::KIND_DECISION_REQUIRED,
+            );
+            self::assertNotNull($presentation);
+            $delta = $presentation->revisionDelta();
+            self::assertNotNull($delta);
+            self::assertSame(1, $delta['from_revision'], 'A legacy pseudo-actor must not replace an earlier named baseline.');
+            self::assertSame(3, $delta['to_revision']);
+            self::assertSame('maintainer', $delta['previous_approved_by']);
+            self::assertTrue($delta['previous_was_approved']);
+            self::assertSame(['added' => ['src/C.php'], 'removed' => ['src/A.php']], $delta['lists']['Scope']);
         } finally {
             $iterator = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
