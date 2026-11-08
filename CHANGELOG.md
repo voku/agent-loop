@@ -1,5 +1,28 @@
 ## Unreleased
 
+## [0.20.85] - 2026-11-08
+
+### Added
+
+- Investigate bounded, read-only Git history before changing existing code, including historical intent and likely regression origins (#974).
+- Extend project-aware PHP initialization to discover Composer `autoload-dev` scope and apply explicitly approved language with evidence checks (#970, #977).
+- Offer a safe manual `agent-ui` launch command when its status probe reports a verified non-ready state; the CLI remains usable and no service is started automatically (#976).
+
+### Fixed
+
+- Compare Contract approval revisions against the latest genuine human-approved revision, not an intervening unapproved draft, and expose changes in goal, scope, non-goals, acceptance, validation, behavior anchors, operating-prompt manifest, prompt arguments, and prompt order (#922).
+- Preserve bounded history investigation during fast regression and surgical-edit workflows (#979).
+- Reject inconsistent `agent-ui status` exit codes before suggesting a launch command, without relaxing human approval boundaries (#976).
+
+### Changed
+
+- Update the `voku/agent-kanban` dependency to 0.4.8 and refresh Docker image pins (#975, #895, #886).
+
+### Tests
+
+- Verify history guidance reaches Codex and Claude runtimes and exercise Finder-only and empty PHP consumers in real installed CLI dogfood (#978, #980).
+- Cover cumulative approval deltas, latest named approval, legacy `standing:` actors, prompt order, and safe launch-status handling across PHP 8.3/8.4/8.5, with downstream `agent-ui` candidate browser proof.
+
 ## [0.20.84] - 2026-11-07
 
 ### Fixed
