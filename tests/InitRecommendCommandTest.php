@@ -255,6 +255,39 @@ PHP,
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
     }
 
+    public function testExplicitNullSlopFieldsWarnInsteadOfMasqueradingAsAbsent(): void
+    {
+        $config = '{"ignores":null,"scan":null,"rules":null,"overrides":null,"ignoreErrors":null}';
+        file_put_contents($this->root . '/slop-scan.config.json', $config);
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame([], $report['exclusions']['slop']);
+        self::assertSame([], $report['slop_policy']['path_filters']);
+        self::assertSame([], $report['slop_policy']['rule_ids']);
+        self::assertNull($report['slop_policy']['override_count']);
+        self::assertNull($report['slop_policy']['ignore_error_count']);
+        self::assertCount(5, $report['warnings']);
+        self::assertStringContainsString('ignores', $report['warnings'][0]);
+        self::assertStringContainsString('pathFilters', $report['warnings'][1]);
+        self::assertStringContainsString('rules', $report['warnings'][2]);
+        self::assertStringContainsString('overrides', $report['warnings'][3]);
+        self::assertStringContainsString('ignoreErrors', $report['warnings'][4]);
+        self::assertSame($config, file_get_contents($this->root . '/slop-scan.config.json'));
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
+    public function testExplicitNullPathFiltersWarnWithoutInferringScanScope(): void
+    {
+        file_put_contents($this->root . '/slop-scan.config.json', '{"scan":{"pathFilters":null}}');
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame([], $report['slop_policy']['path_filters']);
+        self::assertCount(1, $report['warnings']);
+        self::assertStringContainsString('scan.pathFilters', $report['warnings'][0]);
+    }
+
     public function testEmptyJsonPolicyObjectsRemainValidWhenTheirTypesAreCorrect(): void
     {
         $config = '{"ignores":[],"scan":{},"rules":{},"overrides":[],"ignoreErrors":[]}';
