@@ -245,27 +245,32 @@ final readonly class InitRecommendCommand
         $slop = $this->readJson($configPath);
         $warnings = [];
 
-        $ignores = $this->stringList($slop['ignores'] ?? []);
+        $ignoresInput = $slop['ignores'] ?? [];
+        $ignores = is_array($ignoresInput) ? $this->stringList($ignoresInput) : null;
         if ($ignores === null) {
             $warnings[] = 'slop-scan ignores are not a list of strings; no excludes were adopted.';
         }
 
-        $pathFilters = $this->slopPathFilters($slop['scan'] ?? []);
+        $scanInput = $slop['scan'] ?? [];
+        $pathFilters = is_array($scanInput) ? $this->slopPathFilters($scanInput) : null;
         if ($pathFilters === null) {
             $warnings[] = 'slop-scan scan.pathFilters are not a list of strings; no scan scope was inferred.';
         }
 
-        $ruleIds = $this->slopRuleIds($slop['rules'] ?? []);
+        $rulesInput = $slop['rules'] ?? [];
+        $ruleIds = is_array($rulesInput) ? $this->slopRuleIds($rulesInput) : null;
         if ($ruleIds === null) {
             $warnings[] = 'slop-scan rules contain invalid declarations; rule IDs were not inferred.';
         }
 
-        $overrideCount = $this->objectListCount($slop['overrides'] ?? []);
+        $overridesInput = $slop['overrides'] ?? [];
+        $overrideCount = is_array($overridesInput) ? $this->objectListCount($overridesInput) : null;
         if ($overrideCount === null) {
             $warnings[] = 'slop-scan overrides are not a list of objects; override count is unknown.';
         }
 
-        $ignoreErrorCount = $this->objectListCount($slop['ignoreErrors'] ?? []);
+        $ignoreErrorsInput = $slop['ignoreErrors'] ?? [];
+        $ignoreErrorCount = is_array($ignoreErrorsInput) ? $this->objectListCount($ignoreErrorsInput) : null;
         if ($ignoreErrorCount === null) {
             $warnings[] = 'slop-scan ignoreErrors are not a list of objects; exception count is unknown.';
         }
@@ -281,11 +286,12 @@ final readonly class InitRecommendCommand
     }
 
     /**
+     * @param array<array-key, mixed> $scan
      * @return list<string>|null
      */
-    private function slopPathFilters(mixed $scan): ?array
+    private function slopPathFilters(array $scan): ?array
     {
-        if (!is_array($scan) || ($scan !== [] && array_is_list($scan))) {
+        if ($scan !== [] && array_is_list($scan)) {
             return null;
         }
 
@@ -293,14 +299,11 @@ final readonly class InitRecommendCommand
     }
 
     /**
+     * @param array<array-key, mixed> $rules
      * @return list<string>|null
      */
-    private function slopRuleIds(mixed $rules): ?array
+    private function slopRuleIds(array $rules): ?array
     {
-        if (!is_array($rules)) {
-            return null;
-        }
-
         $ids = [];
         foreach ($rules as $id => $definition) {
             if (!is_string($id) || !is_array($definition)) {
@@ -313,11 +316,12 @@ final readonly class InitRecommendCommand
     }
 
     /**
+     * @param array<array-key, mixed> $value
      * @return list<string>|null
      */
-    private function stringList(mixed $value): ?array
+    private function stringList(array $value): ?array
     {
-        if (!is_array($value) || !array_is_list($value)) {
+        if (!array_is_list($value)) {
             return null;
         }
 
@@ -332,9 +336,12 @@ final readonly class InitRecommendCommand
         return $result;
     }
 
-    private function objectListCount(mixed $value): ?int
+    /**
+     * @param array<array-key, mixed> $value
+     */
+    private function objectListCount(array $value): ?int
     {
-        if (!is_array($value) || !array_is_list($value)) {
+        if (!array_is_list($value)) {
             return null;
         }
 
