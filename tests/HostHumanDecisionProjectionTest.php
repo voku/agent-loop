@@ -443,6 +443,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertSame(1, $result['exit'], $result['stderr']);
         self::assertSame(1, $delta['from_revision'] ?? null);
         self::assertSame(3, $delta['to_revision'] ?? null);
+        self::assertTrue($delta['previous_was_approved'] ?? false);
         self::assertSame('project-owner', $delta['previous_approved_by'] ?? null);
         self::assertSame('Original human-approved goal.', $delta['previous_goal'] ?? null);
         self::assertSame(['src/B.php', 'tests/CTest.php'], $delta['lists']['Scope']['added'] ?? null);
@@ -462,6 +463,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertSame(1, $result['exit'], $result['stderr']);
         self::assertSame(2, $delta['from_revision'] ?? null);
         self::assertSame(3, $delta['to_revision'] ?? null);
+        self::assertFalse($delta['previous_was_approved'] ?? true);
         self::assertNull($delta['previous_approved_by'] ?? null);
         self::assertSame(['src/C.php'], $delta['lists']['Scope']['added'] ?? null);
     }
