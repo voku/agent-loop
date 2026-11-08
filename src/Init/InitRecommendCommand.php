@@ -175,7 +175,7 @@ final readonly class InitRecommendCommand
             return [$paths, $phpstanPath];
         }
 
-        if ($composer !== null) {
+        if ($composer !== null && $composerPath !== null) {
             foreach (['autoload', 'autoload-dev'] as $section) {
                 $paths = $this->composerPsr4Paths($composer, $section);
                 if ($paths !== []) {
