@@ -141,9 +141,10 @@ final class ControlPlanePresentationProjectorTest extends TestCase
                     '--host=127.0.0.1',
                     '--port=8088',
                 ], $result['start_command']);
-            } else {
-                self::assertNull($result['start_command'], 'Never suggest launching over a conflicting or unverified service.');
+                continue;
             }
+
+            self::assertNull($result['start_command'], 'Never suggest launching over a conflicting or unverified service.');
         }
     }
 
