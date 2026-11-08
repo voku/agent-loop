@@ -449,6 +449,44 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertSame(['src/B.php', 'tests/CTest.php'], $delta['lists']['Scope']['added'] ?? null);
     }
 
+    public function testLegacyPseudoApprovalAloneIsNeverPresentedAsApprovedBaseline(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $taskId = 'DECISION-LEGACY-ONLY';
+        $contracts->create(
+            $taskId,
+            'First unapproved revision.',
+            ['src/A.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+        $this->persistLegacyReservedApproval($contracts, $taskId);
+        $contracts->revise(
+            $taskId,
+            'Current candidate.',
+            ['src/A.php', 'src/B.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+
+        $result = $this->runBinary(['enter', $taskId, '--format=json']);
+        $delta = $this->json($result['stdout'])['human_decision']['subject']['revision_delta'] ?? null;
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertSame(1, $delta['from_revision'] ?? null);
+        self::assertFalse($delta['previous_was_approved'] ?? true);
+        self::assertNull($delta['previous_approved_by'] ?? null);
+        self::assertNull($delta['previous_approved_at'] ?? null);
+        self::assertSame('First unapproved revision.', $delta['previous_goal'] ?? null);
+        self::assertSame(['src/B.php'], $delta['lists']['Scope']['added'] ?? null);
+
+        $text = $this->runBinary(['enter', $taskId]);
+        self::assertSame(1, $text['exit'], $text['stderr']);
+        self::assertStringNotContainsString('Previous revision approved by:', $text['stdout']);
+    }
+
     public function testWithoutApprovedRevisionDeltaUsesMostRecentDraft(): void
     {
         $contracts = new TaskContractStore($this->root);
