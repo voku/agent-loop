@@ -147,6 +147,35 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         }
     }
 
+    public function testUnreachableProbeWithUnexpectedExitCodeNeverSuggestsLaunch(): void
+    {
+        foreach ([0, 1, 127] as $exitCode) {
+            $root = $this->configuredRoot(['enabled' => true]);
+            $this->installAgentUiPlaceholder($root);
+            $projector = new ControlPlanePresentationProjector(
+                $root,
+                static fn (array $command): CommandProcessResult => new CommandProcessResult(
+                    $exitCode,
+                    json_encode([
+                        'status' => 'unreachable',
+                        'url' => null,
+                        'project_id' => 'owner-result',
+                        'detail' => 'endpoint not running',
+                    ], JSON_THROW_ON_ERROR),
+                    '',
+                    false,
+                ),
+            );
+
+            $result = $projector->project('ATTN-FAIL');
+
+            self::assertNotNull($result);
+            self::assertSame('probe_failed', $result['status']);
+            self::assertNull($result['start_command']);
+            self::assertNull($result['url']);
+        }
+    }
+
     public function testUnicodeDetailPreservesUtf8AndTheByteBound(): void
     {
         $root = $this->configuredRoot(['enabled' => true]);
