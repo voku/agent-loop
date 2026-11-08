@@ -1,0 +1,32 @@
+name: Reconcile approval baseline with main (one-shot)
+on:
+  push:
+    branches: ['fix/916-approval-delta-approved-baseline']
+    paths: ['.github/workflows/approval-baseline-refresh-once.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: approval-baseline-refresh-once
+  cancel-in-progress: false
+
+jobs:
+  update-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/916-approval-delta-approved-baseline
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Merge latest main without changing feature patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin refs/heads/main:refs/remotes/origin/main
+          git merge --no-edit --no-ff origin/main
+          git merge-base --is-ancestor origin/main HEAD
+          git push origin HEAD:refs/heads/fix/916-approval-delta-approved-baseline
