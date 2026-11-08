@@ -145,6 +145,63 @@ def prepare(root: Path, investigator: Path) -> None:
     print(f"Prepared two identical read-only regression clones at {head_sha}")
 
 
+
+def parse_stream(stream: Path, answer_path: Path, receipt_path: Path) -> None:
+    """Reduce Copilot JSONL to public fixture evidence without retaining tool arguments."""
+    messages: list[str] = []
+    tool_names: list[str] = []
+    model_ids: set[str] = set()
+    event_count = 0
+
+    for line_number, raw in enumerate(stream.read_text(encoding="utf-8").splitlines(), start=1):
+        if not raw.strip():
+            continue
+        try:
+            event = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise SystemExit(f"Invalid Copilot JSONL line {line_number}: {error.msg}") from error
+        if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+            raise SystemExit(f"Invalid Copilot event on line {line_number}")
+        event_count += 1
+        kind = event["type"]
+        data = event.get("data", {})
+        if not isinstance(data, dict):
+            data = {}
+        model = data.get("model") or data.get("modelId")
+        if isinstance(model, str) and model:
+            model_ids.add(model)
+        if kind in ("tool.execution_start", "tool_call"):
+            name = data.get("toolName") or event.get("tool")
+            if isinstance(name, str) and name:
+                tool_names.append(name)
+        if kind in ("assistant.message", "agent_message_chunk"):
+            content = data.get("content") if kind == "assistant.message" else event.get("text")
+            if isinstance(content, str) and content.strip():
+                messages.append(content)
+
+    if not messages:
+        raise SystemExit("Copilot JSONL has no visible assistant.message/agent_message_chunk content")
+
+    # Keep the last complete answer, or concatenate chunks for older event formats.
+    answer = messages[-1] if any(
+        '"type":"assistant.message"' in line for line in stream.read_text(encoding="utf-8").splitlines()
+    ) else "".join(messages)
+    if not answer.strip():
+        raise SystemExit("Copilot JSONL did not produce a nonempty final answer")
+    write(answer_path, answer.strip() + "\n")
+    write(receipt_path, json.dumps({
+        "schema_version": "1.0",
+        "event_count": event_count,
+        "model_ids": sorted(model_ids),
+        "tool_calls_observed": len(tool_names),
+        "source_tools_observed": sum(
+            1 for name in tool_names
+            if name.lower() in ("read", "view", "grep", "glob", "shell", "bash")
+        ),
+        "tool_names": sorted(set(tool_names)),
+    }, indent=2) + "\n")
+
+
 def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
     oracle = json.loads((root / "oracle.json").read_text(encoding="utf-8"))
     results: dict[str, dict[str, object]] = {}
@@ -158,8 +215,10 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
         if git(repo, "status", "--porcelain"):
             raise SystemExit(f"{arm}: model modified tracked or untracked source")
         commit_ids = sorted(set(re.findall(r"\b[0-9a-f]{40}\b", answer)))
+        telemetry = json.loads((root / f"{arm}-telemetry.json").read_text(encoding="utf-8"))
         results[arm] = {
             "sha256": hashlib.sha256(answer.encode()).hexdigest(),
+            "host_telemetry": telemetry,
             "answer_excerpt": answer[:2500],
             "commit_ids": commit_ids,
             "culprit_identified": oracle["culprit_sha"] in commit_ids,
@@ -179,7 +238,11 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
         else "baseline_only" if baseline and not history
         else "equivalent_on_commit_identification"
     )
-    invalid_tools = any(result["reported_missing_repo_tools"] for result in results.values())
+    invalid_tools = any(
+        result["reported_missing_repo_tools"] or
+        result["host_telemetry"]["source_tools_observed"] == 0
+        for result in results.values()
+    )
     report = {
         "status": "invalid_tools_unavailable" if invalid_tools else "observed",
         "schema_version": "1.0",
@@ -215,6 +278,10 @@ def main() -> None:
     prep = command.add_parser("prepare")
     prep.add_argument("--root", type=Path, required=True)
     prep.add_argument("--investigator", type=Path, required=True)
+    parse = command.add_parser("parse-stream")
+    parse.add_argument("--stream", type=Path, required=True)
+    parse.add_argument("--answer", type=Path, required=True)
+    parse.add_argument("--receipt", type=Path, required=True)
     report = command.add_parser("grade")
     report.add_argument("--root", type=Path, required=True)
     report.add_argument("--output", type=Path, required=True)
@@ -223,6 +290,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "prepare":
         prepare(args.root, args.investigator)
+    elif args.command == "parse-stream":
+        parse_stream(args.stream, args.answer, args.receipt)
     else:
         grade(args.root, args.output, args.model, args.cli_version)
 
