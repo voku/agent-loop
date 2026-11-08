@@ -1,0 +1,51 @@
+name: Cross-repo approval UI consumer proof
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  consumer:
+    name: agent-ui PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4', '8.5']
+    steps:
+      - name: Check out exact owner candidate
+        uses: actions/checkout@v7
+        with:
+          path: agent-loop
+          persist-credentials: false
+
+      - name: Check out exact UI consumer candidate
+        uses: actions/checkout@v7
+        with:
+          repository: voku/agent-ui
+          ref: a809f93921f94af7664f9fa352571ae8d7d55241
+          path: agent-ui
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Resolve only the local agent-loop owner under test
+        working-directory: agent-ui
+        run: |
+          set -euo pipefail
+          composer config --json repositories.agent-loop '{"type":"path","url":"../agent-loop","options":{"symlink":false,"versions":{"voku/agent-loop":"0.20.999"}}}'
+          composer update voku/agent-loop --with-all-dependencies --no-interaction --prefer-dist --no-progress
+          composer show voku/agent-loop
+
+      - name: Run the actual UI test, static-analysis and style gates
+        working-directory: agent-ui
+        run: composer ci
