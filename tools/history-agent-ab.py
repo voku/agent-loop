@@ -188,6 +188,7 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
             "A model answer is not proof that it invoked Git; inspect full host receipts if available.",
             "Exact SHA identification is a narrow outcome, not general bugfix correctness.",
             "A single pair cannot establish causal benefit or reliable cost/performance.",
+            "Copilot auto model selection may choose different models per arm; no model-parity claim is made.",
         ],
     }
     write(output, json.dumps(report, indent=2, sort_keys=True) + "\n")
