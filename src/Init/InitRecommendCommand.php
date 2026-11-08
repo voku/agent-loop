@@ -51,6 +51,7 @@ final readonly class InitRecommendCommand
      *   map: array{paths: list<string>, source: string|null, command: string|null, requires_confirmation: true},
      *   quality: array{source: string|null, composer_scripts: list<string>, requires_confirmation: true, note: string},
      *   exclusions: array{phpstan: list<string>, slop: list<string>, note: string},
+     *   slop_policy: array{source: string|null, path_filters: list<string>, rule_ids: list<string>, override_count: int, ignore_error_count: int, requires_confirmation: true, note: string},
      *   prompting: array{language: string, source: string},
      *   review: array{human_attention_every_changes_required: int, configurable_by_setup: false},
      *   next_actions: list<string>,
@@ -69,7 +70,7 @@ final readonly class InitRecommendCommand
         $composer = $composerPath === null ? null : $this->readJson($composerPath);
         $phpstanLists = $this->phpstanLists($phpstanPath);
         [$paths, $source] = $this->mapPaths($phpstanLists['paths'], $phpstanPath, $composerPath, $composer);
-        $slop = $this->slopIgnores($slopPath);
+        $slop = $this->slopEvidence($slopPath);
 
         $phpstanExcludes = $phpstanLists['excludes'];
         $slopIgnores = $slop['ignores'];
@@ -113,6 +114,15 @@ final readonly class InitRecommendCommand
                 'phpstan' => $phpstanExcludes,
                 'slop' => $slopIgnores,
                 'note' => 'PHPStan excludePaths, PHP-CS-Fixer Finder excludes, slop globs and agent-map regexes are not interchangeable. Never copy excludes automatically. PHP-CS-Fixer config is detected, not executed.',
+            ],
+            'slop_policy' => [
+                'source' => $slopPath,
+                'path_filters' => $slop['path_filters'],
+                'rule_ids' => $slop['rule_ids'],
+                'override_count' => $slop['override_count'],
+                'ignore_error_count' => $slop['ignore_error_count'],
+                'requires_confirmation' => true,
+                'note' => 'Existing Slop Scan policy is evidence, not permission to change it. Inspect the owner config for rule bodies and exceptions. Path filters and ignores are not interchangeable with PHPStan or Agent Map scope.',
             ],
             'prompting' => [
                 'language' => $language,
@@ -213,24 +223,107 @@ final readonly class InitRecommendCommand
     }
 
     /**
-     * A Slop Scan ignore is evidence of Slop policy only, not an exclusion
-     * eligible for automatic propagation to Map or PHPStan.
+     * Preserve Slop Scan policy provenance without interpreting it as Agent
+     * Map or PHPStan authority. Malformed fields are reported, not adopted.
      *
-     * @return array{ignores: list<string>, warnings: list<string>}
+     * @return array{ignores: list<string>, path_filters: list<string>, rule_ids: list<string>, override_count: int, ignore_error_count: int, warnings: list<string>}
      */
-    private function slopIgnores(?string $configPath): array
+    private function slopEvidence(?string $configPath): array
     {
+        $empty = [
+            'ignores' => [],
+            'path_filters' => [],
+            'rule_ids' => [],
+            'override_count' => 0,
+            'ignore_error_count' => 0,
+            'warnings' => [],
+        ];
         if ($configPath === null) {
-            return ['ignores' => [], 'warnings' => []];
+            return $empty;
         }
 
         $slop = $this->readJson($configPath);
-        $ignores = $slop['ignores'] ?? [];
-        if (!is_array($ignores) || array_filter($ignores, static fn (mixed $ignore): bool => !is_string($ignore)) !== []) {
-            return ['ignores' => [], 'warnings' => ['slop-scan ignores are not a list of strings; no excludes were adopted.']];
+        $warnings = [];
+
+        $ignores = $this->stringList($slop['ignores'] ?? []);
+        if ($ignores === null) {
+            $warnings[] = 'slop-scan ignores are not a list of strings; no excludes were adopted.';
         }
 
-        return ['ignores' => array_values($ignores), 'warnings' => []];
+        $scan = $slop['scan'] ?? [];
+        $pathFilters = $this->stringList(is_array($scan) ? ($scan['pathFilters'] ?? []) : null);
+        if ($pathFilters === null) {
+            $warnings[] = 'slop-scan scan.pathFilters are not a list of strings; no scan scope was inferred.';
+        }
+
+        $ruleIds = [];
+        $rules = $slop['rules'] ?? [];
+        if (!is_array($rules)) {
+            $warnings[] = 'slop-scan rules are not an object; rule declarations were not inferred.';
+        } else {
+            foreach ($rules as $ruleId => $definition) {
+                if (!is_string($ruleId) || !is_array($definition)) {
+                    $ruleIds = [];
+                    $warnings[] = 'slop-scan rules contain invalid declarations; rule IDs were not inferred.';
+                    break;
+                }
+                $ruleIds[] = $ruleId;
+            }
+        }
+
+        $overrideCount = $this->objectListCount($slop['overrides'] ?? []);
+        if ($overrideCount === null) {
+            $warnings[] = 'slop-scan overrides are not a list of objects; override count is unknown.';
+        }
+
+        $ignoreErrorCount = $this->objectListCount($slop['ignoreErrors'] ?? []);
+        if ($ignoreErrorCount === null) {
+            $warnings[] = 'slop-scan ignoreErrors are not a list of objects; exception count is unknown.';
+        }
+
+        return [
+            'ignores' => $ignores ?? [],
+            'path_filters' => $pathFilters ?? [],
+            'rule_ids' => $ruleIds,
+            'override_count' => $overrideCount ?? 0,
+            'ignore_error_count' => $ignoreErrorCount ?? 0,
+            'warnings' => $warnings,
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function stringList(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return null;
+        }
+
+        $result = [];
+        foreach ($value as $entry) {
+            if (!is_string($entry)) {
+                return null;
+            }
+            $result[] = $entry;
+        }
+
+        return $result;
+    }
+
+    private function objectListCount(mixed $value): ?int
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return null;
+        }
+
+        foreach ($value as $entry) {
+            if (!is_array($entry)) {
+                return null;
+            }
+        }
+
+        return count($value);
     }
 
     /** @param list<string> $candidates */
