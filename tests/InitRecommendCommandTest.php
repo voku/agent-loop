@@ -161,8 +161,8 @@ PHP,
         self::assertSame(['**/vendor/**'], $report['exclusions']['slop']);
         self::assertSame([], $report['slop_policy']['path_filters']);
         self::assertSame([], $report['slop_policy']['rule_ids']);
-        self::assertSame(0, $report['slop_policy']['override_count']);
-        self::assertSame(0, $report['slop_policy']['ignore_error_count']);
+        self::assertNull($report['slop_policy']['override_count']);
+        self::assertNull($report['slop_policy']['ignore_error_count']);
         self::assertCount(4, $report['warnings']);
         self::assertStringContainsString('scan.pathFilters', $report['warnings'][0]);
         self::assertStringContainsString('rules', $report['warnings'][1]);
@@ -181,8 +181,8 @@ PHP,
         $report = (new InitRecommendCommand($this->root))->inspect();
 
         self::assertSame([], $report['slop_policy']['path_filters']);
-        self::assertSame(0, $report['slop_policy']['override_count']);
-        self::assertSame(0, $report['slop_policy']['ignore_error_count']);
+        self::assertNull($report['slop_policy']['override_count']);
+        self::assertNull($report['slop_policy']['ignore_error_count']);
         self::assertCount(3, $report['warnings']);
         self::assertStringContainsString('scan.pathFilters', $report['warnings'][0]);
         self::assertStringContainsString('overrides', $report['warnings'][1]);
