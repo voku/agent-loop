@@ -1,5 +1,22 @@
 ## Unreleased
 
+## [0.20.86] - 2026-11-08
+
+### Added
+
+- Report existing Slop Scan owner policy in `init recommend --format=json`: source, scan path filters, rule IDs and override/exception counts. Keep evidence read-only, require confirmation and never project Slop policy into PHPStan or Agent Map scope (#981).
+
+### Fixed
+
+- Preserve JSON object-versus-array shapes when inspecting Slop Scan policy; reject malformed containers and explicitly null fields with warnings rather than silently accepting or inferring policy. Keep repository configuration unchanged (#988).
+- Clarify that PHPStan can emit advisory ITP architecture notices only when Agent Format and ITP integration are configured for the consumer, while pre-edit exact-symbol context remains necessary (#936).
+- In fresh PHP onboarding, require separately approved scaffolding before the final language-specific plan and re-review any evidence digest invalidated by scaffolding (#990).
+
+### Tests
+
+- Verify that the installed ITP tooling can validate and summarize the existing annotated workflow-actor rule, its owner, proof and change guidance from the exact PR commit. The CI artifact proves source-context availability, not improved agent decisions (#930).
+- Add malformed Slop JSON object/array/null regression coverage and an installed CLI dogfood case, maintaining the no-writes setup boundary (#988).
+
 ## [0.20.85] - 2026-11-08
 
 ### Added
