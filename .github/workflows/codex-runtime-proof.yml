@@ -1319,6 +1319,11 @@ jobs:
           done
           test -n "${child_request}"
           cp "${child_request}" "${EVIDENCE_ROOT}/selected-investigator-child-request.json"
+          # Assert effective child-provider content, not merely installed source files.
+          # The scripted provider does not establish autonomous agent decisions.
+          grep -Fq 'git log --follow --find-renames --name-status' "${child_request}"
+          grep -Fq 'history_incomplete=true' "${child_request}"
+          grep -Fq 'skip greenfield' "${child_request}"
 
           parent_write_result=""
           for request in "${request_prefix}"-*.json; do
@@ -2189,7 +2194,7 @@ jobs:
                   projected_role: "agent-loop-investigator",
                   child_fingerprint: "Locate. Verify. Report. Stop.",
                   status: "observed",
-                  boundary: "The selected child request contains the projected role developer instructions."
+                  boundary: "The real Codex selected child provider request contains rename-aware bounded Git history guidance, shallow-history limitations and greenfield opt-out. The provider is scripted; no autonomous LLM choice is claimed."
                 },
                 subagent_read_only_authority: {
                   evidence_class: "runtime_authority",
