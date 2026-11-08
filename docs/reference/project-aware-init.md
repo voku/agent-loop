@@ -38,7 +38,14 @@ and refuses to propose changes against malformed existing init settings.
 A project with no usable map scope or quality scripts produces no candidates.
 Detected Composer script names are *not* validation authority: the host must inspect
 their bodies before proposing execution. Literal PHPStan paths, Composer declarations
-and directory-presence fallbacks have different provenance labels.
+and directory-presence fallbacks have different provenance labels. When there
+is no usable PHPStan or Composer production `autoload.psr-4` scope, the
+read-only inspector also considers existing `autoload-dev.psr-4` directories.
+It reports their provenance as `composer.json:autoload-dev`, never conflates
+them with production paths, and still requires explicit approval before any
+Agent Map build. PHPStan paths and production Composer declarations remain
+higher priority; unrelated Composer scripts and PHP-CS-Fixer PHP files are
+never executed by this discovery step.
 
 This command **does not** modify `.agent-loop/init.json`, slop-scan configuration,
 map state or the human Attention safeguard. The empty file diff is intentional:
