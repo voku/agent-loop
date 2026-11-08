@@ -170,6 +170,25 @@ PHP,
         self::assertStringContainsString('ignoreErrors', $report['warnings'][3]);
     }
 
+    public function testListShapedSlopPolicyContainersAreNotSilentlyAccepted(): void
+    {
+        file_put_contents($this->root . '/slop-scan.config.json', json_encode([
+            'scan' => ['unexpected-array-entry'],
+            'overrides' => [['unexpected-array-entry']],
+            'ignoreErrors' => [['unexpected-array-entry']],
+        ], JSON_THROW_ON_ERROR));
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame([], $report['slop_policy']['path_filters']);
+        self::assertSame(0, $report['slop_policy']['override_count']);
+        self::assertSame(0, $report['slop_policy']['ignore_error_count']);
+        self::assertCount(3, $report['warnings']);
+        self::assertStringContainsString('scan.pathFilters', $report['warnings'][0]);
+        self::assertStringContainsString('overrides', $report['warnings'][1]);
+        self::assertStringContainsString('ignoreErrors', $report['warnings'][2]);
+    }
+
     public function testComposerPsr4ScopeIsFallbackWhenPhpstanScopeCannotBeReadStatically(): void
     {
         mkdir($this->root . '/app', 0o775, true);
