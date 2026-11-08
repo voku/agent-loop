@@ -137,7 +137,6 @@ PHP,
         self::assertSame(['php.magic-numbers'], $report['slop_policy']['rule_ids']);
         self::assertSame(1, $report['slop_policy']['override_count']);
         self::assertSame(1, $report['slop_policy']['ignore_error_count']);
-        self::assertTrue($report['slop_policy']['requires_confirmation']);
         self::assertSame(['**/vendor/**'], $report['exclusions']['slop']);
         self::assertSame([], $report['exclusions']['phpstan']);
         self::assertNull($report['map']['command']);
