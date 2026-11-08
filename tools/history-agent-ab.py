@@ -148,7 +148,8 @@ def prepare(root: Path, investigator: Path) -> None:
 
 def parse_stream(stream: Path, answer_path: Path, receipt_path: Path) -> None:
     """Reduce Copilot JSONL to public fixture evidence without retaining tool arguments."""
-    messages: list[str] = []
+    complete_messages: list[str] = []
+    chunks: list[str] = []
     tool_names: list[str] = []
     model_ids: set[str] = set()
     event_count = 0
@@ -174,18 +175,20 @@ def parse_stream(stream: Path, answer_path: Path, receipt_path: Path) -> None:
             name = data.get("toolName") or event.get("tool")
             if isinstance(name, str) and name:
                 tool_names.append(name)
-        if kind in ("assistant.message", "agent_message_chunk"):
-            content = data.get("content") if kind == "assistant.message" else event.get("text")
+        if kind == "assistant.message":
+            content = data.get("content")
             if isinstance(content, str) and content.strip():
-                messages.append(content)
+                complete_messages.append(content)
+        elif kind in ("assistant.message_delta", "agent_message_chunk"):
+            content = data.get("deltaContent") or data.get("delta") or event.get("text")
+            if isinstance(content, str):
+                chunks.append(content)
 
-    if not messages:
-        raise SystemExit("Copilot JSONL has no visible assistant.message/agent_message_chunk content")
+    if not complete_messages and not chunks:
+        raise SystemExit("Copilot JSONL lacks assistant output; no inference receipt")
 
-    # Keep the last complete answer, or concatenate chunks for older event formats.
-    answer = messages[-1] if any(
-        '"type":"assistant.message"' in line for line in stream.read_text(encoding="utf-8").splitlines()
-    ) else "".join(messages)
+    # Full assistant.message events supersede streamed chunks to avoid duplicates.
+    answer = complete_messages[-1] if complete_messages else "".join(chunks)
     if not answer.strip():
         raise SystemExit("Copilot JSONL did not produce a nonempty final answer")
     write(answer_path, answer.strip() + "\n")
@@ -196,7 +199,7 @@ def parse_stream(stream: Path, answer_path: Path, receipt_path: Path) -> None:
         "tool_calls_observed": len(tool_names),
         "source_tools_observed": sum(
             1 for name in tool_names
-            if name.lower() in ("read", "view", "grep", "glob", "shell", "bash")
+            if name.lower().startswith(("read", "view", "grep", "glob", "shell", "bash"))
         ),
         "tool_names": sorted(set(tool_names)),
     }, indent=2) + "\n")
