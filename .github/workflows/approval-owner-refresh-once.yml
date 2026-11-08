@@ -1,0 +1,44 @@
+name: Owner approval delta guarded main refresh (one-shot)
+on:
+  push:
+    branches: [test/approval-owner-main-refresh-20261108]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    if: github.repository == 'voku/agent-loop' && github.ref == 'refs/heads/test/approval-owner-main-refresh-20261108'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - name: Guard exact source and main refs and merge current main
+        run: |
+          set -euo pipefail
+          git config user.name 'Approval owner refresh CI'
+          git config user.email 'approval-owner-refresh@users.noreply.github.com'
+          git fetch origin main fix/916-approval-delta-approved-baseline
+          test "$(git rev-parse origin/fix/916-approval-delta-approved-baseline)" = "64b36c22d216cec0d0e38890bfe75b6b307819b0"
+          test "$(git rev-parse origin/main)" = "973a213dab2179019c6cab1a4ff4e500d7ce2c49"
+          test "$(git rev-parse HEAD^)" = "64b36c22d216cec0d0e38890bfe75b6b307819b0"
+          git merge --no-ff --no-edit origin/main
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git rm .github/workflows/approval-owner-refresh-once.yml
+          git commit -m 'chore(ci): drop disposable main-refresh workflow'
+      - name: Install dependency graph
+        run: composer install --no-interaction --prefer-dist
+      - name: Run full owner project's composer CI on merged main
+        run: composer ci
+      - name: Publish verified merge commit to original PR only if still unchanged
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/fix/916-approval-delta-approved-baseline | cut -f1)" = "64b36c22d216cec0d0e38890bfe75b6b307819b0"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "973a213dab2179019c6cab1a4ff4e500d7ce2c49"
+          git diff-tree --no-commit-id --name-only -r HEAD | grep -Fx '.github/workflows/approval-owner-refresh-once.yml'
+          git push origin HEAD:refs/heads/fix/916-approval-delta-approved-baseline
