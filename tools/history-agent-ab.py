@@ -246,8 +246,20 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
         result["host_telemetry"]["source_tools_observed"] == 0
         for result in results.values()
     )
+    baseline_models = results["baseline"]["host_telemetry"]["model_ids"]
+    history_models = results["history"]["host_telemetry"]["model_ids"]
+    same_model = (
+        len(baseline_models) == 1
+        and baseline_models == history_models
+    )
+    model_parity = (
+        "verified" if same_model
+        else "different" if baseline_models and history_models
+        else "unknown"
+    )
     report = {
         "status": "invalid_tools_unavailable" if invalid_tools else "observed",
+        "model_parity": model_parity,
         "schema_version": "1.0",
         "evidence_class": "real_copilot_cli_one_pair",
         "model_requested": model,
@@ -262,7 +274,7 @@ def grade(root: Path, output: Path, model: str, cli_version: str) -> None:
             "A model answer is not proof that it invoked Git; inspect full host receipts if available.",
             "Exact SHA identification is a narrow outcome, not general bugfix correctness.",
             "A single pair cannot establish causal benefit or reliable cost/performance.",
-            "Copilot auto model selection may choose different models per arm; no model-parity claim is made.",
+            "Model parity is recorded only if both session event streams identify exactly one identical model.",
         ],
     }
     write(output, json.dumps(report, indent=2, sort_keys=True) + "\n")
