@@ -554,6 +554,52 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertStringContainsString('Request changes:', $result['stdout']);
     }
 
+    public function testUnreachableHtmlDecisionShowsSafeManualLaunchWithoutSkippingApproval(): void
+    {
+        $this->writeConfig([
+            'interaction' => [
+                'decision_presentation' => 'html',
+                'control_plane' => ['enabled' => true, 'host' => '127.0.0.1', 'port' => 8123],
+            ],
+        ]);
+        $binaryDirectory = $this->root . '/vendor/bin';
+        if (!mkdir($binaryDirectory, 0o775, true) && !is_dir($binaryDirectory)) {
+            throw new RuntimeException('Unable to create fake agent-ui binary directory.');
+        }
+        $binary = $binaryDirectory . '/agent-ui';
+        file_put_contents($binary, "#!/bin/sh\nprintf '%s\\n' '{\"status\":\"unreachable\",\"url\":null,\"detail\":\"not running\"}'\nexit 2\n");
+        chmod($binary, 0o755);
+        (new TaskContractStore($this->root))->create(
+            'DECISION-START',
+            'Offer a verified way to start the optional browser overview.',
+            ['src/Workflow'],
+            ['Do not automatically approve.'],
+            ['vendor/bin/phpunit'],
+            'codex',
+        );
+
+        $result = $this->runBinary(['enter', 'DECISION-START']);
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertStringContainsString('Decision required: Contract approval', $result['stdout']);
+        self::assertStringContainsString('agent-ui is unavailable; the full decision overview is shown in the CLI.', $result['stdout']);
+        self::assertStringContainsString('Start agent-ui manually: ', $result['stdout']);
+        self::assertStringContainsString(escapeshellarg('--port=8123'), $result['stdout']);
+        self::assertStringNotContainsString('Decision overview in agent-ui: http', $result['stdout']);
+
+        $json = $this->runBinary(['enter', 'DECISION-START', '--format=json']);
+        $payload = $this->json($json['stdout']);
+        self::assertSame('decision_required', $payload['next_action_kind'] ?? null);
+        self::assertSame('contract_approval', $payload['human_decision']['type'] ?? null);
+        self::assertSame('unreachable', $payload['control_plane_presentation']['status'] ?? null);
+        self::assertSame([
+            $binary,
+            '--root=' . $this->root,
+            '--host=127.0.0.1',
+            '--port=8123',
+        ], $payload['control_plane_presentation']['start_command'] ?? null);
+        self::assertNull($payload['control_plane_presentation']['url'] ?? null);
+    }
+
     public function testFinishSurfacesReviewWhileDelegatingAcknowledgementAndLearning(): void
     {
         [$contract, $run, $session, $snapshot] = $this->prepareReviewDecision('DECISION-2');

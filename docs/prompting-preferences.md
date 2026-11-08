@@ -29,6 +29,32 @@ control plane is enabled and reachable. The current HTML decision labels are
 English, so another configured language keeps the full overview in the CLI. If
 the control plane is unavailable, agent-loop also falls back to the full CLI
 decision overview. This preference changes Contract approval presentation.
+
+The optional local control plane remains opt-in. To make agent-ui discoverable
+at the decision boundary, install `voku/agent-ui` as a development dependency and
+configure the local loopback endpoint:
+
+```json
+{
+  "interaction": {
+    "decision_presentation": "html",
+    "control_plane": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 8088
+    }
+  }
+}
+```
+
+When the verified agent-ui endpoint is ready, `enter` and `finish` project the
+current task link. If an installed agent-ui reports `unreachable`, they expose a
+manual, argument-safe `start_command` in the JSON projection and a shell-escaped
+start hint in text mode. Nothing auto-starts in a read-only projection. A wrong
+project, wrong service or failed probe is not a safe reason to launch another
+server or pretend a task URL is available. The CLI decision card remains the
+fallback, and the human must still explicitly approve the exact Contract revision.
+
 The CLI decision labels currently support English and German;
 unknown configured languages use English labels while preserving exact
 Contract text, commands, paths, and owner evidence. The host agent should still
