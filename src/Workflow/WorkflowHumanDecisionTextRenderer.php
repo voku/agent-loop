@@ -35,7 +35,19 @@ final readonly class WorkflowHumanDecisionTextRenderer
         $this->appendList($lines, $german ? 'Abnahmekriterien' : 'Acceptance criteria', $contract->acceptanceCriteria, $german);
         $this->appendList($lines, $german ? 'Validierung' : 'Validation', $contract->validation, $german);
         $this->appendList($lines, $german ? 'Verhaltensanker' : 'Behavior anchors', $contract->behaviorAnchors, $german);
-        $this->appendRevisionDelta($lines, $decision->previousRevision, $contract, $german);
+        $this->appendList(
+            $lines,
+            $german ? 'Operating-Prompt-Manifest' : 'Operating prompt manifest',
+            $contract->operatingPromptManifest === null ? [] : [$contract->operatingPromptManifest],
+            $german,
+        );
+        $this->appendList(
+            $lines,
+            $german ? 'Operating-Prompts' : 'Operating prompts',
+            $decision->operatingPromptSummaries($contract->operatingPrompts),
+            $german,
+        );
+        $this->appendRevisionDelta($lines, $decision, $german);
         $lines[] = '';
         $lines[] = $german
             ? 'Was die Freigabe erlaubt: Arbeit ausschließlich innerhalb des im Contract festgelegten Scope. Sie genehmigt weder die Implementierung noch Validierungsergebnisse oder Learning.'
@@ -92,75 +104,59 @@ final readonly class WorkflowHumanDecisionTextRenderer
     /** @param list<string> $lines */
     private function appendRevisionDelta(
         array &$lines,
-        ?TaskContract $previous,
-        TaskContract $current,
+        WorkflowContractApprovalPresentation $decision,
         bool $german,
     ): void {
-        if ($previous === null) {
+        $delta = $decision->revisionDelta();
+        if ($delta === null) {
             return;
         }
 
         $lines[] = $german
-            ? sprintf('Änderungen seit Revision %d (neue Revision %d):', $previous->revision, $current->revision)
-            : sprintf('Changes since revision %d (new revision %d):', $previous->revision, $current->revision);
-        if ($previous->approvedBy !== null) {
-            $lines[] = '  ' . ($german ? 'Vorherige Revision freigegeben von: ' : 'Previous revision approved by: ') . $previous->approvedBy;
+            ? sprintf('Änderungen seit Revision %d (neue Revision %d):', $delta['from_revision'], $delta['to_revision'])
+            : sprintf('Changes since revision %d (new revision %d):', $delta['from_revision'], $delta['to_revision']);
+        if ($delta['previous_approved_by'] !== null) {
+            $lines[] = '  ' . ($german ? 'Vorherige Revision freigegeben von: ' : 'Previous revision approved by: ') . $delta['previous_approved_by'];
         }
-        if ($previous->approvedAt !== null) {
-            $lines[] = '  ' . ($german ? 'Vorherige Freigabe am: ' : 'Previous approval at: ') . $previous->approvedAt;
+        if ($delta['previous_approved_at'] !== null) {
+            $lines[] = '  ' . ($german ? 'Vorherige Freigabe am: ' : 'Previous approval at: ') . $delta['previous_approved_at'];
         }
-        if ($previous->goal !== $current->goal) {
-            $lines[] = '  ' . ($german ? 'Vorheriges Ziel: ' : 'Previous goal: ') . $previous->goal;
+        if ($delta['previous_goal'] !== null) {
+            $lines[] = '  ' . ($german ? 'Vorheriges Ziel: ' : 'Previous goal: ') . $delta['previous_goal'];
         }
 
-        $changesExist = $this->appendChanges($lines, 'Scope', $previous->scope, $current->scope);
-        $changesExist = $this->appendChanges(
-            $lines,
-            $german ? 'Validierung' : 'Validation',
-            $previous->validation,
-            $current->validation,
-        ) || $changesExist;
-        $changesExist = $this->appendChanges(
-            $lines,
-            $german ? 'Ausgeschlossen' : 'Non-goals',
-            $previous->nonGoals,
-            $current->nonGoals,
-        ) || $changesExist;
-        $changesExist = $this->appendChanges(
-            $lines,
-            $german ? 'Abnahmekriterien' : 'Acceptance criteria',
-            $previous->acceptanceCriteria,
-            $current->acceptanceCriteria,
-        ) || $changesExist;
+        foreach ($delta['lists'] as $label => $changes) {
+            $lines[] = '  ' . $this->revisionLabel($label, $german) . ':';
+            foreach ($changes['added'] as $item) {
+                $lines[] = '    + ' . $item;
+            }
+            foreach ($changes['removed'] as $item) {
+                $lines[] = '    - ' . $item;
+            }
+        }
 
-        if (!$changesExist && $previous->goal === $current->goal) {
+        if ($delta['empty']) {
             $lines[] = '  ' . ($german
-                ? 'Ziel, Scope, Validierung, Ausschlüsse und Abnahmekriterien sind unverändert.'
-                : 'Goal, scope, validation, non-goals, and acceptance criteria are unchanged.');
+                ? 'Ziel, Scope, Validierung, Ausschlüsse, Abnahmekriterien, Verhaltensanker und Operating-Prompts sind unverändert.'
+                : 'Goal, scope, validation, non-goals, acceptance criteria, behavior anchors, and operating prompts are unchanged.');
         }
     }
 
-    /**
-     * @param list<string> $lines
-     * @param list<string> $previous
-     * @param list<string> $current
-     */
-    private function appendChanges(array &$lines, string $label, array $previous, array $current): bool
+    private function revisionLabel(string $label, bool $german): string
     {
-        $added = array_values(array_diff($current, $previous));
-        $removed = array_values(array_diff($previous, $current));
-        if ($added === [] && $removed === []) {
-            return false;
+        if (!$german) {
+            return $label;
         }
 
-        $lines[] = '  ' . $label . ':';
-        foreach ($added as $item) {
-            $lines[] = '    + ' . $item;
-        }
-        foreach ($removed as $item) {
-            $lines[] = '    - ' . $item;
-        }
-
-        return true;
+        return match ($label) {
+            'Validation' => 'Validierung',
+            'Non-goals' => 'Ausgeschlossen',
+            'Acceptance criteria' => 'Abnahmekriterien',
+            'Behavior anchors' => 'Verhaltensanker',
+            'Operating prompt manifest' => 'Operating-Prompt-Manifest',
+            'Operating prompts' => 'Operating-Prompts',
+            'Operating prompt order' => 'Operating-Prompt-Reihenfolge',
+            default => $label,
+        };
     }
 }

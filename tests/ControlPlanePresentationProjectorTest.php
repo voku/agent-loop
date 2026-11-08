@@ -75,6 +75,7 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         self::assertNotNull($result);
         self::assertSame('ready', $result['status']);
         self::assertSame('http://localhost:9123/task/ATTN%2042', $result['url']);
+        self::assertNull($result['start_command']);
         self::assertSame([
             $root . '/vendor/bin/agent-ui',
             'status',
@@ -104,6 +105,7 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         self::assertNotNull($result);
         self::assertSame('not_installed', $result['status']);
         self::assertNull($result['url']);
+        self::assertNull($result['start_command']);
         self::assertFalse($called);
     }
 
@@ -131,6 +133,46 @@ final class ControlPlanePresentationProjectorTest extends TestCase
 
             self::assertNotNull($result);
             self::assertSame($status, $result['status']);
+            self::assertNull($result['url']);
+            if ($status === 'unreachable') {
+                self::assertSame([
+                    $root . '/vendor/bin/agent-ui',
+                    '--root=' . $root,
+                    '--host=127.0.0.1',
+                    '--port=8088',
+                ], $result['start_command']);
+                continue;
+            }
+
+            self::assertNull($result['start_command'], 'Never suggest launching over a conflicting or unverified service.');
+        }
+    }
+
+    public function testUnreachableProbeWithUnexpectedExitCodeNeverSuggestsLaunch(): void
+    {
+        foreach ([0, 1, 127] as $exitCode) {
+            $root = $this->configuredRoot(['enabled' => true]);
+            $this->installAgentUiPlaceholder($root);
+            $projector = new ControlPlanePresentationProjector(
+                $root,
+                static fn (array $command): CommandProcessResult => new CommandProcessResult(
+                    $exitCode,
+                    json_encode([
+                        'status' => 'unreachable',
+                        'url' => null,
+                        'project_id' => 'owner-result',
+                        'detail' => 'endpoint not running',
+                    ], JSON_THROW_ON_ERROR),
+                    '',
+                    false,
+                ),
+            );
+
+            $result = $projector->project('ATTN-FAIL');
+
+            self::assertNotNull($result);
+            self::assertSame('probe_failed', $result['status']);
+            self::assertNull($result['start_command']);
             self::assertNull($result['url']);
         }
     }
@@ -160,6 +202,12 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         self::assertNotNull($result);
         self::assertSame(str_repeat('a', 299), $result['detail']);
         self::assertLessThanOrEqual(300, strlen($result['detail']));
+        self::assertSame([
+            $root . '/vendor/bin/agent-ui',
+            '--root=' . $root,
+            '--host=127.0.0.1',
+            '--port=8088',
+        ], $result['start_command']);
         $encoded = json_encode($result, JSON_THROW_ON_ERROR);
         self::assertSame($result, json_decode($encoded, true, 512, JSON_THROW_ON_ERROR));
     }
@@ -200,6 +248,7 @@ final class ControlPlanePresentationProjectorTest extends TestCase
             self::assertNotNull($result);
             self::assertSame('probe_failed', $result['status']);
             self::assertNull($result['url']);
+            self::assertNull($result['start_command']);
         }
     }
 
