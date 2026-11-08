@@ -18,6 +18,11 @@ The JSON document reports:
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
 - **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM. Commands use the Composer-installed `vendor/bin/agent-loop` executable, without requiring a globally installed CLI on `PATH`.
 
+The exact-head Actions dogfood also runs the CLI against a Finder-only
+project and an empty repository. Both must yield bounded read-only evidence
+without inventing a PHP scope or executing a project-controlled PHP file;
+the proof artifact records each fixture separately.
+
 ## Reviewable, read-only candidate plan
 
 The next narrow slice of #947 exposes a typed proposal view without adding an unsafe

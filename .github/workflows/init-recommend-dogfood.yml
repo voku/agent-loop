@@ -137,8 +137,10 @@ jobs:
           jq -e --arg head "$EXPECTED_HEAD_SHA" '
             .result == "passed"
             and .exact_head == $head
-            and (.cases | length == 6)
+            and (.cases | length == 8)
             and (.cases | index("dev-only-composer-scope-without-project-execution") != null)
+            and (.cases | index("finder-only-no-project-php-execution") != null)
+            and (.cases | index("empty-project-no-invented-setup") != null)
           ' build/init-recommend-dogfood/proof.json
       - name: Upload proof and JSON reports
         if: always()
