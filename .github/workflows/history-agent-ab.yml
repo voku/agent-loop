@@ -39,6 +39,16 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile tools/history-agent-ab.py
+          printf '%s\n' \
+            '{"type":"tool.execution_start","data":{"toolName":"read","model":"test-model"}}' \
+            '{"type":"assistant.message","data":{"content":"Verified evidence.","model":"test-model"}}' \
+            > "$RUNNER_TEMP/copilot-stream.jsonl"
+          python3 tools/history-agent-ab.py parse-stream \
+            --stream "$RUNNER_TEMP/copilot-stream.jsonl" \
+            --answer "$RUNNER_TEMP/copilot-answer.txt" \
+            --receipt "$RUNNER_TEMP/copilot-telemetry.json"
+          test "$(cat "$RUNNER_TEMP/copilot-answer.txt")" = 'Verified evidence.'
+          jq -e '.model_ids == ["test-model"] and .tool_calls_observed == 1 and .source_tools_observed == 1' "$RUNNER_TEMP/copilot-telemetry.json" >/dev/null
           root="$RUNNER_TEMP/history-agent-ab"
           python3 tools/history-agent-ab.py prepare \
             --root "$root" \
@@ -92,16 +102,20 @@ jobs:
           cli_version="$(copilot --version | head -n 1)"
           for arm in baseline history; do
             mkdir -p "$root/copilot-home-$arm"
-            echo "Running $arm arm with fixed model; timeout 160 seconds"
+            echo "Running $arm arm with requested model $EXPERIMENT_MODEL; timeout 160 seconds"
             if (
               cd "$root/$arm"
               COPILOT_HOME="$root/copilot-home-$arm" timeout 160s copilot \
                 -p "$(cat "$root/$arm-prompt.txt")" \
-                -s --no-ask-user --trust-folder \
+                --output-format=json --no-ask-user --trust-folder \
                 --model "$EXPERIMENT_MODEL" \
                 --allow-tool='read,shell(git log:*),shell(git show:*),shell(git blame:*),shell(git rev-parse:*),shell(git status:*),shell(git diff:*),shell(git grep:*),shell(ls:*)' \
                 --deny-tool='write,url,memory'
-            ) > "$root/$arm-answer.txt" 2> "$root/$arm-stderr.txt"; then
+            ) > "$root/$arm-events.jsonl" 2> "$root/$arm-stderr.txt"; then
+              python3 tools/history-agent-ab.py parse-stream \
+                --stream "$root/$arm-events.jsonl" \
+                --answer "$root/$arm-answer.txt" \
+                --receipt "$root/$arm-telemetry.json"
               test -s "$root/$arm-answer.txt"
             else
               exit_code="$?"
