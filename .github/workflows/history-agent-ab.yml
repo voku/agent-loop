@@ -1,0 +1,121 @@
+name: Real-agent Git History A/B
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+    paths:
+      - '.github/workflows/history-agent-ab.yml'
+      - 'tools/history-agent-ab.py'
+      - 'resources/subagents/agent-loop-investigator.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: history-agent-ab-${{ github.event.pull_request.number }}-${{ github.event.action }}
+  cancel-in-progress: true
+
+jobs:
+  fixture:
+    name: Validate frozen regression fixture without inference
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check exact candidate SHA
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Prove reproducible fixture and a failing regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/history-agent-ab.py
+          root="$RUNNER_TEMP/history-agent-ab"
+          python3 tools/history-agent-ab.py prepare \
+            --root "$root" \
+            --investigator resources/subagents/agent-loop-investigator.md
+          test "$(git -C "$root/baseline" rev-parse HEAD)" = "$(git -C "$root/history" rev-parse HEAD)"
+          test "$(git -C "$root/baseline" status --porcelain)" = ''
+          test "$(git -C "$root/history" status --porcelain)" = ''
+          if php "$root/baseline/tests/probe.php"; then
+            echo "Expected regression test to fail at frozen HEAD" >&2
+            exit 1
+          fi
+          echo "Frozen A/B fixture reproduces the access regression without mutating a checkout"
+
+  real-model:
+    name: One read-only Copilot CLI baseline/history pair
+    needs: fixture
+    if: >-
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'history-real-ab' &&
+      github.event.pull_request.user.login == 'voku' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      copilot-requests: write
+    env:
+      EXPERIMENT_MODEL: claude-haiku-4.5
+      COPILOT_AUTO_UPDATE: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install actual Copilot CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @github/copilot
+          copilot --version
+      - name: Execute two independent read-only model sessions
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/history-agent-ab"
+          python3 tools/history-agent-ab.py prepare \
+            --root "$root" \
+            --investigator resources/subagents/agent-loop-investigator.md
+          cli_version="$(copilot --version | head -n 1)"
+          for arm in baseline history; do
+            mkdir -p "$root/copilot-home-$arm"
+            echo "Running $arm arm with fixed model; timeout 160 seconds"
+            (
+              cd "$root/$arm"
+              COPILOT_HOME="$root/copilot-home-$arm" timeout 160s copilot \
+                -p "$(cat "$root/$arm-prompt.txt")" \
+                -s --no-ask-user --trust-folder \
+                --model "$EXPERIMENT_MODEL" \
+                --available-tools='read,shell' \
+                --allow-tool='read,shell(git log:*),shell(git show:*),shell(git blame:*),shell(git rev-parse:*),shell(git status:*),shell(git diff:*),shell(git grep:*),shell(ls:*),shell(cat:*)' \
+                --deny-tool='write,url,memory'
+            ) > "$root/$arm-answer.txt" 2> "$root/$arm-stderr.txt"
+            test -s "$root/$arm-answer.txt"
+            test "$(git -C "$root/$arm" status --porcelain)" = ''
+          done
+          mkdir -p build
+          python3 tools/history-agent-ab.py grade \
+            --root "$root" --output build/history-agent-ab.json \
+            --model "$EXPERIMENT_MODEL" --cli-version "$cli_version"
+          jq -e '.schema_version == "1.0" and .evidence_class == "real_copilot_cli_one_pair" and .arms.baseline and .arms.history' build/history-agent-ab.json >/dev/null
+          git diff --exit-code -- .
+      - name: Upload sanitized one-pair result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: history-real-ab-${{ github.event.pull_request.head.sha }}
+          if-no-files-found: warn
+          path: build/history-agent-ab.json
