@@ -105,6 +105,44 @@ printf '{"name":"setup/dogfood","autoload":{"psr-4":{"Demo\\\\":"app/"}}}\n' > "
 (cd "$work/nested" && php "$root/bin/agent-loop" init recommend --format=json > "$evidence/nested.json")
 jq -e '.map.paths == ["app"] and .map.source == "composer.json"' "$evidence/nested.json" >/dev/null
 
+# B2. A development-only PHP library with nonconventional scope must not be invisible.
+# Capture real CLI JSON, enforce provenance and ensure project-owned code was not run.
+mkdir -p "$work/dev-only/spec"
+cat > "$work/dev-only/composer.json" <<'JSON'
+{"name":"example/dev-only","autoload-dev":{"psr-4":{"Project\\Tests\\":"spec/"}},"scripts":{"test":"@php -r \"file_put_contents('EXECUTED_UNEXPECTEDLY', 'bad');\""}}
+JSON
+cat > "$work/dev-only/.php-cs-fixer.dist.php" <<'PHP'
+<?php file_put_contents(__DIR__ . '/EXECUTED_UNEXPECTEDLY', 'bad'); return [];
+PHP
+sha256sum "$work/dev-only/composer.json" "$work/dev-only/.php-cs-fixer.dist.php" > "$evidence/dev-only-input-sha256-before.txt"
+(cd "$work/dev-only" && php "$root/bin/agent-loop" init recommend --format=json) > "$evidence/dev-only-recommend.json"
+(cd "$work/dev-only" && php "$root/bin/agent-loop" init plan --format=json) > "$evidence/dev-only-plan.json"
+jq -e '
+  .schema_version == 1
+  and .map.paths == ["spec"]
+  and .map.source == "composer.json:autoload-dev"
+  and .map.command == "vendor/bin/agent-loop map build --paths=spec"
+  and .exclusions.slop == []
+  and .quality.composer_scripts == ["test"]
+  and .review.configurable_by_setup == false
+' "$evidence/dev-only-recommend.json" > /dev/null
+jq -e '
+  .mode == "read_only"
+  and .file_changes == []
+  and .review_diffs == []
+  and (.proposals | length) == 2
+  and (.proposals[0].id == "map.scope"
+    and .proposals[0].owner == "agent-map"
+    and .proposals[0].source == "composer.json:autoload-dev"
+    and .proposals[0].confidence == "declared_config"
+    and .proposals[0].requires_confirmation == true
+    and .proposals[0].execution == "not_authorized")
+' "$evidence/dev-only-plan.json" > /dev/null
+sha256sum "$work/dev-only/composer.json" "$work/dev-only/.php-cs-fixer.dist.php" > "$evidence/dev-only-input-sha256-after.txt"
+cmp "$evidence/dev-only-input-sha256-before.txt" "$evidence/dev-only-input-sha256-after.txt"
+test ! -e "$work/dev-only/EXECUTED_UNEXPECTEDLY"
+test ! -e "$work/dev-only/.agent-loop"
+
 # C. Reject repo-controlled symlink to external file.
 printf 'parameters:\n  paths:\n    - .\n' > "$work/outside.neon"
 mkdir -p "$work/escape"
@@ -168,6 +206,7 @@ jq -n --arg head "$head" --arg workflow "${GITHUB_WORKFLOW:-local}" --arg run_id
   cases: [
     "phpstan-and-slop-isolation",
     "composer-fallback-for-nested-scope",
+    "dev-only-composer-scope-without-project-execution",
     "out-of-root-symlink-rejection",
     "actual-agent-loop-repository",
     "composer-installed-consumer-default-tool-installation"
