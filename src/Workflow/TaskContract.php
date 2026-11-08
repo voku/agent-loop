@@ -53,8 +53,18 @@ final readonly class TaskContract
      */
     public function hasNonReservedApproval(): bool
     {
-        return $this->status === self::APPROVED
-            && $this->approvedBy !== null
+        return $this->status === self::APPROVED && $this->hasNamedApprovalEvidence();
+    }
+
+    /**
+     * True when this revision carries named approval evidence, including a
+     * superseded revision whose original approved status was archived.
+     *
+     * This is attribution evidence, not an authorization or identity check.
+     */
+    public function hasNamedApprovalEvidence(): bool
+    {
+        return $this->approvedBy !== null
             && $this->approvedAt !== null
             && !str_starts_with(trim($this->approvedBy), 'standing:');
     }

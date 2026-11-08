@@ -60,6 +60,7 @@ final readonly class WorkflowContractApprovalPresentation
      *     to_revision: int,
      *     previous_approved_by: string|null,
      *     previous_approved_at: string|null,
+     *     previous_was_approved: bool,
      *     previous_goal: string|null,
      *     lists: array<string, array{added: list<string>, removed: list<string>}>,
      *     empty: bool
@@ -82,6 +83,7 @@ final readonly class WorkflowContractApprovalPresentation
             'to_revision' => $this->contract->revision,
             'previous_approved_by' => $this->previousRevision->approvedBy,
             'previous_approved_at' => $this->previousRevision->approvedAt,
+            'previous_was_approved' => $this->previousRevision->hasNamedApprovalEvidence(),
             'previous_goal' => $previousGoal,
             'lists' => $lists,
             'empty' => $previousGoal === null && $lists === [],

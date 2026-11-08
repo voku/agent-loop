@@ -104,9 +104,7 @@ final readonly class WorkflowHumanDecisionProjector
         // When no approved baseline exists, compare to the latest draft instead.
         foreach ($history as $revision) {
             if (
-                $revision->approvedBy !== null
-                && $revision->approvedAt !== null
-                && !str_starts_with(trim($revision->approvedBy), 'standing:')
+                $revision->hasNamedApprovalEvidence()
             ) {
                 $previous = $revision;
             }
