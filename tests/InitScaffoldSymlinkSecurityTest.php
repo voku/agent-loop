@@ -93,6 +93,17 @@ final class InitScaffoldSymlinkSecurityTest extends TestCase
         self::assertFileDoesNotExist($this->projectRoot . '/.agent-loop/init.json');
     }
 
+    public function testLinkedBoardRootIsRejectedBeforeAnyScaffoldFilesAreCreated(): void
+    {
+        self::assertTrue(mkdir($this->projectRoot . '/.agent-loop', 0o775));
+        self::assertTrue(symlink($this->outsideRoot, $this->projectRoot . '/.agent-loop/todo'));
+
+        self::assertSame(1, $this->scaffold(['--prefix=SEC']));
+        self::assertFileDoesNotExist($this->projectRoot . '/.agent-loop/init.json');
+        self::assertFileDoesNotExist($this->projectRoot . '/.agent-loop/.gitignore');
+        self::assertFileDoesNotExist($this->outsideRoot . '/kanban.config.json');
+    }
+
     public function testLinkedGitignoreIsRejectedWithoutModifyingItsTarget(): void
     {
         self::assertTrue(mkdir($this->projectRoot . '/.agent-loop', 0o775));

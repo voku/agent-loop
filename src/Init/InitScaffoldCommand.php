@@ -69,6 +69,7 @@ GITIGNORE;
             $sessionsRoot,
             $learningRoot,
             $learningRoot . '/findings',
+            $stateRoot . '/todo',
         ];
         if ($demo) {
             $targets[] = $stateRoot . '/tasks/DEMO-1.md';
