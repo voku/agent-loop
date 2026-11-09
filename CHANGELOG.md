@@ -1,5 +1,21 @@
 ## Unreleased
 
+## [0.20.89] - 2026-11-09
+
+### Added
+
+- Automate review artifact coverage bookkeeping with justified exclusions (#1005). Automatically populates expected changed candidate files in `StageExecutionBundle`, verifies that all candidate artifacts are either inspected or explicitly excluded, and fails closed on unreviewed files.
+- Support `--exclude-artifact <path>=<justification>` in workflow pipeline review submissions, with anti-forgery blob existence and digest validation against the candidate tree.
+
+### Dependencies
+
+- Upgrade `voku/agent-recall-compiler` to `^0.28.0` with task-scoped intermediate bundle pruning (#457, #264).
+- Upgrade `voku/agent-learning` to `^0.19.0` with automated proof re-anchoring (`proposal-reanchor --auto`) and fail-closed pre-policy protection (#192).
+
+### Tests
+
+- Add unit and integration coverage for candidate artifact tracking, justified exclusion submission, comma-delimited reason parsing, and forged exclusion rejection. Update release workflow pins to verified 0.28.0 Recall release.
+
 ## [0.20.88] - 2026-11-09
 
 ### Fixed

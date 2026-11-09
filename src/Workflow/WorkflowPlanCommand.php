@@ -135,8 +135,29 @@ final readonly class WorkflowPlanCommand
         }
 
         $warnings = self::chainedValidationWarnings($contract->validation);
+        $nextAction = 'agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . ' --by <named-actor>';
+        $projector = new WorkflowHumanDecisionProjector($this->rootPath);
+        $decisionKind = \voku\AgentLoop\Run\RunPolicyEvaluation::KIND_DECISION_REQUIRED;
 
         if ($options['format'] === 'json') {
+            $decision = $projector->project($taskId->value, $nextAction, $decisionKind);
+            if (
+                ($decision['type'] ?? null) !== 'contract_approval'
+                || ($decision['subject']['contract_revision'] ?? null) !== $contract->revision
+            ) {
+                echo json_encode([
+                    'schema_version' => '1.0',
+                    'command' => 'workflow plan',
+                    'task_id' => $taskId->value,
+                    'status' => 'error',
+                    'error' => 'Candidate Contract persisted, but its approval presentation is unavailable. '
+                        . 'Inspect current state with: agent-loop workflow status ' . $taskId->value . ' --format=json',
+                    'next_action_kind' => 'host_work',
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+
+                return 1;
+            }
+
             echo json_encode([
                 'schema_version' => '1.0',
                 'command' => 'workflow plan',
@@ -148,8 +169,9 @@ final readonly class WorkflowPlanCommand
                 'scope' => $contract->scope,
                 'validation' => $contract->validation,
                 'warnings' => $warnings,
-                'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . ' --by <named-actor>',
-                'next_action_kind' => 'decision_required',
+                'next_action' => $nextAction,
+                'next_action_kind' => $decisionKind,
+                'human_decision' => $decision,
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
             return 0;
@@ -157,13 +179,21 @@ final readonly class WorkflowPlanCommand
 
         echo "[OK] workflow plan: candidate Contract {$action} for {$taskId->value} revision {$contract->revision}\n";
         echo "[OK] workflow plan: durable source {$contract->path}\n";
-        echo "Goal:\n  {$contract->goal}\n";
-        echo "Scope:\n  " . implode("\n  ", $contract->scope) . "\n";
         foreach ($warnings as $warning) {
             echo '[WARN] workflow plan: ' . $warning . "\n";
         }
-        echo "Next:\n";
-        echo '  agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . " --by <named-actor>\n";
+        $presentation = $projector->projectContractApprovalPresentation($taskId->value, $nextAction, $decisionKind);
+        if (
+            $presentation === null
+            || $presentation->contract->revision !== $contract->revision
+            || $presentation->contract->status !== TaskContract::CANDIDATE
+        ) {
+            fwrite(STDERR, "[FAIL] workflow plan: Candidate Contract persisted, but its approval presentation is unavailable. Inspect current state with: agent-loop workflow status {$taskId->value} --format=json\n");
+
+            return 1;
+        }
+        echo (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderContractApproval($presentation);
+        echo "Next:\n  " . $nextAction . "\n";
 
         return 0;
     }

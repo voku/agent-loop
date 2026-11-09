@@ -33,7 +33,9 @@ final class WorkflowPipelineCommandTest extends TestCase
         $this->root = sys_get_temp_dir() . "/agent-loop-pipeline-" . bin2hex(random_bytes(5));
         mkdir($this->root . "/.agent-loop/learning", 0o775, true);
         mkdir($this->root . "/src", 0o775, true);
+        mkdir($this->root . "/docs", 0o775, true);
         file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo {}\n");
+        file_put_contents($this->root . "/docs/CHANGELOG.md", "# Changelog\n");
         // A real base commit: the deterministic verify stage validates the governed candidate held by the checkout.
         file_put_contents($this->root . "/.gitignore", "/.agent-loop/\n");
         $git = "git -C " . escapeshellarg($this->root);
@@ -263,6 +265,51 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame("verify", $p5["current_stage"]);
     }
 
+    public function testPipelineSubmitReviewPassWithExclusionReasonContainingComma(): void
+    {
+        $this->prepareSurgicalRun("PIPE-EXCLUDE-1", files: ["src/Foo.php", "docs/CHANGELOG.md"]);
+
+        $command = new WorkflowPipelineCommand($this->root);
+
+        // 1. Submit investigate -> advances to build
+        $res1 = $this->captureRun($command, [
+            "submit", "PIPE-EXCLUDE-1",
+            "--outcome=completed",
+            "--summary=Investigation complete.",
+            "--format=json",
+        ]);
+        self::assertSame(0, $res1["exit"]);
+
+        // Modify src/Foo.php and docs/CHANGELOG.md in candidate
+        file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { public string \$val = '1'; }\n");
+        file_put_contents($this->root . "/docs/CHANGELOG.md", "# Changelog\n- Item\n");
+        exec("git -C " . escapeshellarg($this->root) . " add src/Foo.php docs/CHANGELOG.md");
+
+        // 2. Submit build -> advances to review
+        $res2 = $this->captureRun($command, [
+            "submit", "PIPE-EXCLUDE-1",
+            "--outcome=completed",
+            "--summary=Updated Foo.php.",
+            "--context-id=ctx:build-1",
+            "--format=json",
+        ]);
+        self::assertSame(0, $res2["exit"]);
+
+        // 3. Reviewer submits pass with --exclude-artifact having comma in justification
+        $res3 = $this->captureRun($command, [
+            "submit", "PIPE-EXCLUDE-1",
+            "--outcome=pass",
+            "--summary=Review pass with excluded changelog.",
+            "--artifact=src/Foo.php",
+            "--exclude-artifact=docs/CHANGELOG.md=docs only, no behavior change, verified safe",
+            "--context-id=ctx:review-1",
+            "--format=json",
+        ]);
+        self::assertSame(0, $res3["exit"], $res3["stdout"] . ' ' . $res3["stderr"]);
+        $p3 = json_decode($res3["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame("verify", $p3["current_stage"]);
+    }
+
     public function testPipelineRunCompletesDeterministicVerification(): void
     {
         $this->prepareSurgicalRun("PIPE-3");
@@ -411,14 +458,17 @@ final class WorkflowPipelineCommandTest extends TestCase
         return ["exit" => $exit, "stdout" => $stdout, "stderr" => $stdout];
     }
 
-    /** @param list<string> $validation */
-    private function prepareSurgicalRun(string $taskId, array $validation = ["php -l src/Foo.php"]): void
+    /**
+     * @param list<string> $validation
+     * @param list<string> $files
+     */
+    private function prepareSurgicalRun(string $taskId, array $validation = ["php -l src/Foo.php"], array $files = ["src/Foo.php"]): void
     {
         ob_start();
         (new WorkflowPlanCommand($this->root))->run([
             $taskId,
             "--by", "lars",
-            "--file", "src/Foo.php",
+            ...array_merge(...array_map(static fn (string $f): array => ["--file", $f], $files)),
             "--goal", "Pipeline execution test.",
             ...array_merge(...array_map(static fn (string $command): array => ["--validation", $command], $validation)),
             "--base-commit", $this->baseCommit,
