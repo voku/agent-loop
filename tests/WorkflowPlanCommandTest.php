@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
@@ -461,14 +462,19 @@ CARD,
         $root = $this->root('plan-git-head');
         mkdir($root . '/src', 0o775, true);
         file_put_contents($root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
-        $git = 'git -C ' . escapeshellarg($root);
-        exec("$git init -q && $git config user.email dev@test.local && $git config user.name Dev && $git add . && $git commit -qm 'initial'", $output, $exit);
-        if ($exit !== 0) {
+
+        if (self::runGit($root, 'init', '--quiet', '--initial-branch=main') === null) {
             $this->removeDirectory($root);
             self::markTestSkipped('git init is not available.');
         }
+        self::runGit($root, 'config', 'user.email', 'dev@test.local');
+        self::runGit($root, 'config', 'user.name', 'Dev');
+        self::runGit($root, 'config', 'commit.gpgsign', 'false');
+        self::runGit($root, 'add', '.');
+        self::runGit($root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'initial');
 
-        $head = trim((string) shell_exec("$git rev-parse HEAD"));
+        $head = GitWorkTree::headCommit($root);
+        self::assertNotNull($head);
 
         try {
             ob_start();
@@ -503,6 +509,29 @@ CARD,
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    private static function runGit(string $directory, string ...$arguments): ?string
+    {
+        $command = ['git', '-C', $directory];
+        foreach ($arguments as $argument) {
+            $command[] = $argument;
+        }
+
+        $process = proc_open(
+            $command,
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        if (!is_resource($process)) {
+            return null;
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return proc_close($process) === 0 && is_string($stdout) ? trim($stdout) : null;
     }
 
     private function root(string $suffix): string
