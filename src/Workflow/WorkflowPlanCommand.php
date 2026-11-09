@@ -115,6 +115,9 @@ final readonly class WorkflowPlanCommand
         }
 
         $warnings = self::chainedValidationWarnings($contract->validation);
+        $nextAction = 'agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . ' --by <named-actor>';
+        $projector = new WorkflowHumanDecisionProjector($this->rootPath);
+        $decisionKind = \voku\AgentLoop\Run\RunPolicyEvaluation::KIND_DECISION_REQUIRED;
 
         if ($options['format'] === 'json') {
             echo json_encode([
@@ -128,8 +131,9 @@ final readonly class WorkflowPlanCommand
                 'scope' => $contract->scope,
                 'validation' => $contract->validation,
                 'warnings' => $warnings,
-                'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . ' --by <named-actor>',
-                'next_action_kind' => 'decision_required',
+                'next_action' => $nextAction,
+                'next_action_kind' => $decisionKind,
+                'human_decision' => $projector->project($taskId->value, $nextAction, $decisionKind),
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
             return 0;
@@ -137,13 +141,15 @@ final readonly class WorkflowPlanCommand
 
         echo "[OK] workflow plan: candidate Contract {$action} for {$taskId->value} revision {$contract->revision}\n";
         echo "[OK] workflow plan: durable source {$contract->path}\n";
-        echo "Goal:\n  {$contract->goal}\n";
-        echo "Scope:\n  " . implode("\n  ", $contract->scope) . "\n";
         foreach ($warnings as $warning) {
             echo '[WARN] workflow plan: ' . $warning . "\n";
         }
-        echo "Next:\n";
-        echo '  agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . " --by <named-actor>\n";
+        $presentation = $projector->projectContractApprovalPresentation($taskId->value, $nextAction, $decisionKind);
+        if ($presentation === null) {
+            throw new RuntimeException('The persisted candidate Contract has no available approval presentation.');
+        }
+        echo (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderContractApproval($presentation);
+        echo "Next:\n  " . $nextAction . "\n";
 
         return 0;
     }
