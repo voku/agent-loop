@@ -10,6 +10,7 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Workflow\Transparency\ApprovedScope;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -26,7 +27,11 @@ final readonly class WorkflowPlanCommand
     {
     }
 
-    /** @param list<string> $args */
+    /**
+     * @param list<string> $args
+     *
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
     public function run(array $args): int
     {
         try {
@@ -34,6 +39,9 @@ final readonly class WorkflowPlanCommand
             $options = $this->parse(array_slice($args, 1));
             $contracts = new TaskContractStore($this->rootPath);
             $existing = $contracts->find($taskId->value);
+            if ($options['scopeOnly'] && $existing === null) {
+                throw new RuntimeException('--add-scope requires an existing Contract to supersede.');
+            }
 
             $activeSession = $existing !== null ? $this->activeSession($taskId->value) : null;
             if ($activeSession !== null && !$options['supersede']) {
@@ -68,14 +76,30 @@ final readonly class WorkflowPlanCommand
                 $action = 'created';
             } else {
                 $preserve = $options['supersede'];
+                $goal = $options['goal'];
+                $scope = $options['scope'];
+                $validation = $options['validation'];
+                if ($options['scopeOnly']) {
+                    $approvedScope = ApprovedScope::fromContract($existing);
+                    $additions = array_values(array_unique(array_filter(
+                        $scope,
+                        static fn (string $path): bool => !$approvedScope->contains($path),
+                    )));
+                    if ($additions === []) {
+                        throw new InvalidArgumentException('All --add-scope paths are already inside the current Contract scope.');
+                    }
+                    $goal = $existing->goal;
+                    $scope = [...$existing->scope, ...$additions];
+                    $validation = $existing->validation;
+                }
                 $preserveOperatingPrompts = $preserve && $options['operatingPrompts'] === [];
                 $preserveAcceptance = $preserve && $options['acceptanceCriteria'] === [];
                 $contract = $contracts->revise(
                     $taskId->value,
-                    $options['goal'],
-                    $options['scope'],
+                    $goal,
+                    $scope,
                     $preserve && $options['nonGoals'] === [] ? $existing->nonGoals : $options['nonGoals'],
-                    $options['validation'],
+                    $validation,
                     $options['by'],
                     $preserve && $options['baseCommit'] === null ? $existing->baseCommit : $options['baseCommit'],
                     $preserve && $options['tags'] === [] ? $existing->tags : $options['tags'],
@@ -264,7 +288,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, acceptanceObservations: list<array{acceptance: string, validations: list<string>}>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null, supersede: bool, format: string}
+     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, scopeOnly: bool, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, acceptanceObservations: list<array{acceptance: string, validations: list<string>}>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null, supersede: bool, format: string}
      */
     private function parse(array $tokens): array
     {
@@ -272,6 +296,7 @@ final readonly class WorkflowPlanCommand
         $files = [];
         $goal = null;
         $scope = [];
+        $scopeAdditions = [];
         $nonGoals = [];
         $validation = [];
         $acceptanceCriteria = [];
@@ -313,7 +338,7 @@ final readonly class WorkflowPlanCommand
                 $format = $formatVal;
                 continue;
             }
-            if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--acceptance-observation', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--add-scope', '--non-goal', '--validation', '--acceptance', '--acceptance-observation', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -337,6 +362,9 @@ final readonly class WorkflowPlanCommand
                     break;
                 case '--scope':
                     $scope[] = $value;
+                    break;
+                case '--add-scope':
+                    $scopeAdditions[] = $value;
                     break;
                 case '--non-goal':
                     $nonGoals[] = $value;
@@ -379,14 +407,27 @@ final readonly class WorkflowPlanCommand
         if ($by === null) {
             throw new InvalidArgumentException('--by is required.');
         }
-        if ($files === []) {
-            throw new InvalidArgumentException('--file is required.');
-        }
-        if ($goal === null) {
-            throw new InvalidArgumentException('--goal is required.');
-        }
-        if ($validation === []) {
-            throw new InvalidArgumentException('--validation is required.');
+        $scopeOnly = $scopeAdditions !== [];
+        if ($scopeOnly) {
+            if (!$supersede) {
+                throw new InvalidArgumentException('--add-scope requires --supersede.');
+            }
+            if ($files !== [] || $goal !== null || $scope !== [] || $validation !== []
+                || $nonGoals !== [] || $acceptanceCriteria !== [] || $acceptanceObservations !== []
+                || $tags !== [] || $behaviorAnchors !== [] || $operatingPromptManifest !== null
+                || $operatingPrompts !== [] || $baseCommit !== null) {
+                throw new InvalidArgumentException('--add-scope is a scope-only amendment; do not mix it with other Contract fields.');
+            }
+        } else {
+            if ($files === []) {
+                throw new InvalidArgumentException('--file is required.');
+            }
+            if ($goal === null) {
+                throw new InvalidArgumentException('--goal is required.');
+            }
+            if ($validation === []) {
+                throw new InvalidArgumentException('--validation is required.');
+            }
         }
         if ($operatingPrompts !== [] && $operatingPromptManifest === null) {
             throw new InvalidArgumentException('--operating-prompt requires --operating-prompt-manifest.');
@@ -398,8 +439,9 @@ final readonly class WorkflowPlanCommand
         return [
             'by' => $by,
             'files' => $files,
-            'goal' => $goal,
-            'scope' => $this->normalizeScope($scope === [] ? $files : $scope),
+            'goal' => $goal ?? '',
+            'scope' => $this->normalizeScope($scopeOnly ? $scopeAdditions : ($scope === [] ? $files : $scope)),
+            'scopeOnly' => $scopeOnly,
             'nonGoals' => $nonGoals,
             'validation' => $validation,
             'acceptanceCriteria' => $acceptanceCriteria,
