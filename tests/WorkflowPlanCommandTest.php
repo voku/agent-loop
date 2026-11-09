@@ -431,17 +431,17 @@ CARD,
     {
         $root = $this->root('plan-concurrent-approval');
         $taskId = 'TASK-PLAN-CONCURRENT-1003';
-        $approvedBetweenPersistenceAndProjection = false;
+        $approvedDuringPlan = false;
         $output = '';
 
         try {
             ob_start();
             ob_start(
-                static function (string $chunk) use ($root, $taskId, &$approvedBetweenPersistenceAndProjection): string {
-                    if (!$approvedBetweenPersistenceAndProjection && str_contains($chunk, 'candidate Contract created')) {
+                static function (string $chunk) use ($root, $taskId, &$approvedDuringPlan): string {
+                    if (!$approvedDuringPlan && str_contains($chunk, 'candidate Contract created')) {
                         $contracts = new TaskContractStore($root);
                         $contracts->approve($taskId, 'another-human', $contracts->load($taskId)->revision);
-                        $approvedBetweenPersistenceAndProjection = true;
+                        $approvedDuringPlan = true;
                     }
 
                     return $chunk;
@@ -462,7 +462,7 @@ CARD,
                 $output = (string) ob_get_clean();
             }
 
-            self::assertTrue($approvedBetweenPersistenceAndProjection);
+            self::assertTrue($approvedDuringPlan);
             self::assertSame(1, $exit);
             self::assertSame(TaskContract::APPROVED, (new TaskContractStore($root))->load($taskId)->status);
             self::assertStringNotContainsString('Next:', $output);
