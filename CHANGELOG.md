@@ -1,5 +1,11 @@
 ## Unreleased
 
+## [0.20.87] - 2026-11-09
+
+### Fixed
+
+- Use the developer's explicitly selected language consistently in the PHP project setup plan and evidence-bound apply instructions; `de-DE` is illustrative, never an assumed preference (#995).
+
 ## [0.20.86] - 2026-11-08
 
 ### Added
