@@ -1,5 +1,17 @@
 ## Unreleased
 
+## [0.20.88] - 2026-11-09
+
+### Fixed
+
+- Reject direct, nested, and dangling symlinked `.agent-loop` scaffold destinations before creating project state, including configuration, tasks, sessions, board and learning paths; recheck link targets at mutation helpers to avoid accidental writes outside the selected project (#999).
+- Guide PHP onboarding to stop rather than bypass symlink safety checks in the canonical setup skill (#999).
+
+### Tests
+
+- Cover root symlinks, dangling configuration links, nested learning findings, board/task and demo paths, read-only dry runs, and no-outside-project-write regressions across the PHP 8.3/8.4/8.5 exact-head CI and installed CLI dogfood (#999).
+- This fix addresses direct symlink redirection; it does not claim race-free filesystem operations against an adversarial concurrent writer.
+
 ## [0.20.87] - 2026-11-09
 
 ### Fixed
