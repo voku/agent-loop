@@ -427,6 +427,52 @@ CARD,
         $pdo->exec('CREATE TABLE code_chunks (chunk_id TEXT PRIMARY KEY)');
     }
 
+    public function testPlanFailsClosedIfAnotherProcessApprovesBeforePresentation(): void
+    {
+        $root = $this->root('plan-concurrent-approval');
+        $taskId = 'TASK-PLAN-CONCURRENT-1003';
+        $approvedBetweenPersistenceAndProjection = false;
+        $output = '';
+
+        try {
+            ob_start();
+            ob_start(
+                static function (string $chunk) use ($root, $taskId, &$approvedBetweenPersistenceAndProjection): string {
+                    if (!$approvedBetweenPersistenceAndProjection && str_contains($chunk, 'candidate Contract created')) {
+                        $contracts = new TaskContractStore($root);
+                        $contracts->approve($taskId, 'another-human', $contracts->load($taskId)->revision);
+                        $approvedBetweenPersistenceAndProjection = true;
+                    }
+
+                    return $chunk;
+                },
+                1,
+            );
+
+            try {
+                $exit = (new WorkflowPlanCommand($root))->run([
+                    $taskId,
+                    '--by', 'planner',
+                    '--file', 'src/Foo.php',
+                    '--goal', 'Expose a precise human approval subject.',
+                    '--validation', 'vendor/bin/phpunit',
+                ]);
+            } finally {
+                ob_end_flush();
+                $output = (string) ob_get_clean();
+            }
+
+            self::assertTrue($approvedBetweenPersistenceAndProjection);
+            self::assertSame(1, $exit);
+            self::assertSame(TaskContract::APPROVED, (new TaskContractStore($root))->load($taskId)->status);
+            self::assertStringNotContainsString('Next:', $output);
+            self::assertStringNotContainsString('agent-loop workflow approve ', $output);
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testPlanImmediatelyPresentsTheExactHumanApprovalSubject(): void
     {
         $root = $this->root('plan-decision-subject');
