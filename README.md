@@ -73,6 +73,25 @@ deterministic check instead of another prompt instruction.
 The goal is not maximum automation. The goal is **reliable agent work with less
 reconstruction, less hidden state, and better evidence**.
 
+## Find the right file
+
+The workflow command is the public entry point; the implementation is divided by
+ownership. Start at the narrowest relevant file or directory rather than
+reconstructing lifecycle policy from package internals.
+
+| When you need to... | Start here |
+| --- | --- |
+| Understand what `enter` and `finish` may request | [Lifecycle contract](docs/workflow/lifecycle.md) and [`src/Workflow/`](src/Workflow/) |
+| Trace CLI dispatch and host-facing responses | [`src/Cli/`](src/Cli/) and [`src/Workflow/`](src/Workflow/) |
+| Inspect execution/candidate evidence boundaries | [`src/Execution/`](src/Execution/) and [Runner boundary](docs/execution-runner-boundary.md) |
+| Change host asset setup and projection | [`src/Init/`](src/Init/), [`resources/`](resources/) and [Agent assets](docs/reference/agent-assets.md) |
+| Check what belongs to Recall, Session and Learning | [Learning boundary](docs/workflow/learning-boundary.md) and the [package ownership table](#under-the-hood) |
+| Verify a proposed change | [`tests/`](tests/), [`composer.json`](composer.json) and [Development](#development) |
+
+The source files are implementation detail, not an alternative workflow API.
+For a governed task, follow the current `next_action_kind` and `next_action`
+returned by `enter` or `finish`; do not infer approval from a passing test.
+
 ## Why Agent Loop?
 
 | Without it | With Agent Loop |
