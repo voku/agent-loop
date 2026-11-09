@@ -103,10 +103,10 @@ goal, acceptance and validation remain unchanged, batch the required additions
 in one explicit scope-only supersession:
 
 ```bash
-./docker/agent-loop workflow plan PROJECT-1 \\
-  --by "$(git config user.name)" \\
-  --supersede \\
-  --add-scope tests/Feature/ \\
+./docker/agent-loop workflow plan PROJECT-1 \
+  --by "$(git config user.name)" \
+  --supersede \
+  --add-scope tests/Feature/ \
   --add-scope src/Feature/Support.php
 ```
 
