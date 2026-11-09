@@ -230,6 +230,44 @@ final readonly class ExecutionGateway
         ));
     }
 
+    /** @return non-empty-string */
+    public function recordStageArtifactExclusion(
+        StageExecutionBundle $bundle,
+        string $reference,
+        string $reason,
+        ?string $candidateRevision = null,
+    ): string {
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new RuntimeException('INVALID_STAGE_RESULT: artifact exclusion requires an explicit justification reason.');
+        }
+        $deleted = str_starts_with($reference, 'deleted-file:');
+        if ($deleted) {
+            $relativePath = substr($reference, strlen('deleted-file:'));
+            $treeish = $bundle->baseCommit
+                ?? throw new RuntimeException('MISSING_EVIDENCE: deleted-file citation requires a governed Git base.');
+        } else {
+            $relativePath = str_starts_with($reference, 'workspace-file:')
+                ? substr($reference, strlen('workspace-file:'))
+                : $reference;
+            $treeish = $this->candidateTreeish($bundle, $candidateRevision ?? $bundle->candidateRevision);
+        }
+        $this->assertCanonicalArtifactPath($relativePath);
+        $digest = $this->gitBlobDigest($treeish, $relativePath);
+
+        return $this->recordStageArtifact(new StageArtifactObservation(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $candidateRevision ?? $bundle->candidateRevision,
+            'excluded-file:' . $relativePath,
+            $digest,
+        ));
+    }
+
     public function submitStageResult(StageResult $result): ExecutionProjection
     {
         [, , $plan] = $this->current($result->taskId);
@@ -525,7 +563,62 @@ final readonly class ExecutionGateway
             $executionContract['source'] ?? null,
             $stage->contextPolicy,
             $plan->requiresContextId($stage->id),
+            expectedArtifacts: $this->changedCandidateFiles($plan->baseCommit, $projection->candidateRevision),
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function changedCandidateFiles(?string $baseCommit, string $candidateRevision): array
+    {
+        if ($baseCommit === null) {
+            return [];
+        }
+
+        $candidateTree = null;
+        if (hash_equals($baseCommit, $candidateRevision)) {
+            $candidateTree = $baseCommit;
+        } elseif (preg_match(
+            '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+            $candidateRevision,
+            $matches,
+        ) === 1) {
+            $candidateTree = $matches[1];
+        }
+
+        if ($candidateTree === null) {
+            return [];
+        }
+
+        $root = realpath($this->rootPath);
+        if (!is_string($root)) {
+            return [];
+        }
+
+        $process = proc_open(
+            ['git', '--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $baseCommit, $candidateTree, '--'],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            return [];
+        }
+        fclose($pipes[0]);
+        $changedOutput = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit !== 0 || !is_string($changedOutput)) {
+            return [];
+        }
+
+        return array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));
     }
 
     private function assertEnvironmentObservation(

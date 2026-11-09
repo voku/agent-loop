@@ -271,6 +271,7 @@ final readonly class WorkflowPipelineCommand
             "context_id_required" => $bundle->contextIdRequired,
             "allowed_scope" => $bundle->allowedScope,
             "required_validation" => $bundle->requiredValidation,
+            "expected_artifacts" => $bundle->expectedArtifacts,
             "accepted_outcomes" => $acceptedOutcomes,
             "prior_handoff" => $bundle->priorHandoff?->toArray(),
             "completion_marker" => $bundle->completionMarker,
@@ -322,6 +323,33 @@ final readonly class WorkflowPipelineCommand
         $candidate = OptionTokens::value($tokens, "candidate");
         $contextId = OptionTokens::value($tokens, "context-id");
         $artifactPaths = OptionTokens::values($tokens, "artifact");
+        $artifactsFile = OptionTokens::value($tokens, "artifacts-file");
+        if ($artifactsFile !== null && trim($artifactsFile) !== '') {
+            $realArtifactsFile = realpath($artifactsFile) ?: realpath($this->rootPath . '/' . ltrim($artifactsFile, '/'));
+            if ($realArtifactsFile === false || !is_file($realArtifactsFile)) {
+                throw new RuntimeException("Artifacts file not found: " . $artifactsFile);
+            }
+            $fileContent = file_get_contents($realArtifactsFile);
+            if (!is_string($fileContent)) {
+                throw new RuntimeException("Unable to read artifacts file: " . $artifactsFile);
+            }
+            $decoded = json_decode($fileContent, true);
+            if (is_array($decoded) && array_is_list($decoded)) {
+                foreach ($decoded as $item) {
+                    if (is_string($item) && trim($item) !== '') {
+                        $artifactPaths[] = trim($item);
+                    }
+                }
+            } else {
+                foreach (explode("\n", $fileContent) as $line) {
+                    $line = trim($line);
+                    if ($line !== '' && !str_starts_with($line, '#')) {
+                        $artifactPaths[] = $line;
+                    }
+                }
+            }
+        }
+        $excludedArtifacts = OptionTokens::values($tokens, "exclude-artifact");
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
         $candidateWorkspace = OptionTokens::value($tokens, "workspace");
 
@@ -352,6 +380,7 @@ final readonly class WorkflowPipelineCommand
             // record is idempotent, so retrying after a later refusal is safe.
             $gateway->recordObservedCandidate($bundle, $effectiveCandidate);
         }
+        /** @var list<non-empty-string> $artifactReferences */
         $artifactReferences = [];
         foreach ($artifactPaths as $artifactPath) {
             foreach (explode(',', $artifactPath) as $path) {
@@ -359,6 +388,21 @@ final readonly class WorkflowPipelineCommand
                 if ($path !== '') {
                     $artifactReferences[] = $gateway->recordStageArtifactPath($bundle, $path, $effectiveCandidate);
                 }
+            }
+        }
+        foreach ($excludedArtifacts as $pair) {
+            foreach (explode(',', $pair) as $singlePair) {
+                $singlePair = trim($singlePair);
+                if ($singlePair === '') {
+                    continue;
+                }
+                $parts = explode('=', $singlePair, 2);
+                $path = trim($parts[0]);
+                $reason = trim($parts[1] ?? '');
+                if ($reason === '') {
+                    throw new RuntimeException("Option --exclude-artifact expects <path>=<justification reason>, got: " . $singlePair);
+                }
+                $artifactReferences[] = $gateway->recordStageArtifactExclusion($bundle, $path, $reason, $effectiveCandidate);
             }
         }
 
@@ -553,7 +597,7 @@ Usage:
   agent-loop pipeline status <task-id> [--format text|json]
   agent-loop pipeline stage <task-id> [--format text|json]
   agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--workspace <path>] [--auto-verify] [--format text|json]
-  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--auto-verify] [--workspace <path>] [--format text|json]
+  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--artifacts-file <path>] [--exclude-artifact <path>=<reason>] [--auto-verify] [--workspace <path>] [--format text|json]
   agent-loop pipeline recover <task-id> --candidate <content-addressed-revision> [--workspace <path>] [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.

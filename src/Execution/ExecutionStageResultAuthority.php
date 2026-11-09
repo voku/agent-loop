@@ -269,6 +269,7 @@ final readonly class ExecutionStageResultAuthority
         }
 
         $reviewed = [];
+        $excluded = [];
         foreach ($artifactClaims as $claim) {
             foreach (['workspace-file:', 'git-base-file:'] as $prefix) {
                 if (str_starts_with($claim->sourceReference, $prefix)) {
@@ -276,12 +277,15 @@ final readonly class ExecutionStageResultAuthority
                     break;
                 }
             }
+            if (str_starts_with($claim->sourceReference, 'excluded-file:')) {
+                $excluded[substr($claim->sourceReference, strlen('excluded-file:'))] = true;
+            }
         }
         $changed = array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));
-        $missing = array_values(array_filter($changed, static fn (string $path): bool => !isset($reviewed[$path])));
+        $missing = array_values(array_filter($changed, static fn (string $path): bool => !isset($reviewed[$path]) && !isset($excluded[$path])));
         if ($missing !== []) {
             throw new RuntimeException(
-                'MISSING_EVIDENCE: review PASS must cite every changed candidate file; missing: '
+                'MISSING_EVIDENCE: review PASS must cite every changed candidate file or declare an explicit justified exclusion; missing: '
                 . implode(', ', $missing),
             );
         }
@@ -430,6 +434,7 @@ final readonly class ExecutionStageResultAuthority
     {
         $workspacePrefix = 'workspace-file:';
         $basePrefix = 'git-base-file:';
+        $exclusionPrefix = 'excluded-file:';
         $candidateTree = null;
         if (str_starts_with($claim->sourceReference, $workspacePrefix)) {
             $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
@@ -444,8 +449,16 @@ final readonly class ExecutionStageResultAuthority
                 ?? throw new RuntimeException('STALE_EVIDENCE: deleted-file evidence has no governed Git base.');
             $candidateTree = $this->candidateTreeish($plan, $claim->candidateRevision);
             $relativePath = substr($claim->sourceReference, strlen($basePrefix));
+        } elseif (str_starts_with($claim->sourceReference, $exclusionPrefix)) {
+            $stage = $plan->stage($claim->stageId);
+            $capabilities = $stage->roleId === null ? [] : $plan->role($stage->roleId)->requiredCapabilities;
+            if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+                throw new RuntimeException('EVIDENCE_MISMATCH: excluded-file evidence is accepted only for review stages.');
+            }
+            $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
+            $relativePath = substr($claim->sourceReference, strlen($exclusionPrefix));
         } else {
-            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a candidate or deleted base file.');
+            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a candidate, deleted base, or excluded file.');
         }
         if (preg_match('/^[0-9a-f]{40,64}$/', $treeish) !== 1) {
             throw new RuntimeException('STALE_EVIDENCE: artifact source is not bound to an exact Git object.');
