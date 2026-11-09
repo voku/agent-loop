@@ -120,6 +120,24 @@ final readonly class WorkflowPlanCommand
         $decisionKind = \voku\AgentLoop\Run\RunPolicyEvaluation::KIND_DECISION_REQUIRED;
 
         if ($options['format'] === 'json') {
+            $decision = $projector->project($taskId->value, $nextAction, $decisionKind);
+            if (
+                ($decision['type'] ?? null) !== 'contract_approval'
+                || ($decision['subject']['contract_revision'] ?? null) !== $contract->revision
+            ) {
+                echo json_encode([
+                    'schema_version' => '1.0',
+                    'command' => 'workflow plan',
+                    'task_id' => $taskId->value,
+                    'status' => 'error',
+                    'error' => 'Candidate Contract persisted, but its approval presentation is unavailable. '
+                        . 'Inspect current state with: agent-loop workflow status ' . $taskId->value . ' --format=json',
+                    'next_action_kind' => 'host_work',
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+
+                return 1;
+            }
+
             echo json_encode([
                 'schema_version' => '1.0',
                 'command' => 'workflow plan',
@@ -133,7 +151,7 @@ final readonly class WorkflowPlanCommand
                 'warnings' => $warnings,
                 'next_action' => $nextAction,
                 'next_action_kind' => $decisionKind,
-                'human_decision' => $projector->project($taskId->value, $nextAction, $decisionKind),
+                'human_decision' => $decision,
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
             return 0;
@@ -145,7 +163,11 @@ final readonly class WorkflowPlanCommand
             echo '[WARN] workflow plan: ' . $warning . "\n";
         }
         $presentation = $projector->projectContractApprovalPresentation($taskId->value, $nextAction, $decisionKind);
-        if ($presentation === null) {
+        if (
+            $presentation === null
+            || $presentation->contract->revision !== $contract->revision
+            || $presentation->contract->status !== TaskContract::CANDIDATE
+        ) {
             fwrite(STDERR, "[FAIL] workflow plan: Candidate Contract persisted, but its approval presentation is unavailable. Inspect current state with: agent-loop workflow status {$taskId->value} --format=json\n");
 
             return 1;

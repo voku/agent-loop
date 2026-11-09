@@ -427,6 +427,61 @@ CARD,
         $pdo->exec('CREATE TABLE code_chunks (chunk_id TEXT PRIMARY KEY)');
     }
 
+    public function testPlanFailsClosedIfCandidateRevisionChangesBeforePresentation(): void
+    {
+        $root = $this->root('plan-concurrent-revision');
+        $taskId = 'TASK-PLAN-CONCURRENT-REVISION';
+        $revised = false;
+        $output = '';
+
+        try {
+            ob_start();
+            ob_start(
+                static function (string $chunk) use ($root, $taskId, &$revised): string {
+                    if (!$revised && str_contains($chunk, 'candidate Contract created')) {
+                        (new TaskContractStore($root))->revise(
+                            $taskId,
+                            'Revised by another process.',
+                            ['src/New.php'],
+                            [],
+                            ['vendor/bin/phpunit'],
+                            'second-planner',
+                        );
+                        $revised = true;
+                    }
+
+                    return $chunk;
+                },
+                1,
+            );
+
+            try {
+                $exit = (new WorkflowPlanCommand($root))->run([
+                    $taskId,
+                    '--by', 'first-planner',
+                    '--file', 'src/Foo.php',
+                    '--goal', 'Original scoped intent.',
+                    '--validation', 'vendor/bin/phpunit',
+                ]);
+            } finally {
+                ob_end_flush();
+                $output = (string) ob_get_clean();
+            }
+
+            self::assertTrue($revised);
+            self::assertSame(1, $exit);
+            $actual = (new TaskContractStore($root))->load($taskId);
+            self::assertSame(2, $actual->revision);
+            self::assertSame(TaskContract::CANDIDATE, $actual->status);
+            self::assertSame(['src/New.php'], $actual->scope);
+            self::assertStringNotContainsString('Next:', $output);
+            self::assertStringNotContainsString('agent-loop workflow approve ', $output);
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testPlanFailsClosedIfAnotherProcessApprovesBeforePresentation(): void
     {
         $root = $this->root('plan-concurrent-approval');

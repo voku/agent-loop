@@ -41,6 +41,21 @@ final class WorkflowHumanDecisionProjectorTest extends TestCase
         $this->removeTree($this->root);
     }
 
+    public function testApprovedContractCannotProjectAsPendingContractApproval(): void
+    {
+        $action = 'agent-loop workflow approve DECISION-3 --revision 1 --by <named-actor>';
+        $decision = (new WorkflowHumanDecisionProjector($this->root))->project(
+            'DECISION-3',
+            $action,
+            RunPolicyEvaluation::KIND_DECISION_REQUIRED,
+        );
+
+        self::assertNotNull($decision);
+        self::assertSame('human_authority', $decision['type']);
+        self::assertArrayNotHasKey('contract_revision', $decision['subject']);
+        self::assertSame($action, $decision['action']);
+    }
+
     public function testAcceptedRiskProjectsTheExactBlockingEvidence(): void
     {
         $blockers = [[
