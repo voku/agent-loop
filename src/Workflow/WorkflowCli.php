@@ -47,6 +47,7 @@ final readonly class WorkflowCli
 Usage:
   agent-loop workflow help
   agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] [--acceptance-observation <json> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>] [--supersede]
+  agent-loop workflow plan <task-id> --by <actor> --supersede --add-scope <path> [--add-scope <path> ...] [--format=json]
   agent-loop workflow approve <task-id> --revision <current-revision> --by <actor>
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]
   agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor>
