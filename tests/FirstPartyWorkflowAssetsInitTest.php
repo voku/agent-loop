@@ -78,7 +78,7 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertIsString($skill);
 
         self::assertStringContainsString('PROMPT_LANGUAGE=fr-FR', $skill);
-        self::assertStringContainsString('fr-FR is an', str_replace('**', '', $skill));
+        self::assertStringContainsString('**example only**', $skill);
         self::assertStringContainsString('init plan --format=json --language="$PROMPT_LANGUAGE"', $skill);
         self::assertStringContainsString('init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --dry-run', $skill);
         self::assertStringContainsString('init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --yes', $skill);
