@@ -73,7 +73,8 @@ final readonly class WorkflowPlanCommand
                 $preserve = $options['supersede'];
                 $preserveOperatingPrompts = $preserve && $options['operatingPrompts'] === [];
                 $preserveAcceptance = $preserve && $options['acceptanceCriteria'] === [];
-                $baseCommit = $options['baseCommit'] ?? ($preserve ? ($existing->baseCommit ?? $defaultBaseCommit) : $defaultBaseCommit);
+                // A plain revision must not lose the original evidence for scoped files deleted since its base.
+                $baseCommit = $options['baseCommit'] ?? $existing->baseCommit ?? $defaultBaseCommit;
                 $contract = $contracts->revise(
                     $taskId->value,
                     $options['goal'],

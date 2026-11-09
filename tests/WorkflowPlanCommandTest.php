@@ -506,7 +506,6 @@ CARD,
             self::assertSame(0, $exitExplicit);
             $contractExplicit = (new TaskContractStore($root))->load('TASK-GIT-2');
             self::assertSame('explicit-sha-1234', $contractExplicit->baseCommit);
-
         } finally {
             $this->removeDirectory($root);
         }
@@ -570,6 +569,57 @@ CARD,
             self::assertSame(self::runGit($root, 'rev-parse', '--verify', 'HEAD'), $candidate->baseCommit);
             self::assertNull($candidate->approvedBy);
             self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testPlainRevisionPreservesBaseAcrossCommittedDeletionAndScopeAddition(): void
+    {
+        $root = $this->gitRoot('plain-revision-deletion');
+
+        try {
+            $store = new TaskContractStore($root);
+            ob_start();
+            $initialExit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-REVISE',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--goal', 'Modernize legacy implementation.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+            self::assertSame(0, $initialExit);
+            $baseCommit = $store->load('TASK-GIT-REVISE')->baseCommit;
+            self::assertNotNull($baseCommit);
+            $store->approve('TASK-GIT-REVISE', 'reviewer', 1);
+
+            unlink($root . '/src/Foo.php');
+            file_put_contents($root . '/src/Bar.php', "<?php\nfinal class Bar {}\n");
+            self::assertNotNull(self::runGit($root, 'add', '-u'));
+            self::assertNotNull(self::runGit($root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'remove Foo'));
+            self::assertNotSame($baseCommit, self::runGit($root, 'rev-parse', '--verify', 'HEAD'));
+
+            ob_start();
+            $revisionExit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-REVISE',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--file', 'src/Bar.php',
+                '--goal', 'Replace the legacy implementation.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+            self::assertSame(0, $revisionExit);
+
+            $candidate = $store->load('TASK-GIT-REVISE');
+            self::assertSame(2, $candidate->revision);
+            self::assertSame(TaskContract::CANDIDATE, $candidate->status);
+            self::assertSame($baseCommit, $candidate->baseCommit);
+            $snapshot = ImplementationSnapshot::capture($root, $candidate);
+            self::assertSame(['src/Foo.php'], $snapshot->deleted);
+            self::assertCount(1, $snapshot->files);
+            self::assertSame('src/Bar.php', $snapshot->files[0]['path']);
         } finally {
             $this->removeDirectory($root);
         }
