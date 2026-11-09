@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "670bc864bef901329488f0b86857a5b9",
+    "content-hash": "f79b67e419c656aa0eafaf1d3402ce74",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -1117,16 +1117,16 @@
         },
         {
             "name": "voku/agent-learning",
-            "version": "0.18.39",
+            "version": "0.19.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-learning.git",
-                "reference": "51934e37fca3f45e9de63a06a15636207b0ffeca"
+                "reference": "fa04d70822799fdc8326cc21c034539c550bca8e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-learning/zipball/51934e37fca3f45e9de63a06a15636207b0ffeca",
-                "reference": "51934e37fca3f45e9de63a06a15636207b0ffeca",
+                "url": "https://api.github.com/repos/voku/agent-learning/zipball/fa04d70822799fdc8326cc21c034539c550bca8e",
+                "reference": "fa04d70822799fdc8326cc21c034539c550bca8e",
                 "shasum": ""
             },
             "require": {
@@ -1181,7 +1181,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-02T10:01:20+00:00"
+            "time": "2026-11-09T13:06:08+00:00",
+            "published-time": "2026-11-09T13:07:31+00:00"
         },
         {
             "name": "voku/agent-map",
