@@ -98,6 +98,26 @@ isolated change, or focused implementation/test paths when the request is
 structurally multi-file. Do not default to repository-wide scope merely to avoid
 future prompts.
 
+If an active task discovers additional paths outside its approved scope but the
+goal, acceptance and validation remain unchanged, batch the required additions
+in one explicit scope-only supersession:
+
+```bash
+./docker/agent-loop workflow plan PROJECT-1 \\
+  --by "$(git config user.name)" \\
+  --supersede \\
+  --add-scope tests/Feature/ \\
+  --add-scope src/Feature/Support.php
+```
+
+This preserves the existing Contract's goal, checks and other intent while
+creating a **new unapproved** candidate revision. An active working Session is
+retired; no further edits are authorized until the exact new revision receives
+named human approval and the lifecycle prepares the replacement Run. Use the
+ordinary full `workflow plan ... --supersede` command when product intent,
+validation or acceptance actually changes. Never classify documentation or
+scripts as inherently safe or widen scope without approval.
+
 After PLAN, call `enter --format=json` again. Do **not** manually insert a map
 build or approval because an older quick-start used to list one. Existing PHP
 scope may require discovery; when it does, the lifecycle kernel returns the
