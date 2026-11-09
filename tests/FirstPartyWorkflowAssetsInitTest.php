@@ -72,6 +72,20 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         }
     }
 
+    public function testPhpOnboardingSkillBindsPlanAndApplyToTheSameRequestedLanguage(): void
+    {
+        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-php-setup/SKILL.md');
+        self::assertIsString($skill);
+
+        self::assertStringContainsString('PROMPT_LANGUAGE=fr-FR', $skill);
+        self::assertStringContainsString('fr-FR is an', str_replace('**', '', $skill));
+        self::assertStringContainsString('init plan --format=json --language="$PROMPT_LANGUAGE"', $skill);
+        self::assertStringContainsString('init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --dry-run', $skill);
+        self::assertStringContainsString('init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --yes', $skill);
+        self::assertStringNotContainsString('--language=de-DE', $skill);
+        self::assertStringContainsString('explicit approval', $skill);
+    }
+
     public function testOwnerRepositoryReceivesItsMaintainerSkills(): void
     {
         // 1. Test voku/agent-learning owner
