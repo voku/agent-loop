@@ -7,7 +7,6 @@ namespace voku\AgentLoop\Tests;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -474,7 +473,7 @@ CARD,
         self::runGit($root, 'add', '.');
         self::runGit($root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'initial');
 
-        $head = GitWorkTree::headCommit($root);
+        $head = self::runGit($root, 'rev-parse', '--verify', 'HEAD');
         self::assertNotNull($head);
 
         try {
@@ -508,23 +507,53 @@ CARD,
             $contractExplicit = (new TaskContractStore($root))->load('TASK-GIT-2');
             self::assertSame('explicit-sha-1234', $contractExplicit->baseCommit);
 
-            // The real consumer failure: a planned, tracked file is deleted.
-            // It must remain verifiable without revising the Contract to add a base commit.
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testPlannedTrackedFileDeletionRemainsVerifiable(): void
+    {
+        $root = $this->gitRoot('planned-deletion');
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-DELETED',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--goal', 'Delete obsolete PHP implementation.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            $store = new TaskContractStore($root);
+            $contract = $store->load('TASK-GIT-DELETED');
+            self::assertSame(self::runGit($root, 'rev-parse', '--verify', 'HEAD'), $contract->baseCommit);
+
             unlink($root . '/src/Foo.php');
             $snapshot = ImplementationSnapshot::capture($root, $contract);
             self::assertSame(['src/Foo.php'], $snapshot->deleted);
             self::assertSame([], $snapshot->files);
-            self::assertSame(1, (new TaskContractStore($root))->load('TASK-GIT-1')->revision);
+            self::assertSame(1, $store->load('TASK-GIT-DELETED')->revision);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
 
-            // A legacy approved Contract without a base commit also acquires an
-            // anchor during explicit supersession, never by silently reapproving.
+    public function testLegacySupersessionCapturesGitHeadWithoutGrantingApproval(): void
+    {
+        $root = $this->gitRoot('legacy-head');
+
+        try {
             $store = new TaskContractStore($root);
-            $legacy = $store->create('TASK-GIT-LEGACY', 'Original intent.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'planner');
-            self::assertNull($legacy->baseCommit);
-            $store->approve('TASK-GIT-LEGACY', 'reviewer', $legacy->revision);
+            $old = $store->create('TASK-GIT-LEGACY', 'Original intent.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'planner');
+            self::assertNull($old->baseCommit);
+            $store->approve('TASK-GIT-LEGACY', 'reviewer', $old->revision);
 
             ob_start();
-            $supersedeExit = (new WorkflowPlanCommand($root))->run([
+            $exit = (new WorkflowPlanCommand($root))->run([
                 'TASK-GIT-LEGACY',
                 '--by', 'planner',
                 '--supersede',
@@ -534,12 +563,13 @@ CARD,
             ]);
             ob_end_clean();
 
-            self::assertSame(0, $supersedeExit);
-            $superseded = $store->load('TASK-GIT-LEGACY');
-            self::assertSame(2, $superseded->revision);
-            self::assertSame(TaskContract::CANDIDATE, $superseded->status);
-            self::assertSame($head, $superseded->baseCommit);
-            self::assertNull($superseded->approvedBy);
+            self::assertSame(0, $exit);
+            $candidate = $store->load('TASK-GIT-LEGACY');
+            self::assertSame(2, $candidate->revision);
+            self::assertSame(TaskContract::CANDIDATE, $candidate->status);
+            self::assertSame(self::runGit($root, 'rev-parse', '--verify', 'HEAD'), $candidate->baseCommit);
+            self::assertNull($candidate->approvedBy);
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
@@ -550,8 +580,6 @@ CARD,
         $root = $this->root('plan-no-git');
 
         try {
-            self::assertNull(GitWorkTree::headCommit($root));
-
             ob_start();
             $exit = (new WorkflowPlanCommand($root))->run([
                 'TASK-NON-GIT-1',
@@ -563,7 +591,6 @@ CARD,
             ob_end_clean();
 
             self::assertSame(0, $exit);
-            self::assertNull(GitWorkTree::headCommit($root));
             $contract = (new TaskContractStore($root))->load('TASK-NON-GIT-1');
             self::assertSame(TaskContract::CANDIDATE, $contract->status);
             self::assertNull($contract->baseCommit);
@@ -571,6 +598,25 @@ CARD,
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    private function gitRoot(string $suffix): string
+    {
+        $root = $this->root($suffix);
+        mkdir($root . '/src', 0o775, true);
+        file_put_contents($root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+
+        if (self::runGit($root, 'init', '--quiet', '--initial-branch=main') === null) {
+            $this->removeDirectory($root);
+            self::markTestSkipped('git init is not available.');
+        }
+        self::runGit($root, 'config', 'user.email', 'dev@test.local');
+        self::runGit($root, 'config', 'user.name', 'Dev');
+        self::runGit($root, 'config', 'commit.gpgsign', 'false');
+        self::runGit($root, 'add', '.');
+        self::assertNotNull(self::runGit($root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'initial'));
+
+        return $root;
     }
 
     private static function runGit(string $directory, string ...$arguments): ?string
