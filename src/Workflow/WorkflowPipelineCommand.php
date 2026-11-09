@@ -391,19 +391,17 @@ final readonly class WorkflowPipelineCommand
             }
         }
         foreach ($excludedArtifacts as $pair) {
-            foreach (explode(',', $pair) as $singlePair) {
-                $singlePair = trim($singlePair);
-                if ($singlePair === '') {
-                    continue;
-                }
-                $parts = explode('=', $singlePair, 2);
-                $path = trim($parts[0]);
-                $reason = trim($parts[1] ?? '');
-                if ($reason === '') {
-                    throw new RuntimeException("Option --exclude-artifact expects <path>=<justification reason>, got: " . $singlePair);
-                }
-                $artifactReferences[] = $gateway->recordStageArtifactExclusion($bundle, $path, $reason, $effectiveCandidate);
+            $pair = trim($pair);
+            if ($pair === '') {
+                continue;
             }
+            $parts = explode('=', $pair, 2);
+            $path = trim($parts[0]);
+            $reason = trim($parts[1] ?? '');
+            if ($path === '' || $reason === '') {
+                throw new RuntimeException("Option --exclude-artifact expects <path>=<justification reason>, got: " . $pair);
+            }
+            $artifactReferences[] = $gateway->recordStageArtifactExclusion($bundle, $path, $reason, $effectiveCandidate);
         }
 
         $submissionId = sprintf(

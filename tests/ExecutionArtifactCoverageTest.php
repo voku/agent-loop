@@ -19,8 +19,14 @@ use voku\AgentLoop\Execution\ExecutionStage;
 use voku\AgentLoop\Execution\ExecutionStageKind;
 use voku\AgentLoop\Execution\ExecutionStageResultAuthority;
 use voku\AgentLoop\Execution\ExecutionState;
+use voku\AgentLoop\Execution\StageExecutionBundle;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowApproveCommand;
+use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
+use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 /**
  * Tests for artifact coverage bookkeeping during review stages.
@@ -121,55 +127,12 @@ final class ExecutionArtifactCoverageTest extends TestCase
 
     public function testCompleteCoverageVerificationWithInspectedAndExcludedFiles(): void
     {
-        mkdir($this->root . '/src', 0o775, true);
-        mkdir($this->root . '/docs', 0o775, true);
-        file_put_contents($this->root . '/src/Core.php', "<?php\n// v1\n");
-        file_put_contents($this->root . '/docs/CHANGELOG.md', "# Changelog\n");
-        $this->git('init', '-q');
-        $this->git('config', 'user.email', 'tests@example.test');
-        $this->git('config', 'user.name', 'Tests');
-        $this->git('add', 'src/Core.php', 'docs/CHANGELOG.md');
-        $this->git('commit', '-qm', 'base');
-        $baseCommit = $this->git('rev-parse', 'HEAD');
-
-        // Modify both files
-        file_put_contents($this->root . '/src/Core.php', "<?php\n// v2\n");
-        file_put_contents($this->root . '/docs/CHANGELOG.md', "# Changelog\n- Item 1\n");
-        $this->git('add', 'src/Core.php', 'docs/CHANGELOG.md');
-        $candidateTree = $this->git('write-tree');
-        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
-
-        $role = new ExecutionRole('reviewer', false, ['review']);
-        $stage = new ExecutionStage(
-            'review',
-            ExecutionStageKind::AGENT,
-            'reviewer',
-            false,
-            [],
-            [StageOutcome::PASS->value => null],
-        );
-        $plan = new ExecutionPlan(
-            'ABC-123',
-            'run:test-coverage',
-            1,
-            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
-            $baseCommit,
-            ExecutionProfileName::SURGICAL,
-            [$role],
-            [$stage],
-            '2026-08-24T00:00:00+00:00',
-        );
-        $state = new ExecutionState(
-            $plan->taskId,
-            $plan->runId,
-            $plan->contractRevision,
-            $plan->digest(),
-            'review',
-            1,
-            $candidateRevision,
-            null,
-            [],
-        );
+        $fixture = $this->createReviewFixture();
+        $plan = $fixture['plan'];
+        $state = $fixture['state'];
+        $stage = $fixture['stage'];
+        $baseCommit = $fixture['baseCommit'];
+        $candidateRevision = $fixture['candidateRevision'];
 
         $bundle = new \voku\AgentLoop\Execution\StageExecutionBundle(
             $plan->taskId,
@@ -247,6 +210,117 @@ final class ExecutionArtifactCoverageTest extends TestCase
         );
 
         $this->addToAssertionCount(1);
+    }
+
+    public function testForgedExcludedFileClaimWithWrongDigestIsRejected(): void
+    {
+        $fixture = $this->createReviewFixture();
+        $plan = $fixture['plan'];
+        $state = $fixture['state'];
+        $stage = $fixture['stage'];
+        $candidateRevision = $fixture['candidateRevision'];
+
+        $evidenceStore = new ExecutionEvidenceStore($this->root);
+        $forgedRef = $evidenceStore->record(new ExecutionEvidenceClaim(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            'excluded-file:src/Core.php',
+            'sha256:' . str_repeat('0', 64),
+        ));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('EVIDENCE_MISMATCH: artifact digest does not match the governed candidate content.');
+
+        $authority = new ExecutionStageResultAuthority($this->root);
+        $authority->assertAcceptable(
+            $plan,
+            $state,
+            $stage,
+            new StageResult(
+                'submission:forged-exclusion',
+                $plan->taskId,
+                $plan->runId,
+                $plan->contractRevision,
+                $plan->digest(),
+                'review',
+                1,
+                StageOutcome::PASS,
+                $candidateRevision,
+                [$forgedRef],
+                [],
+                'Review passed with forged exclusion claim.',
+            ),
+        );
+    }
+
+    /**
+     * @return array{plan: ExecutionPlan, state: ExecutionState, stage: ExecutionStage, baseCommit: string, candidateRevision: string}
+     */
+    private function createReviewFixture(): array
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/docs', 0o775, true);
+        file_put_contents($this->root . '/src/Core.php', "<?php\n// v1\n");
+        file_put_contents($this->root . '/docs/CHANGELOG.md', "# Changelog\n");
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'src/Core.php', 'docs/CHANGELOG.md');
+        $this->git('commit', '-qm', 'base');
+        $baseCommit = $this->git('rev-parse', 'HEAD');
+
+        // Modify both files
+        file_put_contents($this->root . '/src/Core.php', "<?php\n// v2\n");
+        file_put_contents($this->root . '/docs/CHANGELOG.md', "# Changelog\n- Item 1\n");
+        $this->git('add', 'src/Core.php', 'docs/CHANGELOG.md');
+        $candidateTree = $this->git('write-tree');
+        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
+
+        $role = new ExecutionRole('reviewer', false, ['review']);
+        $stage = new ExecutionStage(
+            'review',
+            ExecutionStageKind::AGENT,
+            'reviewer',
+            false,
+            [],
+            [StageOutcome::PASS->value => null],
+        );
+        $plan = new ExecutionPlan(
+            'ABC-123',
+            'run:test-coverage',
+            1,
+            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
+            $baseCommit,
+            ExecutionProfileName::SURGICAL,
+            [$role],
+            [$stage],
+            '2026-08-24T00:00:00+00:00',
+        );
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            null,
+            [],
+        );
+
+        return [
+            'plan' => $plan,
+            'state' => $state,
+            'stage' => $stage,
+            'baseCommit' => $baseCommit,
+            'candidateRevision' => $candidateRevision,
+        ];
     }
 
     private function git(string ...$arguments): string

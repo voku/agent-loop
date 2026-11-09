@@ -36,6 +36,7 @@ final readonly class ExecutionStageResultAuthority
             if (
                 str_starts_with($claim->sourceReference, 'workspace-file:')
                 || str_starts_with($claim->sourceReference, 'git-base-file:')
+                || str_starts_with($claim->sourceReference, 'excluded-file:')
             ) {
                 // Evidence may have been persisted through any owner-side
                 // entry point. Recheck file claims at acceptance so a reviewer
