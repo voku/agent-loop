@@ -88,13 +88,22 @@ Run `map build` only with confirmed paths. Execute Composer installs, existing t
 
 If no changes are necessary, report that instead of creating new files. If a proposed config edit lacks a supported safe owner command, present its minimal diff and stop at the approval boundary. The supported `init plan` is **read-only**. Only the explicit `prompting.language` field has a narrow supported `init apply` writer.
 
-**Order matters for a fresh project.** If `.agent-loop/init.json` does not yet exist, the initial read-only proposal must identify `init scaffold` as a separate, approval-required write. After the developer authorizes that write, run `vendor/bin/agent-loop init scaffold` **before generating the final language-specific plan**. Scaffolding changes the evidence snapshot; run `init plan --format=json --language=de-DE` again, present its current `review_diffs`, and obtain a new approval. If scaffolding happens after any reviewed plan, discard the old evidence hash and repeat plan/review. Never use pre-scaffold evidence for `init apply`.
+**Order matters for a fresh project.** If `.agent-loop/init.json` does not yet exist, the initial read-only proposal must identify `init scaffold` as a separate, approval-required write. After the developer authorizes that write, run `vendor/bin/agent-loop init scaffold` **before generating the final language-specific plan**. Scaffolding changes the evidence snapshot; discard any earlier plan hash and regenerate/re-review the plan after scaffolding. Never use pre-scaffold evidence for `init apply`.
 
-After the developer reviews the **post-scaffold** `init plan --format=json --language=de-DE` response (or the current plan when scaffolding is unnecessary), copy the exact `evidence_sha256` from that language-specific report into the commands below, first without writes, then with `--yes` **only after explicit approval**. The digest binds the normalized requested language; never reuse a hash from a different language preview:
+**Use the developer's chosen language, not a hardcoded example.** Only propose a `prompting.language` change when the developer explicitly requests it. For the commands below, set `PROMPT_LANGUAGE` to that exact requested BCP 47 tag. `fr-FR` is an **example only**, not a default. Use the **same value** for the post-scaffold plan and both apply invocations; do not reuse a digest from any other language:
 
 ```bash
-vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --dry-run
-vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --yes
+# Example only: replace fr-FR with the developer's explicit choice.
+PROMPT_LANGUAGE=fr-FR
+vendor/bin/agent-loop init plan --format=json --language="$PROMPT_LANGUAGE"
+```
+
+Present the current `review_diffs` and exact `evidence_sha256` from that language-specific plan. If configuration changes after the plan, regenerate it and get a new review. Copy its exact hash into the commands below, first without writes, then with `--yes` **only after explicit approval**. Keep `PROMPT_LANGUAGE` unchanged in that same shell session:
+
+```bash
+vendor/bin/agent-loop init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --dry-run
+# Only after a separate, explicit approval of the current plan and dry-run:
+vendor/bin/agent-loop init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --yes
 ```
 
 This scoped writer fails on stale or language-mismatched evidence or malformed configuration, refuses symlinked destinations, and preserves unrelated JSON fields. Its lock coordinates calls to this writer; it cannot protect against an uncoordinated external edit in the tiny interval between the last comparison and atomic rename. Avoid concurrent edits and preserve a recoverable version-control diff. The lock file is created inside the existing `.agent-loop` directory; `init scaffold` must prepare that directory first. No other `init apply` fields, arbitrary patching, LLM grants, or executable tooling are supported. Do not invent a generic `init diff` or assume that `review_diffs` are already approved.
