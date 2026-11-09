@@ -27,7 +27,11 @@ final readonly class WorkflowPlanCommand
     {
     }
 
-    /** @param list<string> $args */
+    /**
+     * @param list<string> $args
+     *
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
     public function run(array $args): int
     {
         try {
