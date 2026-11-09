@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\Transparency\ApprovedScope;
@@ -54,6 +55,8 @@ final readonly class WorkflowPlanCommand
                 );
             }
 
+            $defaultBaseCommit = GitWorkTree::headCommit($this->rootPath);
+
             if ($existing === null) {
                 if ($options['supersede']) {
                     throw new RuntimeException('--supersede requires an existing Contract revision.');
@@ -65,7 +68,7 @@ final readonly class WorkflowPlanCommand
                     $options['nonGoals'],
                     $options['validation'],
                     $options['by'],
-                    $options['baseCommit'],
+                    $options['baseCommit'] ?? $defaultBaseCommit,
                     $options['tags'],
                     $options['behaviorAnchors'],
                     $options['operatingPromptManifest'],
@@ -94,6 +97,8 @@ final readonly class WorkflowPlanCommand
                 }
                 $preserveOperatingPrompts = $preserve && $options['operatingPrompts'] === [];
                 $preserveAcceptance = $preserve && $options['acceptanceCriteria'] === [];
+                // A plain revision must not lose the original evidence for scoped files deleted since its base.
+                $baseCommit = $options['baseCommit'] ?? $existing->baseCommit ?? $defaultBaseCommit;
                 $contract = $contracts->revise(
                     $taskId->value,
                     $goal,
@@ -101,7 +106,7 @@ final readonly class WorkflowPlanCommand
                     $preserve && $options['nonGoals'] === [] ? $existing->nonGoals : $options['nonGoals'],
                     $validation,
                     $options['by'],
-                    $preserve && $options['baseCommit'] === null ? $existing->baseCommit : $options['baseCommit'],
+                    $baseCommit,
                     $preserve && $options['tags'] === [] ? $existing->tags : $options['tags'],
                     $preserve && $options['behaviorAnchors'] === [] ? $existing->behaviorAnchors : $options['behaviorAnchors'],
                     $preserveOperatingPrompts ? $existing->operatingPromptManifest : $options['operatingPromptManifest'],

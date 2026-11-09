@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
@@ -23,6 +24,9 @@ use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\SessionStore;
 
+/**
+ * @SuppressWarnings("PHPMD.StaticAccess")
+ */
 final class WorkflowPlanCommandTest extends TestCase
 {
     public function testPlanPersistsCandidateContractWithoutSession(): void
@@ -614,6 +618,241 @@ CARD,
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    public function testPlanDefaultsBaseCommitToCurrentGitHeadWhenUnspecified(): void
+    {
+        $root = $this->root('plan-git-head');
+        mkdir($root . '/src', 0o775, true);
+        file_put_contents($root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+
+        if (self::runGit($root, 'init', '--quiet', '--initial-branch=main') === null) {
+            $this->removeDirectory($root);
+            self::markTestSkipped('git init is not available.');
+        }
+        self::runGit($root, 'config', 'user.email', 'dev@test.local');
+        self::runGit($root, 'config', 'user.name', 'Dev');
+        self::runGit($root, 'config', 'commit.gpgsign', 'false');
+        self::runGit($root, 'add', '.');
+        self::runGit($root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'initial');
+
+        $head = self::runGit($root, 'rev-parse', '--verify', 'HEAD');
+        self::assertNotNull($head);
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-1',
+                '--by', 'developer',
+                '--file', 'src/Foo.php',
+                '--goal', 'Test git head auto-detection.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            $contract = (new TaskContractStore($root))->load('TASK-GIT-1');
+            self::assertSame($head, $contract->baseCommit, 'Contract baseCommit must automatically bind to current Git HEAD when unspecified.');
+
+            // Explicit --base-commit overrides auto-detection
+            ob_start();
+            $exitExplicit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-2',
+                '--by', 'developer',
+                '--file', 'src/Foo.php',
+                '--goal', 'Test explicit base commit override.',
+                '--validation', 'vendor/bin/phpunit',
+                '--base-commit', 'explicit-sha-1234',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exitExplicit);
+            $contractExplicit = (new TaskContractStore($root))->load('TASK-GIT-2');
+            self::assertSame('explicit-sha-1234', $contractExplicit->baseCommit);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testPlannedTrackedFileDeletionRemainsVerifiable(): void
+    {
+        $root = $this->gitRoot('planned-deletion');
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-DELETED',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--goal', 'Delete obsolete PHP implementation.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            $store = new TaskContractStore($root);
+            $contract = $store->load('TASK-GIT-DELETED');
+            self::assertSame(self::runGit($root, 'rev-parse', '--verify', 'HEAD'), $contract->baseCommit);
+
+            unlink($root . '/src/Foo.php');
+            $snapshot = ImplementationSnapshot::capture($root, $contract);
+            self::assertSame(['src/Foo.php'], $snapshot->deleted);
+            self::assertSame([], $snapshot->files);
+            self::assertSame(1, $store->load('TASK-GIT-DELETED')->revision);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testLegacySupersessionCapturesGitHeadWithoutGrantingApproval(): void
+    {
+        $root = $this->gitRoot('legacy-head');
+
+        try {
+            $store = new TaskContractStore($root);
+            $old = $store->create('TASK-GIT-LEGACY', 'Original intent.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'planner');
+            self::assertNull($old->baseCommit);
+            $store->approve('TASK-GIT-LEGACY', 'reviewer', $old->revision);
+
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-LEGACY',
+                '--by', 'planner',
+                '--supersede',
+                '--file', 'src/Foo.php',
+                '--goal', 'Original intent.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            $candidate = $store->load('TASK-GIT-LEGACY');
+            self::assertSame(2, $candidate->revision);
+            self::assertSame(TaskContract::CANDIDATE, $candidate->status);
+            self::assertSame(self::runGit($root, 'rev-parse', '--verify', 'HEAD'), $candidate->baseCommit);
+            self::assertNull($candidate->approvedBy);
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testPlainRevisionPreservesBaseAcrossCommittedDeletionAndScopeAddition(): void
+    {
+        $root = $this->gitRoot('plain-revision-deletion');
+
+        try {
+            $store = new TaskContractStore($root);
+            ob_start();
+            $initialExit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-REVISE',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--goal', 'Modernize legacy implementation.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+            self::assertSame(0, $initialExit);
+            $baseCommit = $store->load('TASK-GIT-REVISE')->baseCommit;
+            self::assertNotNull($baseCommit);
+            $store->approve('TASK-GIT-REVISE', 'reviewer', 1);
+
+            unlink($root . '/src/Foo.php');
+            file_put_contents($root . '/src/Bar.php', "<?php\nfinal class Bar {}\n");
+            self::assertNotNull(self::runGit($root, 'add', '-u'));
+            self::assertNotNull(self::runGit($root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'remove Foo'));
+            self::assertNotSame($baseCommit, self::runGit($root, 'rev-parse', '--verify', 'HEAD'));
+
+            ob_start();
+            $revisionExit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-REVISE',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--file', 'src/Bar.php',
+                '--goal', 'Replace the legacy implementation.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+            self::assertSame(0, $revisionExit);
+
+            $candidate = $store->load('TASK-GIT-REVISE');
+            self::assertSame(2, $candidate->revision);
+            self::assertSame(TaskContract::CANDIDATE, $candidate->status);
+            self::assertSame($baseCommit, $candidate->baseCommit);
+            $snapshot = ImplementationSnapshot::capture($root, $candidate);
+            self::assertSame(['src/Foo.php'], $snapshot->deleted);
+            self::assertCount(1, $snapshot->files);
+            self::assertSame('src/Bar.php', $snapshot->files[0]['path']);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testPlanWithoutGitPreservesNullBaseCommit(): void
+    {
+        $root = $this->root('plan-no-git');
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'TASK-NON-GIT-1',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--goal', 'Plan safely outside a Git worktree.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            $contract = (new TaskContractStore($root))->load('TASK-NON-GIT-1');
+            self::assertSame(TaskContract::CANDIDATE, $contract->status);
+            self::assertNull($contract->baseCommit);
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    private function gitRoot(string $suffix): string
+    {
+        $root = $this->root($suffix);
+        mkdir($root . '/src', 0o775, true);
+        file_put_contents($root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+
+        if (self::runGit($root, 'init', '--quiet', '--initial-branch=main') === null) {
+            $this->removeDirectory($root);
+            self::markTestSkipped('git init is not available.');
+        }
+        self::runGit($root, 'config', 'user.email', 'dev@test.local');
+        self::runGit($root, 'config', 'user.name', 'Dev');
+        self::runGit($root, 'config', 'commit.gpgsign', 'false');
+        self::runGit($root, 'add', '.');
+        self::assertNotNull(self::runGit($root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'initial'));
+
+        return $root;
+    }
+
+    private static function runGit(string $directory, string ...$arguments): ?string
+    {
+        $command = ['git', '-C', $directory];
+        foreach ($arguments as $argument) {
+            $command[] = $argument;
+        }
+
+        $process = proc_open(
+            $command,
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        if (!is_resource($process)) {
+            return null;
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return proc_close($process) === 0 && is_string($stdout) ? trim($stdout) : null;
     }
 
     private function root(string $suffix): string
