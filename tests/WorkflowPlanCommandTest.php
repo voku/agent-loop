@@ -456,6 +456,55 @@ CARD,
         }
     }
 
+    public function testPlanDefaultsBaseCommitToCurrentGitHeadWhenUnspecified(): void
+    {
+        $root = $this->root('plan-git-head');
+        mkdir($root . '/src', 0o775, true);
+        file_put_contents($root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+        $git = 'git -C ' . escapeshellarg($root);
+        exec("$git init -q && $git config user.email dev@test.local && $git config user.name Dev && $git add . && $git commit -qm 'initial'", $output, $exit);
+        if ($exit !== 0) {
+            $this->removeDirectory($root);
+            self::markTestSkipped('git init is not available.');
+        }
+
+        $head = trim((string) shell_exec("$git rev-parse HEAD"));
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-1',
+                '--by', 'developer',
+                '--file', 'src/Foo.php',
+                '--goal', 'Test git head auto-detection.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            $contract = (new TaskContractStore($root))->load('TASK-GIT-1');
+            self::assertSame($head, $contract->baseCommit, 'Contract baseCommit must automatically bind to current Git HEAD when unspecified.');
+
+            // Explicit --base-commit overrides auto-detection
+            ob_start();
+            $exitExplicit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-2',
+                '--by', 'developer',
+                '--file', 'src/Foo.php',
+                '--goal', 'Test explicit base commit override.',
+                '--validation', 'vendor/bin/phpunit',
+                '--base-commit', 'explicit-sha-1234',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exitExplicit);
+            $contractExplicit = (new TaskContractStore($root))->load('TASK-GIT-2');
+            self::assertSame('explicit-sha-1234', $contractExplicit->baseCommit);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     private function root(string $suffix): string
     {
         return sys_get_temp_dir() . '/agent-loop-' . $suffix . '-' . bin2hex(random_bytes(6));
