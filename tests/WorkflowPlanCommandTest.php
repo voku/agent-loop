@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -426,6 +427,47 @@ CARD,
         $pdo->exec('CREATE TABLE code_chunks (chunk_id TEXT PRIMARY KEY)');
     }
 
+    public function testPlanImmediatelyPresentsTheExactHumanApprovalSubject(): void
+    {
+        $root = $this->root('plan-decision-subject');
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'ITPNG-3583446825093027885',
+                '--by', 'codex',
+                '--file', 'lib/application/systems/ITPortal/ModuleITPortal_Request.php',
+                '--goal', 'Capture AntragFact and prefill eligible IT-Portal forms.',
+                '--non-goal', 'Do not change request submission behavior.',
+                '--acceptance', 'Unsupported facts never receive unsafe defaults.',
+                '--validation', 'vendor/bin/phpunit tests/ITPortalRequestTest.php',
+            ]);
+            $output = (string) ob_get_clean();
+
+            self::assertSame(0, $exit);
+            self::assertStringContainsString('candidate Contract created', $output);
+            self::assertStringContainsString('Decision required: Contract approval', $output);
+            self::assertStringContainsString('ITPNG-3583446825093027885', $output);
+            self::assertStringContainsString('Capture AntragFact and prefill eligible IT-Portal forms.', $output);
+            self::assertStringContainsString('Do not change request submission behavior.', $output);
+            self::assertStringContainsString('Unsupported facts never receive unsafe defaults.', $output);
+            self::assertStringContainsString('vendor/bin/phpunit tests/ITPortalRequestTest.php', $output);
+            self::assertStringContainsString('What approval authorizes:', $output);
+            self::assertStringContainsString('Request changes:', $output);
+            self::assertStringContainsString('There is no separate rejection action;', $output);
+
+            $subjectPosition = strpos($output, 'Decision required: Contract approval');
+            $nextPosition = strpos($output, 'Next:');
+            self::assertIsInt($subjectPosition);
+            self::assertIsInt($nextPosition);
+            self::assertLessThan($nextPosition, $subjectPosition, 'The developer must see the decision before its approval command.');
+            self::assertSame(TaskContract::CANDIDATE, (new TaskContractStore($root))->load('ITPNG-3583446825093027885')->status);
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testPlanWithJsonFlagOutputsStructuredJson(): void
     {
         $root = $this->root('plan-json');
@@ -437,6 +479,8 @@ CARD,
                 '--by', 'lars',
                 '--file', 'src/Foo.php',
                 '--goal', 'Structured plan test.',
+                '--non-goal', 'Do not auto-approve this revision.',
+                '--acceptance', 'Show the exact request before approval.',
                 '--validation', 'vendor/bin/phpunit',
                 '--json',
             ]);
@@ -451,6 +495,21 @@ CARD,
             self::assertSame('Structured plan test.', $decoded['goal']);
             self::assertSame('decision_required', $decoded['next_action_kind']);
             self::assertSame('agent-loop workflow approve ABC-JSON --revision 1 --by <named-actor>', $decoded['next_action']);
+            self::assertSame('contract_approval', $decoded['human_decision']['type']);
+            self::assertSame('human_required', $decoded['human_decision']['authority']);
+            self::assertSame('Structured plan test.', $decoded['human_decision']['subject']['goal']);
+            self::assertSame(['src/Foo.php'], $decoded['human_decision']['subject']['scope']);
+            self::assertSame(['Do not auto-approve this revision.'], $decoded['human_decision']['subject']['non_goals']);
+            self::assertSame(['Show the exact request before approval.'], $decoded['human_decision']['subject']['acceptance_criteria']);
+            self::assertSame(['vendor/bin/phpunit'], $decoded['human_decision']['subject']['validation']);
+
+            ob_start();
+            $enterExit = (new HostFrontDoorApplication($root))->run('enter', ['ABC-JSON', '--format=json']);
+            $enterOutput = (string) ob_get_clean();
+            self::assertSame(1, $enterExit, $enterOutput);
+            $enter = json_decode($enterOutput, true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame($enter['human_decision'], $decoded['human_decision'], 'PLAN and ENTER must present the same owner decision.');
+            self::assertSame(TaskContract::CANDIDATE, (new TaskContractStore($root))->load('ABC-JSON')->status);
         } finally {
             $this->removeDirectory($root);
         }
