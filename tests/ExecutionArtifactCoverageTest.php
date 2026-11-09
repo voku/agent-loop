@@ -22,11 +22,6 @@ use voku\AgentLoop\Execution\ExecutionState;
 use voku\AgentLoop\Execution\StageExecutionBundle;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
-use voku\AgentLoop\Workflow\HostFrontDoorCommand;
-use voku\AgentLoop\Workflow\TaskContractStore;
-use voku\AgentLoop\Workflow\WorkflowApproveCommand;
-use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
-use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 /**
  * Tests for artifact coverage bookkeeping during review stages.
@@ -52,7 +47,7 @@ final class ExecutionArtifactCoverageTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->rm($this->root);
+        $this->removeDirectory($this->root);
     }
 
     public function testChangedCandidateFilesDetectsChangedPaths(): void
@@ -129,12 +124,9 @@ final class ExecutionArtifactCoverageTest extends TestCase
     {
         $fixture = $this->createReviewFixture();
         $plan = $fixture['plan'];
-        $state = $fixture['state'];
-        $stage = $fixture['stage'];
-        $baseCommit = $fixture['baseCommit'];
         $candidateRevision = $fixture['candidateRevision'];
 
-        $bundle = new \voku\AgentLoop\Execution\StageExecutionBundle(
+        $bundle = new StageExecutionBundle(
             $plan->taskId,
             $plan->runId,
             $plan->contractRevision,
@@ -145,7 +137,7 @@ final class ExecutionArtifactCoverageTest extends TestCase
             'reviewer',
             false,
             $this->root,
-            $baseCommit,
+            $fixture['baseCommit'],
             $candidateRevision,
             ['path' => 'contract.json', 'sha256' => 'sha256:' . str_repeat('b', 64)],
             null,
@@ -157,56 +149,17 @@ final class ExecutionArtifactCoverageTest extends TestCase
             'prompt',
             expectedArtifacts: ['src/Core.php', 'docs/CHANGELOG.md'],
         );
-
         self::assertSame(['src/Core.php', 'docs/CHANGELOG.md'], $bundle->expectedArtifacts);
 
         $evidenceStore = new ExecutionEvidenceStore($this->root);
-        // Record inspected file
-        $inspectedRef = $evidenceStore->record(new ExecutionEvidenceClaim(
-            $plan->taskId,
-            $plan->runId,
-            $plan->contractRevision,
-            $plan->digest(),
-            'review',
-            1,
-            $candidateRevision,
-            ExecutionEvidenceKind::ARTIFACT,
-            'workspace-file:src/Core.php',
-            'sha256:' . hash('sha256', (string) file_get_contents($this->root . '/src/Core.php')),
-        ));
-        // Record excluded file with explicit justification
-        $excludedRef = $evidenceStore->record(new ExecutionEvidenceClaim(
-            $plan->taskId,
-            $plan->runId,
-            $plan->contractRevision,
-            $plan->digest(),
-            'review',
-            1,
-            $candidateRevision,
-            ExecutionEvidenceKind::ARTIFACT,
-            'excluded-file:docs/CHANGELOG.md',
-            'sha256:' . hash('sha256', (string) file_get_contents($this->root . '/docs/CHANGELOG.md')),
-        ));
+        $inspectedRef = $this->recordArtifactClaim($evidenceStore, $plan, $candidateRevision, 'workspace-file:src/Core.php', $this->root . '/src/Core.php');
+        $excludedRef = $this->recordArtifactClaim($evidenceStore, $plan, $candidateRevision, 'excluded-file:docs/CHANGELOG.md', $this->root . '/docs/CHANGELOG.md');
 
-        $authority = new ExecutionStageResultAuthority($this->root);
-        $authority->assertAcceptable(
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
             $plan,
-            $state,
-            $stage,
-            new StageResult(
-                'submission:pass-with-exclusion',
-                $plan->taskId,
-                $plan->runId,
-                $plan->contractRevision,
-                $plan->digest(),
-                'review',
-                1,
-                StageOutcome::PASS,
-                $candidateRevision,
-                [$inspectedRef, $excludedRef],
-                [],
-                'Review passed with justified changelog exclusion.',
-            ),
+            $fixture['state'],
+            $fixture['stage'],
+            new StageResult('submission:pass-with-exclusion', $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(), 'review', 1, StageOutcome::PASS, $candidateRevision, [$inspectedRef, $excludedRef], [], 'Review passed with justified changelog exclusion.'),
         );
 
         $this->addToAssertionCount(1);
@@ -216,8 +169,6 @@ final class ExecutionArtifactCoverageTest extends TestCase
     {
         $fixture = $this->createReviewFixture();
         $plan = $fixture['plan'];
-        $state = $fixture['state'];
-        $stage = $fixture['stage'];
         $candidateRevision = $fixture['candidateRevision'];
 
         $evidenceStore = new ExecutionEvidenceStore($this->root);
@@ -237,26 +188,31 @@ final class ExecutionArtifactCoverageTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('EVIDENCE_MISMATCH: artifact digest does not match the governed candidate content.');
 
-        $authority = new ExecutionStageResultAuthority($this->root);
-        $authority->assertAcceptable(
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
             $plan,
-            $state,
-            $stage,
-            new StageResult(
-                'submission:forged-exclusion',
-                $plan->taskId,
-                $plan->runId,
-                $plan->contractRevision,
-                $plan->digest(),
-                'review',
-                1,
-                StageOutcome::PASS,
-                $candidateRevision,
-                [$forgedRef],
-                [],
-                'Review passed with forged exclusion claim.',
-            ),
+            $fixture['state'],
+            $fixture['stage'],
+            new StageResult('submission:forged-exclusion', $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(), 'review', 1, StageOutcome::PASS, $candidateRevision, [$forgedRef], [], 'Review passed with forged exclusion claim.'),
         );
+    }
+
+    /**
+     * @return non-empty-string
+     */
+    private function recordArtifactClaim(ExecutionEvidenceStore $store, ExecutionPlan $plan, string $candidateRevision, string $sourceRef, string $filePath): string
+    {
+        return $store->record(new ExecutionEvidenceClaim(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            $sourceRef,
+            'sha256:' . hash('sha256', (string) file_get_contents($filePath)),
+        ));
     }
 
     /**
@@ -279,18 +235,9 @@ final class ExecutionArtifactCoverageTest extends TestCase
         file_put_contents($this->root . '/src/Core.php', "<?php\n// v2\n");
         file_put_contents($this->root . '/docs/CHANGELOG.md', "# Changelog\n- Item 1\n");
         $this->git('add', 'src/Core.php', 'docs/CHANGELOG.md');
-        $candidateTree = $this->git('write-tree');
-        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
+        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $this->git('write-tree');
 
-        $role = new ExecutionRole('reviewer', false, ['review']);
-        $stage = new ExecutionStage(
-            'review',
-            ExecutionStageKind::AGENT,
-            'reviewer',
-            false,
-            [],
-            [StageOutcome::PASS->value => null],
-        );
+        $stage = new ExecutionStage('review', ExecutionStageKind::AGENT, 'reviewer', false, [], [StageOutcome::PASS->value => null]);
         $plan = new ExecutionPlan(
             'ABC-123',
             'run:test-coverage',
@@ -298,29 +245,13 @@ final class ExecutionArtifactCoverageTest extends TestCase
             ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
             $baseCommit,
             ExecutionProfileName::SURGICAL,
-            [$role],
+            [new ExecutionRole('reviewer', false, ['review'])],
             [$stage],
             '2026-08-24T00:00:00+00:00',
         );
-        $state = new ExecutionState(
-            $plan->taskId,
-            $plan->runId,
-            $plan->contractRevision,
-            $plan->digest(),
-            'review',
-            1,
-            $candidateRevision,
-            null,
-            [],
-        );
+        $state = new ExecutionState($plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(), 'review', 1, $candidateRevision, null, []);
 
-        return [
-            'plan' => $plan,
-            'state' => $state,
-            'stage' => $stage,
-            'baseCommit' => $baseCommit,
-            'candidateRevision' => $candidateRevision,
-        ];
+        return ['plan' => $plan, 'state' => $state, 'stage' => $stage, 'baseCommit' => $baseCommit, 'candidateRevision' => $candidateRevision];
     }
 
     private function git(string ...$arguments): string
@@ -337,7 +268,7 @@ final class ExecutionArtifactCoverageTest extends TestCase
         return trim(implode("\n", $output));
     }
 
-    private function rm(string $path): void
+    private function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {
             return;

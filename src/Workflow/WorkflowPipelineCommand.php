@@ -304,6 +304,8 @@ final readonly class WorkflowPipelineCommand
 
     /**
      * @param list<string> $tokens
+     *
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     private function submit(string $taskIdString, array $tokens, string $format): int
     {

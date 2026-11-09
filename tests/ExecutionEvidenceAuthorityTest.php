@@ -537,55 +537,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
 
     public function testReviewPassAcceptsExplicitJustifiedArtifactExclusion(): void
     {
-        mkdir($this->root . '/src', 0o775, true);
-        mkdir($this->root . '/docs', 0o775, true);
-        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 1;\n");
-        file_put_contents($this->root . '/docs/README.md', "# Readme\nInitial\n");
-        $this->git('init', '-q');
-        $this->git('config', 'user.email', 'tests@example.test');
-        $this->git('config', 'user.name', 'Tests');
-        $this->git('add', 'src/Example.php', 'docs/README.md');
-        $this->git('commit', '-qm', 'base');
-        $baseCommit = $this->git('rev-parse', 'HEAD');
-
-        // Modify both files in candidate
-        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 2;\n");
-        file_put_contents($this->root . '/docs/README.md', "# Readme\nUpdated docs\n");
-        $this->git('add', 'src/Example.php', 'docs/README.md');
-        $candidateTree = $this->git('write-tree');
-        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
-
-        $role = new ExecutionRole('reviewer', false, ['review']);
-        $stage = new ExecutionStage(
-            'review',
-            ExecutionStageKind::AGENT,
-            'reviewer',
-            false,
-            [],
-            [StageOutcome::PASS->value => null],
-        );
-        $plan = new ExecutionPlan(
-            'ABC-123',
-            'run:exclusion-pass',
-            1,
-            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
-            $baseCommit,
-            ExecutionProfileName::SURGICAL,
-            [$role],
-            [$stage],
-            '2026-08-24T00:00:00+00:00',
-        );
-        $state = new ExecutionState(
-            $plan->taskId,
-            $plan->runId,
-            $plan->contractRevision,
-            $plan->digest(),
-            'review',
-            1,
-            $candidateRevision,
-            null,
-            [],
-        );
+        [$plan, $state, $stage, $candidateRevision] = $this->prepareExclusionScenario();
 
         $evidenceStore = new ExecutionEvidenceStore($this->root);
         // Cited src/Example.php as workspace-file:
@@ -641,55 +593,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
 
     public function testReviewPassRejectsWhenChangedFileIsNeitherReviewedNorExcluded(): void
     {
-        mkdir($this->root . '/src', 0o775, true);
-        mkdir($this->root . '/docs', 0o775, true);
-        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 1;\n");
-        file_put_contents($this->root . '/docs/README.md', "# Readme\nInitial\n");
-        $this->git('init', '-q');
-        $this->git('config', 'user.email', 'tests@example.test');
-        $this->git('config', 'user.name', 'Tests');
-        $this->git('add', 'src/Example.php', 'docs/README.md');
-        $this->git('commit', '-qm', 'base');
-        $baseCommit = $this->git('rev-parse', 'HEAD');
-
-        // Modify both files
-        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 2;\n");
-        file_put_contents($this->root . '/docs/README.md', "# Readme\nUpdated docs\n");
-        $this->git('add', 'src/Example.php', 'docs/README.md');
-        $candidateTree = $this->git('write-tree');
-        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
-
-        $role = new ExecutionRole('reviewer', false, ['review']);
-        $stage = new ExecutionStage(
-            'review',
-            ExecutionStageKind::AGENT,
-            'reviewer',
-            false,
-            [],
-            [StageOutcome::PASS->value => null],
-        );
-        $plan = new ExecutionPlan(
-            'ABC-123',
-            'run:missing-exclusion',
-            1,
-            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
-            $baseCommit,
-            ExecutionProfileName::SURGICAL,
-            [$role],
-            [$stage],
-            '2026-08-24T00:00:00+00:00',
-        );
-        $state = new ExecutionState(
-            $plan->taskId,
-            $plan->runId,
-            $plan->contractRevision,
-            $plan->digest(),
-            'review',
-            1,
-            $candidateRevision,
-            null,
-            [],
-        );
+        [$plan, $state, $stage, $candidateRevision] = $this->prepareExclusionScenario();
 
         $evidenceStore = new ExecutionEvidenceStore($this->root);
         // Only cite src/Example.php, leave docs/README.md unreviewed and unexcluded
@@ -729,6 +633,64 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
                 'Reviewed code only.',
             ),
         );
+    }
+
+    /**
+     * @return array{ExecutionPlan, ExecutionState, ExecutionStage, string}
+     */
+    private function prepareExclusionScenario(): array
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/docs', 0o775, true);
+        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 1;\n");
+        file_put_contents($this->root . '/docs/README.md', "# Readme\nInitial\n");
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'src/Example.php', 'docs/README.md');
+        $this->git('commit', '-qm', 'base');
+        $baseCommit = $this->git('rev-parse', 'HEAD');
+
+        // Modify both files in candidate
+        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 2;\n");
+        file_put_contents($this->root . '/docs/README.md', "# Readme\nUpdated docs\n");
+        $this->git('add', 'src/Example.php', 'docs/README.md');
+        $candidateTree = $this->git('write-tree');
+        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
+
+        $role = new ExecutionRole('reviewer', false, ['review']);
+        $stage = new ExecutionStage(
+            'review',
+            ExecutionStageKind::AGENT,
+            'reviewer',
+            false,
+            [],
+            [StageOutcome::PASS->value => null],
+        );
+        $plan = new ExecutionPlan(
+            'ABC-123',
+            'run:exclusion-pass',
+            1,
+            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
+            $baseCommit,
+            ExecutionProfileName::SURGICAL,
+            [$role],
+            [$stage],
+            '2026-08-24T00:00:00+00:00',
+        );
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            null,
+            [],
+        );
+
+        return [$plan, $state, $stage, $candidateRevision];
     }
 
     private function git(string ...$arguments): string
