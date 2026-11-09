@@ -24,6 +24,9 @@ use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\SessionStore;
 
+/**
+ * @SuppressWarnings("PHPMD.StaticAccess")
+ */
 final class WorkflowPlanCommandTest extends TestCase
 {
     public function testPlanPersistsCandidateContractWithoutSession(): void
