@@ -1,5 +1,138 @@
 ## Unreleased
 
+## [0.20.89] - 2026-11-09
+
+### Added
+
+- Automate review artifact coverage bookkeeping with justified exclusions (#1005). Automatically populates expected changed candidate files in `StageExecutionBundle`, verifies that all candidate artifacts are either inspected or explicitly excluded, and fails closed on unreviewed files.
+- Support `--exclude-artifact <path>=<justification>` in workflow pipeline review submissions, with anti-forgery blob existence and digest validation against the candidate tree.
+
+### Dependencies
+
+- Upgrade `voku/agent-recall-compiler` to `^0.28.0` with task-scoped intermediate bundle pruning (#457, #264).
+- Upgrade `voku/agent-learning` to `^0.19.0` with automated proof re-anchoring (`proposal-reanchor --auto`) and fail-closed pre-policy protection (#192).
+
+### Tests
+
+- Add unit and integration coverage for candidate artifact tracking, justified exclusion submission, comma-delimited reason parsing, and forged exclusion rejection. Update release workflow pins to verified 0.28.0 Recall release.
+
+## [0.20.88] - 2026-11-09
+
+### Fixed
+
+- Reject direct, nested, and dangling symlinked `.agent-loop` scaffold destinations before creating project state, including configuration, tasks, sessions, board and learning paths; recheck link targets at mutation helpers to avoid accidental writes outside the selected project (#999).
+- Guide PHP onboarding to stop rather than bypass symlink safety checks in the canonical setup skill (#999).
+
+### Tests
+
+- Cover root symlinks, dangling configuration links, nested learning findings, board/task and demo paths, read-only dry runs, and no-outside-project-write regressions across the PHP 8.3/8.4/8.5 exact-head CI and installed CLI dogfood (#999).
+- This fix addresses direct symlink redirection; it does not claim race-free filesystem operations against an adversarial concurrent writer.
+
+## [0.20.87] - 2026-11-09
+
+### Fixed
+
+- Use the developer's explicitly selected language consistently in the PHP project setup plan and evidence-bound apply instructions; `de-DE` is illustrative, never an assumed preference (#995).
+
+## [0.20.86] - 2026-11-08
+
+### Added
+
+- Report the existing Slop Scan policy as read-only, owner-sourced project setup evidence, including path filters and rule overrides without mutating scanner configuration (#981).
+
+### Fixed
+
+- Distinguish genuine historical human Contract approvals from incomplete or reserved `standing:` pseudo-actor metadata when selecting and displaying the revision comparison baseline. Preserve current approval authorization boundaries and suppress false human attribution (#986).
+- Require explicitly approved PHP project scaffolding before generating and reviewing the final language-specific setup plan, so `init apply` cannot use stale pre-scaffold evidence (#990).
+- Preserve Slop Scan JSON object-versus-array policy shapes and reject malformed nested or explicitly null values with warnings, without writing project configuration (#988).
+
+### Changed
+
+- Clarify prerequisites for source-linked PHPStan notice guidance in the owned ITP context skill (#936).
+
+### Tests
+
+- Cover archived named approval, legacy pseudo-actors, missing approval metadata and rendered CLI decision evidence; check Slop Scan policy projection and installed project recommendations (#986, #981).
+- Verify existing source-linked ITP context in CI dogfood without changing its runtime authorization (#930).
+- Add malformed Slop JSON shape/null regressions and a tenth exact-head project-init installed CLI dogfood case (#988).
+
+## [0.20.85] - 2026-11-08
+
+### Added
+
+- Investigate bounded, read-only Git history before changing existing code, including historical intent and likely regression origins (#974).
+- Extend project-aware PHP initialization to discover Composer `autoload-dev` scope and apply explicitly approved language with evidence checks (#970, #977).
+- Offer a safe manual `agent-ui` launch command when its status probe reports a verified non-ready state; the CLI remains usable and no service is started automatically (#976).
+
+### Fixed
+
+- Compare Contract approval revisions against the latest genuine human-approved revision, not an intervening unapproved draft, and expose changes in goal, scope, non-goals, acceptance, validation, behavior anchors, operating-prompt manifest, prompt arguments, and prompt order (#922).
+- Preserve bounded history investigation during fast regression and surgical-edit workflows (#979).
+- Reject inconsistent `agent-ui status` exit codes before suggesting a launch command, without relaxing human approval boundaries (#976).
+
+### Changed
+
+- Update the `voku/agent-kanban` dependency to 0.4.8 and refresh Docker image pins (#975, #895, #886).
+
+### Tests
+
+- Verify history guidance reaches Codex and Claude runtimes and exercise Finder-only and empty PHP consumers in real installed CLI dogfood (#978, #980).
+- Cover cumulative approval deltas, latest named approval, legacy `standing:` actors, prompt order, and safe launch-status handling across PHP 8.3/8.4/8.5, with downstream `agent-ui` candidate browser proof.
+
+## [0.20.84] - 2026-11-07
+
+### Fixed
+
+- Route explicitly requested new local work through the Kanban owner's generated card IDs, independent of `future_work.mode`; select the intended configured board and lane (including required fields), fail closed when no task authority exists, and retain externally assigned IDs and governed approval boundaries. Verify generated IDs via delegated board CLI tests and prevent sequential local ID examples.
+
+## [0.20.83] - 2026-11-07
+
+### Added
+
+- Provide `agent-loop init plan --format=json`, a typed read-only proposal with source-linked map and Composer script candidates, bounded SHA-256 provenance, explicit confirmation requirements, and no configuration writes or implicit execution (#963).
+
+### Fixed
+
+- Emit Composer-installed `vendor/bin/agent-loop` paths in project-aware PHP onboarding recommendations and prove their read-only dry-run behavior in a real installed PHP consumer (#961).
+- Ignore nested, unrelated PHPStan `paths` keys when reading project analysis scope; only direct `parameters.paths` is used for project-aware setup recommendations, with installed-consumer regression coverage (#959).
+- Align both candidate dogfood workflow pins and immutable release-commit proofs with `voku/agent-recall-compiler` 0.27.0; keep the release-contract tests and approval boundaries intact (#958).
+
+### Changed
+
+- Update released `voku/agent-map` to 0.22.6 and `voku/agent-edit` to 0.6.2 for improved PHPStan exclusion preservation and safer refactor-plan interoperability (#945, #946).
+- Update `voku/agent-recall-compiler` to 0.27.0, exposing its explicit, non-mutating exploration capability without implicit model routing or task execution authority (#958).
+- Refresh development dependencies `phpstan/phpstan` to 2.3.5, `friendsofphp/php-cs-fixer` to 3.95.29, and `composer/semver` to 3.6.0 (#939, #943, #883).
+- Update runtime dependency `helgesverre/toon` to 3.3.0 while retaining its previously selected default wire-format behavior (#955).
+
+### Tests
+
+- Validate the installed Composer PHP setup recommendations, matching release-pinned Recall candidate dogfood, real-project guidance, refactor lifecycles, and PHP 8.3/8.4/8.5 CI on exact release-candidate commits before publishing the release marker.
+
+## [0.20.82] - 2026-11-07
+
+### Added
+
+- Expose read-only, project-aware PHP setup evidence with `agent-loop init recommend --format=json`. Detect literal PHPStan paths and exclusions, Composer autoload, existing Slop Scan ignores, and PHP-CS-Fixer configuration without running project scripts or PHP configuration (#948).
+- Ship the `agent-loop-php-setup` coding-host skill for evidence-based proposals, dry runs, and explicitly approved configuration changes. The skill does not introduce another model client or bypass human review (#951).
+- Report syntactically safe Composer quality-script names as untrusted setup evidence, without executing or trusting script bodies (#953).
+- Integrate the released `voku/agent-recall-compiler` 0.26.0 bounded-choice validation API, with installed-consumer regression coverage. Workflow selection remains opt-in and advisory; there is no implicit model routing (#952).
+
+### Changed
+
+- Remove an unused follow-up budget setting from the discover-only project configuration while retaining the existing no-automatic-follow-up boundary (#931).
+- Update development dependency `symfony/yaml` to the 7.4.23 security release (#944).
+
+### Tests
+
+- Cover project-aware setup boundaries, malformed and hostile tooling configuration, installed PHP-consumer skill projection, safe Composer script-name discovery, and the optional Recall bounded-choice API (#948, #951, #952, #953).
+- Require exact-head PHP 8.3/8.4/8.5 `composer ci` and relevant installed-consumer GitHub Actions dogfood before tagging this release.
+
+## [0.20.81] - 2026-11-04
+
+### Fixed
+
+- Reconcile stale validation and review evidence during `finish` while preserving current failures and refusing Learning until validation passes.
+
 ## [0.20.80] - 2026-11-02
 
 ### Added

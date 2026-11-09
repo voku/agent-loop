@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches: [main]
+    tags: ['**']
   pull_request:
 
 jobs:
@@ -21,6 +23,63 @@ jobs:
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
       - run: composer ci
+
+  source-linked-itp-dogfood:
+    if: github.event_name == 'pull_request'
+    name: Existing annotated-source ITP context proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      ITP_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prove existing #926 source-linked rule is readable before any edit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ITP_HEAD_SHA"
+          mkdir -p build/itp-source-linked
+          vendor/bin/itp-context-validate 'voku\AgentLoop\Context\ArchitectureRules' > build/itp-source-linked/validate.txt
+          vendor/bin/itp-context-summarize src/Workflow/WorkflowLearningRecorder.php > build/itp-source-linked/summary.md
+          grep -Fq '# Context: WorkflowLearningRecorder' build/itp-source-linked/summary.md
+          grep -Fq 'ArchitectureRules::WorkflowActorIsAttribution' build/itp-source-linked/summary.md
+          grep -Fq -- '- **Owner:** voku/agent-loop' build/itp-source-linked/summary.md
+          grep -Fq -- '- **Proof:** voku\AgentLoop\Tests\ProductionDevDependencyBoundaryTest' build/itp-source-linked/summary.md
+          grep -Fq -- '- **When changing:** Do not describe --by' build/itp-source-linked/summary.md
+          git diff --exit-code --quiet
+          jq -n \
+            --arg source_sha "$ITP_HEAD_SHA" \
+            --arg source_path 'src/Workflow/WorkflowLearningRecorder.php' \
+            --arg summary_sha256 "$(sha256sum build/itp-source-linked/summary.md | cut -d' ' -f1)" \
+            '{
+              schema_version: "1.0",
+              kind: "source-linked-itp-preedit-readiness",
+              source_sha: $source_sha,
+              source_path: $source_path,
+              summary_sha256: $summary_sha256,
+              checks: ["rule_enum_valid", "source_annotation_present", "owner_resolved", "proof_resolved", "change_guidance_resolved", "tracked_source_unchanged"],
+              acting_agent_ab_result: "INCONCLUSIVE / NOT RUN",
+              authority: "advisory context, not approval"
+            }' > build/itp-source-linked/report.json
+          jq -e '.source_sha == env.ITP_HEAD_SHA and (.checks | length) == 6' build/itp-source-linked/report.json >/dev/null
+      - name: Upload exact-head ITP source-linked evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: itp-source-linked-${{ github.event.pull_request.head.sha }}
+          if-no-files-found: warn
+          path: build/itp-source-linked/
 
   execution-contract-dogfood:
     if: github.event_name == 'pull_request'
