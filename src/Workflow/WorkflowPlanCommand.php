@@ -146,7 +146,9 @@ final readonly class WorkflowPlanCommand
         }
         $presentation = $projector->projectContractApprovalPresentation($taskId->value, $nextAction, $decisionKind);
         if ($presentation === null) {
-            throw new RuntimeException('The persisted candidate Contract has no available approval presentation.');
+            fwrite(STDERR, "[FAIL] workflow plan: Candidate Contract persisted, but its approval presentation is unavailable. Inspect current state with: agent-loop workflow status {$taskId->value} --format=json\n");
+
+            return 1;
         }
         echo (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderContractApproval($presentation);
         echo "Next:\n  " . $nextAction . "\n";
