@@ -434,24 +434,24 @@ CARD,
         try {
             ob_start();
             $exit = (new WorkflowPlanCommand($root))->run([
-                'ITPNG-3583446825093027885',
+                'TASK-PLAN-SUBJECT-1003',
                 '--by', 'codex',
-                '--file', 'lib/application/systems/ITPortal/ModuleITPortal_Request.php',
-                '--goal', 'Capture AntragFact and prefill eligible IT-Portal forms.',
+                '--file', 'src/Example/ConsumerRequest.php',
+                '--goal', 'Capture input facts and prefill eligible forms.',
                 '--non-goal', 'Do not change request submission behavior.',
                 '--acceptance', 'Unsupported facts never receive unsafe defaults.',
-                '--validation', 'vendor/bin/phpunit tests/ITPortalRequestTest.php',
+                '--validation', 'vendor/bin/phpunit tests/ConsumerRequestTest.php',
             ]);
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
             self::assertStringContainsString('candidate Contract created', $output);
             self::assertStringContainsString('Decision required: Contract approval', $output);
-            self::assertStringContainsString('ITPNG-3583446825093027885', $output);
-            self::assertStringContainsString('Capture AntragFact and prefill eligible IT-Portal forms.', $output);
+            self::assertStringContainsString('TASK-PLAN-SUBJECT-1003', $output);
+            self::assertStringContainsString('Capture input facts and prefill eligible forms.', $output);
             self::assertStringContainsString('Do not change request submission behavior.', $output);
             self::assertStringContainsString('Unsupported facts never receive unsafe defaults.', $output);
-            self::assertStringContainsString('vendor/bin/phpunit tests/ITPortalRequestTest.php', $output);
+            self::assertStringContainsString('vendor/bin/phpunit tests/ConsumerRequestTest.php', $output);
             self::assertStringContainsString('What approval authorizes:', $output);
             self::assertStringContainsString('Request changes:', $output);
             self::assertStringContainsString('There is no separate rejection action;', $output);
@@ -461,7 +461,7 @@ CARD,
             self::assertIsInt($subjectPosition);
             self::assertIsInt($nextPosition);
             self::assertLessThan($nextPosition, $subjectPosition, 'The developer must see the decision before its approval command.');
-            self::assertSame(TaskContract::CANDIDATE, (new TaskContractStore($root))->load('ITPNG-3583446825093027885')->status);
+            self::assertSame(TaskContract::CANDIDATE, (new TaskContractStore($root))->load('TASK-PLAN-SUBJECT-1003')->status);
             self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
