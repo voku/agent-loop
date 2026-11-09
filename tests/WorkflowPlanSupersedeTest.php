@@ -118,17 +118,13 @@ final class WorkflowPlanSupersedeTest extends TestCase
         $session = $sessions->create((new ProjectLayout($this->root))->sessionsRoot(), 'SUPERSEDE-1', by: 'agent');
 
         ob_start();
-        try {
-            $exit = (new WorkflowPlanCommand($this->root))->run([
-                'SUPERSEDE-1', '--by', 'planner', '--supersede',
-                '--add-scope', 'tests/FooTest.php',
-                '--add-scope', 'src/Helpers.php',
-                '--format=json',
-            ]);
-            $output = (string) ob_get_contents();
-        } finally {
-            ob_end_clean();
-        }
+        $exit = (new WorkflowPlanCommand($this->root))->run([
+            'SUPERSEDE-1', '--by', 'planner', '--supersede',
+            '--add-scope', 'tests/FooTest.php',
+            '--add-scope', 'src/Helpers.php',
+            '--format=json',
+        ]);
+        $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit);
         self::assertSame(SessionStatus::DROPPED, $sessions->load(dirname($session->path), $session->id)->status);
@@ -163,13 +159,10 @@ final class WorkflowPlanSupersedeTest extends TestCase
         $session = $sessions->create((new ProjectLayout($this->root))->sessionsRoot(), 'SUPERSEDE-1', by: 'agent');
 
         ob_start();
-        try {
-            $exit = (new WorkflowPlanCommand($this->root))->run([
-                'SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'src/Foo.php',
-            ]);
-        } finally {
-            ob_end_clean();
-        }
+        $exit = (new WorkflowPlanCommand($this->root))->run([
+            'SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'src/Foo.php',
+        ]);
+        ob_end_clean();
 
         self::assertSame(1, $exit);
         self::assertSame(SessionStatus::ACTIVE, $sessions->load(dirname($session->path), $session->id)->status);
@@ -189,11 +182,8 @@ final class WorkflowPlanSupersedeTest extends TestCase
 
         foreach ($cases as $args) {
             ob_start();
-            try {
-                $exit = (new WorkflowPlanCommand($this->root))->run($args);
-            } finally {
-                ob_end_clean();
-            }
+            $exit = (new WorkflowPlanCommand($this->root))->run($args);
+            ob_end_clean();
             self::assertSame(1, $exit);
             self::assertSame(1, $contracts->load('SUPERSEDE-1')->revision);
             self::assertSame(TaskContract::APPROVED, $contracts->load('SUPERSEDE-1')->status);
@@ -203,13 +193,10 @@ final class WorkflowPlanSupersedeTest extends TestCase
     public function testScopeOnlyCannotInventFirstContract(): void
     {
         ob_start();
-        try {
-            $exit = (new WorkflowPlanCommand($this->root))->run([
-                'SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'tests/FooTest.php',
-            ]);
-        } finally {
-            ob_end_clean();
-        }
+        $exit = (new WorkflowPlanCommand($this->root))->run([
+            'SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'tests/FooTest.php',
+        ]);
+        ob_end_clean();
 
         self::assertSame(1, $exit);
         self::assertNull((new TaskContractStore($this->root))->find('SUPERSEDE-1'));
