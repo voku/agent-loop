@@ -34,7 +34,9 @@ configuration writer:
 
 ```bash
 vendor/bin/agent-loop init plan --format=json
-vendor/bin/agent-loop init plan --format=json --language=de-DE  # only when explicitly requested
+# Only for an explicitly requested language. fr-FR is an example, not a default.
+PROMPT_LANGUAGE=fr-FR
+vendor/bin/agent-loop init plan --format=json --language="$PROMPT_LANGUAGE"
 ```
 
 Its deterministic JSON includes a SHA-256 digest of the bounded `init recommend` evidence. With `--language=<BCP47>`, the digest also binds the **normalized requested language**, so a reviewed `fr-FR` proposal cannot authorize `ja`. With no requested language, the original evidence-only digest remains unchanged.
@@ -65,14 +67,18 @@ but there is no generic `init diff` or arbitrary-field writer. Only the accepted
 ## Accepted, evidence-guarded language change
 
 The only writable follow-up currently supported by this proposal flow is
-`prompting.language`. First inspect the exact `review_diffs` and copy the
-`evidence_sha256` returned by `init plan --format=json --language=de-DE`.
+`prompting.language`. Only act on an **explicitly chosen** BCP 47 tag: set
+`PROMPT_LANGUAGE` to that exact value, then inspect `review_diffs` and copy the
+`evidence_sha256` from `init plan --format=json --language="$PROMPT_LANGUAGE"`.
 A language is **never** inferred from a default or a repository prompt.
+Keep that value unchanged through both apply commands and regenerate/re-review
+the plan if scaffolding or configuration changes after the preview.
 
 ```bash
-vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --dry-run
+# Reuse PROMPT_LANGUAGE from the reviewed plan in the same shell session.
+vendor/bin/agent-loop init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --dry-run
 # Only after approving that exact field and reviewing the preview:
-vendor/bin/agent-loop init apply --language=de-DE --evidence-sha256=<SHA256> --accept=prompting.language --yes
+vendor/bin/agent-loop init apply --language="$PROMPT_LANGUAGE" --evidence-sha256=<SHA256> --accept=prompting.language --yes
 ```
 
 The mutation requires an existing, non-symlinked `.agent-loop` directory.
