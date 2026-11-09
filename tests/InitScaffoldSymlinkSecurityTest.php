@@ -116,6 +116,31 @@ final class InitScaffoldSymlinkSecurityTest extends TestCase
         self::assertFileDoesNotExist($this->projectRoot . '/.agent-loop/init.json');
     }
 
+    public function testLinkedNestedFindingsDirectoryBlocksScaffoldBeforeAnyWrites(): void
+    {
+        self::assertTrue(mkdir($this->projectRoot . '/.agent-loop/learning', 0o775, true));
+        self::assertTrue(symlink($this->outsideRoot, $this->projectRoot . '/.agent-loop/learning/findings'));
+
+        self::assertSame(1, $this->scaffold([]));
+        self::assertFileDoesNotExist($this->projectRoot . '/.agent-loop/init.json');
+        self::assertFileDoesNotExist($this->projectRoot . '/.agent-loop/.gitignore');
+        self::assertDirectoryDoesNotExist($this->projectRoot . '/.agent-loop/tasks');
+        self::assertSame([], array_values(array_diff(scandir($this->outsideRoot) ?: [], ['.', '..'])));
+    }
+
+    public function testDanglingInitJsonSymlinkBlocksScaffoldBeforeAnyWrites(): void
+    {
+        self::assertTrue(mkdir($this->projectRoot . '/.agent-loop', 0o775));
+        $missingConfig = $this->outsideRoot . '/missing-init.json';
+        self::assertTrue(symlink($missingConfig, $this->projectRoot . '/.agent-loop/init.json'));
+
+        self::assertSame(1, $this->scaffold(['--agent=codex']));
+        self::assertTrue(is_link($this->projectRoot . '/.agent-loop/init.json'));
+        self::assertFileDoesNotExist($missingConfig);
+        self::assertFileDoesNotExist($this->projectRoot . '/.agent-loop/.gitignore');
+        self::assertDirectoryDoesNotExist($this->projectRoot . '/.agent-loop/tasks');
+    }
+
     /** @param list<string> $args */
     private function scaffold(array $args): int
     {
