@@ -8,6 +8,7 @@ use PDO;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\GitWorkTree;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
@@ -506,6 +507,67 @@ CARD,
             self::assertSame(0, $exitExplicit);
             $contractExplicit = (new TaskContractStore($root))->load('TASK-GIT-2');
             self::assertSame('explicit-sha-1234', $contractExplicit->baseCommit);
+
+            // The real consumer failure: a planned, tracked file is deleted.
+            // It must remain verifiable without revising the Contract to add a base commit.
+            unlink($root . '/src/Foo.php');
+            $snapshot = ImplementationSnapshot::capture($root, $contract);
+            self::assertSame(['src/Foo.php'], $snapshot->deleted);
+            self::assertSame([], $snapshot->files);
+            self::assertSame(1, (new TaskContractStore($root))->load('TASK-GIT-1')->revision);
+
+            // A legacy approved Contract without a base commit also acquires an
+            // anchor during explicit supersession, never by silently reapproving.
+            $store = new TaskContractStore($root);
+            $legacy = $store->create('TASK-GIT-LEGACY', 'Original intent.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'planner');
+            self::assertNull($legacy->baseCommit);
+            $store->approve('TASK-GIT-LEGACY', 'reviewer', $legacy->revision);
+
+            ob_start();
+            $supersedeExit = (new WorkflowPlanCommand($root))->run([
+                'TASK-GIT-LEGACY',
+                '--by', 'planner',
+                '--supersede',
+                '--file', 'src/Foo.php',
+                '--goal', 'Original intent.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $supersedeExit);
+            $superseded = $store->load('TASK-GIT-LEGACY');
+            self::assertSame(2, $superseded->revision);
+            self::assertSame(TaskContract::CANDIDATE, $superseded->status);
+            self::assertSame($head, $superseded->baseCommit);
+            self::assertNull($superseded->approvedBy);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testPlanWithoutGitPreservesNullBaseCommit(): void
+    {
+        $root = $this->root('plan-no-git');
+
+        try {
+            self::assertNull(GitWorkTree::headCommit($root));
+
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'TASK-NON-GIT-1',
+                '--by', 'planner',
+                '--file', 'src/Foo.php',
+                '--goal', 'Plan safely outside a Git worktree.',
+                '--validation', 'vendor/bin/phpunit',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            self::assertNull(GitWorkTree::headCommit($root));
+            $contract = (new TaskContractStore($root))->load('TASK-NON-GIT-1');
+            self::assertSame(TaskContract::CANDIDATE, $contract->status);
+            self::assertNull($contract->baseCommit);
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
