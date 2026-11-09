@@ -13,6 +13,7 @@ final readonly class StageExecutionBundle
      * @param list<non-empty-string> $requiredValidation
      * @param list<StageOutcome> $acceptedOutcomes
      * @param array{path: non-empty-string, sha256: non-empty-string}|null $executionContractSource
+     * @param list<string> $expectedArtifacts
      */
     public function __construct(
         public string $taskId,
@@ -39,6 +40,7 @@ final readonly class StageExecutionBundle
         public ?array $executionContractSource = null,
         public ExecutionContextPolicy $contextPolicy = ExecutionContextPolicy::REUSE_ALLOWED,
         public bool $contextIdRequired = false,
+        public array $expectedArtifacts = [],
     ) {
     }
 }
