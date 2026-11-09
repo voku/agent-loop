@@ -111,6 +111,110 @@ final class WorkflowPlanSupersedeTest extends TestCase
         self::assertNull((new TaskContractStore($this->root))->find('SUPERSEDE-1'));
     }
 
+    public function testScopeOnlySupersessionPreservesApprovedIntentAndStillRequiresHumanApproval(): void
+    {
+        $contracts = $this->approvedContract();
+        $sessions = new SessionStore();
+        $session = $sessions->create((new ProjectLayout($this->root))->sessionsRoot(), 'SUPERSEDE-1', by: 'agent');
+
+        ob_start();
+        try {
+            $exit = (new WorkflowPlanCommand($this->root))->run([
+                'SUPERSEDE-1', '--by', 'planner', '--supersede',
+                '--add-scope', 'tests/FooTest.php',
+                '--add-scope', 'src/Helpers.php',
+                '--format=json',
+            ]);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $exit);
+        self::assertSame(SessionStatus::DROPPED, $sessions->load(dirname($session->path), $session->id)->status);
+
+        $candidate = $contracts->load('SUPERSEDE-1');
+        self::assertSame(2, $candidate->revision);
+        self::assertSame(TaskContract::CANDIDATE, $candidate->status);
+        self::assertSame(['src/Foo.php', 'tests/FooTest.php', 'src/Helpers.php'], $candidate->scope);
+        self::assertSame('Original approved intent.', $candidate->goal);
+        self::assertSame(['composer ci'], $candidate->validation);
+        self::assertSame(['Do not remove the selected policy.'], $candidate->nonGoals);
+        self::assertSame('base-sha', $candidate->baseCommit);
+        self::assertSame(['risk:high'], $candidate->tags);
+        self::assertSame(['Parser::parse'], $candidate->behaviorAnchors);
+        self::assertSame('skills/operational-prompting/operating-prompts.json', $candidate->operatingPromptManifest);
+        self::assertSame([['id' => 'coverage-mutation', 'arguments' => ['minimum_percentage_points' => 10]]], $candidate->operatingPrompts);
+        self::assertSame(['Preserve the selected L2 policy.'], $candidate->acceptanceCriteria);
+        self::assertNull($candidate->approvedBy);
+        self::assertNull($candidate->approvedAt);
+
+        $result = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($result);
+        self::assertSame('superseded', $result['action']);
+        self::assertSame('decision_required', $result['next_action_kind']);
+        self::assertSame('agent-loop workflow approve SUPERSEDE-1 --revision 2 --by <named-actor>', $result['next_action']);
+    }
+
+    public function testScopeOnlyNoopRefusesToReviseOrDropActiveSession(): void
+    {
+        $contracts = $this->approvedContract();
+        $sessions = new SessionStore();
+        $session = $sessions->create((new ProjectLayout($this->root))->sessionsRoot(), 'SUPERSEDE-1', by: 'agent');
+
+        ob_start();
+        try {
+            $exit = (new WorkflowPlanCommand($this->root))->run([
+                'SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'src/Foo.php',
+            ]);
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit);
+        self::assertSame(SessionStatus::ACTIVE, $sessions->load(dirname($session->path), $session->id)->status);
+        self::assertSame(1, $contracts->load('SUPERSEDE-1')->revision);
+        self::assertSame(TaskContract::APPROVED, $contracts->load('SUPERSEDE-1')->status);
+    }
+
+    public function testScopeOnlyRejectsMissingSupersedeMixedInputsAndTraversalWithoutRevising(): void
+    {
+        $contracts = $this->approvedContract();
+        $cases = [
+            ['SUPERSEDE-1', '--by', 'planner', '--add-scope', 'tests/FooTest.php'],
+            ['SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', '../private/secrets.php'],
+            ['SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'tests/FooTest.php', '--scope', 'src/'],
+            ['SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'tests/FooTest.php', '--goal', 'Different goal'],
+        ];
+
+        foreach ($cases as $args) {
+            ob_start();
+            try {
+                $exit = (new WorkflowPlanCommand($this->root))->run($args);
+            } finally {
+                ob_end_clean();
+            }
+            self::assertSame(1, $exit);
+            self::assertSame(1, $contracts->load('SUPERSEDE-1')->revision);
+            self::assertSame(TaskContract::APPROVED, $contracts->load('SUPERSEDE-1')->status);
+        }
+    }
+
+    public function testScopeOnlyCannotInventFirstContract(): void
+    {
+        ob_start();
+        try {
+            $exit = (new WorkflowPlanCommand($this->root))->run([
+                'SUPERSEDE-1', '--by', 'planner', '--supersede', '--add-scope', 'tests/FooTest.php',
+            ]);
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit);
+        self::assertNull((new TaskContractStore($this->root))->find('SUPERSEDE-1'));
+    }
+
     private function approvedContract(): TaskContractStore
     {
         $contracts = new TaskContractStore($this->root);
