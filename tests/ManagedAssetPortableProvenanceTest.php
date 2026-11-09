@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
@@ -16,6 +17,7 @@ use voku\AgentLoop\Init\ManagedAssetSource;
 
 /**
  * @internal
+ * @SuppressWarnings("PHPMD.StaticAccess")
  */
 final class ManagedAssetPortableProvenanceTest extends TestCase
 {
@@ -193,7 +195,7 @@ final class ManagedAssetPortableProvenanceTest extends TestCase
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
         self::assertNotFalse($written);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Sync manifest projection digests must use sha256: identities');
         InitSyncManifest::load($targetRoot, 'skills', 'claude');
     }
