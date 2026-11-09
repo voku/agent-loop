@@ -34,6 +34,8 @@ use voku\AgentLoop\Execution\StageResult;
  * - Fails closed if any changed candidate file is neither reviewed nor explicitly excluded.
  *
  * @internal
+ *
+ * @SuppressWarnings("PHPMD.CouplingBetweenObjects")
  */
 final class ExecutionArtifactCoverageTest extends TestCase
 {
