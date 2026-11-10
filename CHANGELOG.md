@@ -1,5 +1,21 @@
 ## Unreleased
 
+## [0.20.90] - 2026-11-10
+
+### Added
+
+- Default a new Contract's base commit to the current Git HEAD when omitted, while retaining the existing base across revisions (#1004).
+
+### Fixed
+
+- Include the complete approval subject immediately after PLAN and fail closed when it is missing or stale (#1003).
+- Allow explicitly superseding an approved Contract to add scope without restating unchanged intent (#1002).
+- Reject malformed managed-provenance SHA-256 digests during initialization (#938).
+
+### Dependencies
+
+- Update the agent-ui Docker consumer constraint to `^0.19.0` (#1006).
+
 ## [0.20.89] - 2026-11-09
 
 ### Added
