@@ -20,11 +20,41 @@ final class TaskAutonomyGrantTest extends TestCase
         $grant = TaskAutonomyGrant::request($contract, 'project-owner', $now, $now->modify('+2 hours'));
 
         foreach (TaskAutonomyGrant::OPERATIONS as $operation) {
-            self::assertTrue($grant->isEligibleFor($contract, $operation, $now));
+            self::assertTrue($grant->isEligibleFor(
+                $contract,
+                $operation,
+                $now,
+                in_array($operation, ['implement', 'repair'], true) ? ['src/NewFile.php'] : [],
+            ));
         }
 
         foreach (['acknowledge_review', 'approve_contract', 'resolve_attention', 'learn', 'merge', 'deploy', 'push', 'change_scope'] as $forbidden) {
             self::assertFalse($grant->isEligibleFor($contract, $forbidden, $now), $forbidden);
+        }
+    }
+
+    public function testMutationTargetsMustBeExplicitAndInsideApprovedScope(): void
+    {
+        $now = new DateTimeImmutable('2026-11-11T13:00:00+00:00');
+        $contract = self::contract();
+        $grant = TaskAutonomyGrant::request($contract, 'owner', $now, $now->modify('+1 hour'));
+
+        self::assertFalse($grant->isEligibleFor($contract, 'implement', $now));
+        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now, []));
+        self::assertTrue($grant->isEligibleFor($contract, 'implement', $now, ['src/NewFile.php']));
+        self::assertTrue($grant->isEligibleFor($contract, 'repair', $now, ['src/One.php', 'src/Two.php']));
+
+        foreach ([
+            ['src/Good.php', 'config/OutOfScope.php'],
+            ['src/../secrets.txt'],
+            ['/etc/passwd'],
+            ['src\\..\\secrets'],
+            ['src//ambiguous'],
+            [''],
+            ['src/./Ambiguous.php'],
+        ] as $targets) {
+            self::assertFalse($grant->isEligibleFor($contract, 'implement', $now, $targets));
+            self::assertFalse($grant->isEligibleFor($contract, 'repair', $now, $targets));
         }
     }
 
@@ -36,8 +66,8 @@ final class TaskAutonomyGrantTest extends TestCase
 
         self::assertFalse($grant->isEligibleFor(self::contract('TASK-B'), 'review', $now));
         self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', revision: 3), 'repair', $now));
-        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', scope: ['src', 'config']), 'implement', $now));
-        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', status: TaskContract::CANDIDATE), 'implement', $now));
+        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', scope: ['src', 'config']), 'implement', $now, ['src/Foo.php']));
+        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', status: TaskContract::CANDIDATE), 'implement', $now, ['src/Foo.php']));
         self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', approvedBy: 'standing:forged'), 'review', $now));
         self::assertTrue($grant->isEligibleFor($original, 'review', $now));
     }
@@ -48,10 +78,10 @@ final class TaskAutonomyGrantTest extends TestCase
         $contract = self::contract();
         $grant = TaskAutonomyGrant::request($contract, 'owner', $now, $now->modify('+1 hour'));
 
-        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('-1 second')));
-        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('+1 hour')));
-        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('+2 hours')));
-        self::assertFalse($grant->revoke($now->modify('+10 minutes'))->isEligibleFor($contract, 'repair', $now->modify('+11 minutes')));
+        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('-1 second'), ['src/Foo.php']));
+        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('+1 hour'), ['src/Foo.php']));
+        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('+2 hours'), ['src/Foo.php']));
+        self::assertFalse($grant->revoke($now->modify('+10 minutes'))->isEligibleFor($contract, 'repair', $now->modify('+11 minutes'), ['src/Foo.php']));
     }
 
     public function testMissingHumanApprovalIsNotAGrant(): void
