@@ -68,6 +68,15 @@ final class TaskAutonomyGrantTest extends TestCase
         );
     }
 
+    public function testRequestCannotPredateRecordedHumanApproval(): void
+    {
+        $now = new DateTimeImmutable('2026-11-11T12:09:00+00:00');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('cannot predate');
+
+        TaskAutonomyGrant::request(self::contract(), 'owner', $now, $now->modify('+1 hour'));
+    }
+
     public function testRejectsUnboundedGrantAndReservedActor(): void
     {
         $now = new DateTimeImmutable('2026-11-11T13:00:00+00:00');
