@@ -20,11 +20,11 @@ final class TaskAutonomyGrantTest extends TestCase
         $grant = TaskAutonomyGrant::request($contract, 'project-owner', $now, $now->modify('+2 hours'));
 
         foreach (TaskAutonomyGrant::OPERATIONS as $operation) {
-            self::assertTrue($grant->permits($contract, $operation, $now));
+            self::assertTrue($grant->isEligibleFor($contract, $operation, $now));
         }
 
         foreach (['acknowledge_review', 'approve_contract', 'resolve_attention', 'learn', 'merge', 'deploy', 'push', 'change_scope'] as $forbidden) {
-            self::assertFalse($grant->permits($contract, $forbidden, $now), $forbidden);
+            self::assertFalse($grant->isEligibleFor($contract, $forbidden, $now), $forbidden);
         }
     }
 
@@ -34,12 +34,12 @@ final class TaskAutonomyGrantTest extends TestCase
         $original = self::contract();
         $grant = TaskAutonomyGrant::request($original, 'owner', $now, $now->modify('+1 hour'));
 
-        self::assertFalse($grant->permits(self::contract('TASK-B'), 'review', $now));
-        self::assertFalse($grant->permits(self::contract('TASK-A', revision: 3), 'repair', $now));
-        self::assertFalse($grant->permits(self::contract('TASK-A', scope: ['src', 'config']), 'implement', $now));
-        self::assertFalse($grant->permits(self::contract('TASK-A', status: TaskContract::CANDIDATE), 'implement', $now));
-        self::assertFalse($grant->permits(self::contract('TASK-A', approvedBy: 'standing:forged'), 'review', $now));
-        self::assertTrue($grant->permits($original, 'review', $now));
+        self::assertFalse($grant->isEligibleFor(self::contract('TASK-B'), 'review', $now));
+        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', revision: 3), 'repair', $now));
+        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', scope: ['src', 'config']), 'implement', $now));
+        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', status: TaskContract::CANDIDATE), 'implement', $now));
+        self::assertFalse($grant->isEligibleFor(self::contract('TASK-A', approvedBy: 'standing:forged'), 'review', $now));
+        self::assertTrue($grant->isEligibleFor($original, 'review', $now));
     }
 
     public function testExpiryAndRevocationFailClosed(): void
@@ -48,10 +48,10 @@ final class TaskAutonomyGrantTest extends TestCase
         $contract = self::contract();
         $grant = TaskAutonomyGrant::request($contract, 'owner', $now, $now->modify('+1 hour'));
 
-        self::assertFalse($grant->permits($contract, 'repair', $now->modify('-1 second')));
-        self::assertFalse($grant->permits($contract, 'repair', $now->modify('+1 hour')));
-        self::assertFalse($grant->permits($contract, 'repair', $now->modify('+2 hours')));
-        self::assertFalse($grant->revoke($now->modify('+10 minutes'))->permits($contract, 'repair', $now->modify('+11 minutes')));
+        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('-1 second')));
+        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('+1 hour')));
+        self::assertFalse($grant->isEligibleFor($contract, 'repair', $now->modify('+2 hours')));
+        self::assertFalse($grant->revoke($now->modify('+10 minutes'))->isEligibleFor($contract, 'repair', $now->modify('+11 minutes')));
     }
 
     public function testMissingHumanApprovalIsNotAGrant(): void
