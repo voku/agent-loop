@@ -537,8 +537,12 @@ final readonly class ExecutionGateway
             || $resolution->runId !== $run->runId
             || $resolution->contractRevision !== $contract->revision
             || !hash_equals($resolution->executionPlanDigest, $plan->digest())
-            || $resolution->stageId !== $stageId
-            || $resolution->attempt + 1 !== $projection->currentAttempt)) {
+            // The resolution resumed either its own stage (next attempt; also the
+            // raising review's next attempt after a routed rework) or, for
+            // exhausted review rounds, exactly that review's changes route.
+            || ($resolution->stageId === $stageId
+                ? $resolution->attempt + 1 !== $projection->currentAttempt
+                : $plan->stage($resolution->stageId)->next(StageOutcome::CHANGES_REQUIRED) !== $stageId))) {
             throw new RuntimeException('ATTENTION_RESOLUTION_STALE: response does not match the current execution attempt.');
         }
 

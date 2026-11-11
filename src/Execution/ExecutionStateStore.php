@@ -88,9 +88,24 @@ final readonly class ExecutionStateStore
 
             $reviewRoundsExhausted = $result->outcome === StageOutcome::CHANGES_REQUIRED
                 && ($this->changesRequiredCount($history) + 1) % self::MAX_REVIEW_ROUNDS === 0;
+            $capHandoff = null;
             if ($reviewRoundsExhausted) {
                 // The cap cannot turn a stage-illegal outcome into durable Attention.
-                $stage->next($result->outcome);
+                $reworkStageId = $stage->next($result->outcome);
+                // Keep this review's findings as the handoff to its rework stage:
+                // once a human resolves the cap, that stage resumes with them.
+                $capHandoff = new HandoffEnvelope(
+                    $plan->taskId,
+                    $plan->runId,
+                    $plan->contractRevision,
+                    $stage->id,
+                    $reworkStageId,
+                    $result->candidateRevision,
+                    $plan->digest(),
+                    $result->artifactReferences,
+                    $result->validationReferences,
+                    $acceptedAt,
+                );
             }
             if ($reviewRoundsExhausted || in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
                 $attention = new AttentionRequest(
@@ -108,7 +123,7 @@ final readonly class ExecutionStateStore
                     $stage->id,
                     $acceptedAt,
                 );
-                $history[] = new AcceptedStageResult($result, null, $acceptedAt);
+                $history[] = new AcceptedStageResult($result, $capHandoff, $acceptedAt);
                 $next = new ExecutionState(
                     $state->taskId,
                     $state->runId,
@@ -152,6 +167,7 @@ final readonly class ExecutionStateStore
                 null,
                 $history,
                 $state->recoveryHistory,
+                $this->carriedAttentionId($plan, $state, $nextStageId),
             );
             $this->write($next);
 
@@ -290,13 +306,29 @@ final readonly class ExecutionStateStore
                 $state->currentAttempt,
             );
 
+            // A review that exhausted its rounds still requested changes. Once a
+            // human resolves that, the Run follows the review's own changes route
+            // (e.g. back to build) so a fix made after the Attention can become
+            // the next candidate; repeating the review would only re-judge the
+            // old one. Every other Attention resumes the stage that raised it.
+            $resumeStageId = $state->currentStageId;
+            $resumeAttempt = $state->currentAttempt + 1;
+            if ($state->attention->kind === AttentionKind::REVIEW_CHANGES_REQUIRED) {
+                $reworkStageId = $plan->stage($state->currentStageId)->next(StageOutcome::CHANGES_REQUIRED);
+                if ($reworkStageId === null) {
+                    throw new RuntimeException('Review stage ' . $state->currentStageId . ' has no changes-required route to resume.');
+                }
+                $resumeStageId = $reworkStageId;
+                $resumeAttempt = $this->attemptFor($reworkStageId, $state->history);
+            }
+
             $next = new ExecutionState(
                 $state->taskId,
                 $state->runId,
                 $state->contractRevision,
                 $state->executionPlanDigest,
-                $state->currentStageId,
-                $state->currentAttempt + 1,
+                $resumeStageId,
+                $resumeAttempt,
                 $state->candidateRevision,
                 null,
                 $state->history,
@@ -396,6 +428,24 @@ final readonly class ExecutionStateStore
         }
 
         return $accepted + 1;
+    }
+
+    /**
+     * A resolution routed away from the stage that raised it (a capped review
+     * resumed at build) is also meant for that stage's next attempt: the human
+     * may have accepted the review's request as out of scope. It is carried
+     * exactly once, from the rework stage back to the raising stage.
+     */
+    private function carriedAttentionId(ExecutionPlan $plan, ExecutionState $state, ?string $nextStageId): ?string
+    {
+        if ($state->lastAttentionId === null || $nextStageId === null || $state->currentStageId === null) {
+            return null;
+        }
+        $resolution = (new AttentionResolutionStore($this->rootPath))->load($plan->taskId, $state->lastAttentionId);
+
+        return $resolution->stageId === $nextStageId && $resolution->stageId !== $state->currentStageId
+            ? $state->lastAttentionId
+            : null;
     }
 
     /** @param list<AcceptedStageResult> $history */
