@@ -1,5 +1,16 @@
 ## Unreleased
 
+## [0.20.91] - 2026-11-11
+
+### Added
+
+- Typed human-decision API for agent-ui and the CLI (`WorkflowHumanDecisionService`):
+  - Reject a candidate Contract revision with actor and reason (`workflow reject`); a rejected revision never authorizes work and routes the task to a new revision.
+  - Approve/reject accept the reviewed repository HEAD and fail closed when it moved.
+  - `pendingAttention()` projects the reviewed Attention identity (Contract revision, scope, plan digest, attempt, candidate, HEAD); `attentionResolutions()` lists recorded resolutions.
+  - `resolveAttention()` records an optional human response (`workflow attention --response`) that reaches the resumed stage prompt, refuses stale reviewed state and reserved `standing:` actors, and completes an interrupted transition with the already recorded decision.
+  - `WorkflowHumanReviewCommand::render()` returns the non-authoritative human review HTML.
+
 ## [0.20.90] - 2026-11-10
 
 ### Added
