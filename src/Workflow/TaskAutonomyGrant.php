@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Workflow\Transparency\ApprovedScope;
 
 /**
  * An explicit, exact-Contract task-autonomy *request*, not proof of the
@@ -90,17 +91,52 @@ final readonly class TaskAutonomyGrant
     /**
      * Policy eligibility only: this is not proof of an authenticated grant.
      * Human-owned decisions, independent review and Learning are never covered.
+     *
+     * Mutating operations MUST name each actual repository-relative target.
+     * Candidate re-observation and authorization still belong to the owner.
+     *
+     * @param list<string> $targetPaths
      */
-    public function isEligibleFor(TaskContract $current, string $operation, DateTimeImmutable $now): bool
-    {
-        return in_array($operation, self::OPERATIONS, true)
-            && $this->revokedAt === null
-            && $now >= $this->issuedAt
-            && $now < $this->expiresAt
-            && $current->hasNonReservedApproval()
-            && $current->taskId === $this->taskId
-            && $current->revision === $this->contractRevision
-            && hash_equals($this->contractDigest, self::contractDigest($current));
+    public function isEligibleFor(
+        TaskContract $current,
+        string $operation,
+        DateTimeImmutable $now,
+        array $targetPaths = [],
+    ): bool {
+        if (!in_array($operation, self::OPERATIONS, true)
+            || $this->revokedAt !== null
+            || $now < $this->issuedAt
+            || $now >= $this->expiresAt
+            || !$current->hasNonReservedApproval()
+            || $current->taskId !== $this->taskId
+            || $current->revision !== $this->contractRevision
+            || !hash_equals($this->contractDigest, self::contractDigest($current))) {
+            return false;
+        }
+
+        if ($operation !== 'implement' && $operation !== 'repair') {
+            return true;
+        }
+
+        if ($targetPaths === []) {
+            return false;
+        }
+
+        $scope = ApprovedScope::fromContract($current);
+        foreach ($targetPaths as $path) {
+            if ($path === ''
+                || str_starts_with($path, '/')
+                || str_contains($path, '\\')
+                || str_contains($path, '//')
+                || preg_match('/[\\x00-\\x1f\\x7f]/', $path) === 1
+                || preg_match('~(?:\\A|/)\\.{1,2}(?:/|\\z)~D', $path) === 1
+                || preg_match('/\\A[A-Za-z]:/', $path) === 1
+                || !$scope->contains($path)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static function contractDigest(TaskContract $contract): string
