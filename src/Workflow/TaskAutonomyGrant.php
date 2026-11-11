@@ -37,7 +37,7 @@ final readonly class TaskAutonomyGrant
             throw new InvalidArgumentException('Task autonomy requires a named, non-reserved requester.');
         }
 
-        if ($expiresAt <= $issuedAt || $expiresAt > $issuedAt->modify('+24 hours')) {
+        if ($expiresAt <= $issuedAt || ($expiresAt->getTimestamp() - $issuedAt->getTimestamp()) > 86400) {
             throw new InvalidArgumentException('Task autonomy expiry must be after issuance and at most 24 hours later.');
         }
 
@@ -62,6 +62,10 @@ final readonly class TaskAutonomyGrant
         );
     }
 
+    /**
+     * Returns a locally revoked snapshot. Real revocation requires the future
+     * trusted owner store; an old object must never be treated as authority.
+     */
     public function revoke(DateTimeImmutable $now): self
     {
         if ($now < $this->issuedAt) {
@@ -79,7 +83,11 @@ final readonly class TaskAutonomyGrant
         );
     }
 
-    public function permits(TaskContract $current, string $operation, DateTimeImmutable $now): bool
+    /**
+     * Policy eligibility only: this is not proof of an authenticated grant.
+     * Human-owned decisions, independent review and Learning are never covered.
+     */
+    public function isEligibleFor(TaskContract $current, string $operation, DateTimeImmutable $now): bool
     {
         return in_array($operation, self::OPERATIONS, true)
             && $this->revokedAt === null
