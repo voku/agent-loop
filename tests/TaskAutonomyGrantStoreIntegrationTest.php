@@ -57,7 +57,7 @@ final class TaskAutonomyGrantStoreIntegrationTest extends TestCase
         $now = new DateTimeImmutable('now');
         $grant = TaskAutonomyGrant::request($approved, 'project-owner', $now, $now->modify('+30 minutes'));
 
-        self::assertTrue($grant->permits($contracts->load('WORK-1'), 'review', $now));
+        self::assertTrue($grant->isEligibleFor($contracts->load('WORK-1'), 'review', $now));
 
         $revised = $contracts->revise(
             'WORK-1',
@@ -68,11 +68,11 @@ final class TaskAutonomyGrantStoreIntegrationTest extends TestCase
             'planner',
         );
 
-        self::assertFalse($grant->permits($contracts->load('WORK-1'), 'implement', $now));
+        self::assertFalse($grant->isEligibleFor($contracts->load('WORK-1'), 'implement', $now));
         $contracts->approve('WORK-1', 'project-owner', $revised->revision);
-        self::assertFalse($grant->permits($contracts->load('WORK-1'), 'review', $now));
+        self::assertFalse($grant->isEligibleFor($contracts->load('WORK-1'), 'review', $now));
 
-        self::assertFalse($grant->permits($approved, 'learn', $now));
-        self::assertFalse($grant->permits($approved, 'acknowledge_review', $now));
+        self::assertFalse($grant->isEligibleFor($approved, 'learn', $now));
+        self::assertFalse($grant->isEligibleFor($approved, 'acknowledge_review', $now));
     }
 }
