@@ -52,6 +52,10 @@ final readonly class TaskAutonomyGrant
             throw new RuntimeException('Task autonomy requires a currently human-approved Contract.');
         }
 
+        if ($contract->approvedAt === null || $now < new DateTimeImmutable($contract->approvedAt)) {
+            throw new RuntimeException('Task autonomy cannot predate the recorded Contract approval.');
+        }
+
         return new self(
             $contract->taskId,
             $contract->revision,
