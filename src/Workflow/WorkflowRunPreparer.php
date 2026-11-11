@@ -182,6 +182,8 @@ final readonly class WorkflowRunPreparer
             $layout->recallDocumentManifests(),
             static fn (string $manifest): bool => $manifest !== '',
         ));
+        $kanbanSyncResult = (new KanbanLaneSynchronizer($this->rootPath))->synchronizeWorkStart($contract);
+        $kanbanWarning = $kanbanSyncResult?->warning;
         $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($contract->taskId);
 
         $mapIndex = null;
@@ -222,6 +224,7 @@ final readonly class WorkflowRunPreparer
             $preparedManifestPath,
             $compiledManifestPath,
             $searchWarning,
+            $kanbanWarning,
         );
     }
 

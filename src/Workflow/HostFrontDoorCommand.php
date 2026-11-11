@@ -174,10 +174,10 @@ final readonly class HostFrontDoorCommand
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $preparationFailure = null;
-        $preparationWarning = null;
+        $preparationResult = null;
         if ($this->needsPreparation($manifest)) {
             try {
-                $preparationWarning = $this->prepareApprovedRun($taskId->value);
+                $preparationResult = $this->prepareApprovedRun($taskId->value);
             } catch (Throwable $exception) {
                 if ($format !== 'json') {
                     throw $exception;
@@ -201,11 +201,21 @@ final readonly class HostFrontDoorCommand
         $discovery = $request !== null && $this->isPlanTemplate($policy)
             ? (new WorkflowPrePlanDiscoveryProjector($this->rootPath))->project($request)
             : null;
-        $warnings = $preparationWarning === null ? [] : [[
-            'code' => 'enter.ranked_search_unavailable',
-            'owner' => 'agent-map',
-            'message' => $preparationWarning,
-        ]];
+        $warnings = [];
+        if ($preparationResult?->searchWarning !== null) {
+            $warnings[] = [
+                'code' => 'enter.ranked_search_unavailable',
+                'owner' => 'agent-map',
+                'message' => $preparationResult->searchWarning,
+            ];
+        }
+        if ($preparationResult?->kanbanWarning !== null) {
+            $warnings[] = [
+                'code' => 'enter.kanban_sync_failed',
+                'owner' => 'agent-kanban',
+                'message' => $preparationResult->kanbanWarning,
+            ];
+        }
 
         $hookResults = [];
         if ($preparationFailure === null && $policy->mutationAllowed) {
@@ -713,7 +723,7 @@ final readonly class HostFrontDoorCommand
             || ($manifest->references['recall']['state'] ?? null) !== 'compiled';
     }
 
-    private function prepareApprovedRun(string $taskId): ?string
+    private function prepareApprovedRun(string $taskId): WorkflowRunPreparationResult
     {
         $contract = (new TaskContractStore($this->rootPath))->load($taskId);
         if ($contract->status !== TaskContract::APPROVED) {
@@ -726,7 +736,7 @@ final readonly class HostFrontDoorCommand
 
         $this->captureFastPathScopeBaseline($contract);
 
-        return $result->searchWarning;
+        return $result;
     }
 
     /** @return list<string> */
@@ -1319,15 +1329,25 @@ final readonly class HostFrontDoorCommand
             $actor,
         );
 
-        $preparationWarning = $this->prepareApprovedRun($taskId->value);
+        $preparationResult = $this->prepareApprovedRun($taskId->value);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
-        $warnings = $preparationWarning === null ? [] : [[
-            'code' => 'quick.ranked_search_unavailable',
-            'owner' => 'agent-map',
-            'message' => $preparationWarning,
-        ]];
+        $warnings = [];
+        if ($preparationResult->searchWarning !== null) {
+            $warnings[] = [
+                'code' => 'quick.ranked_search_unavailable',
+                'owner' => 'agent-map',
+                'message' => $preparationResult->searchWarning,
+            ];
+        }
+        if ($preparationResult->kanbanWarning !== null) {
+            $warnings[] = [
+                'code' => 'quick.kanban_sync_failed',
+                'owner' => 'agent-kanban',
+                'message' => $preparationResult->kanbanWarning,
+            ];
+        }
 
         $nextAction = 'Apply surgical edit within declared scope and run agent-loop finish ' . $taskId->value;
         $payload = [

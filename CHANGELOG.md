@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Added
+
+- Synchronize Kanban card lane with actual governed work start (`agent-loop enter` / `WorkflowRunPreparer::prepare`) via typed `voku/agent-kanban` API, safely handling intermediate topology (`BACKLOG -> READY -> DOING`), satisfying `taskBrief` from Contract goal when required, and guarding against claim conflicts and invalid transitions without halting workflow preparation (#1023).
+- Flag `board.backlog_with_governed_run` disagreement in RunManifestProjector when an approved governed Run is in progress while its associated Kanban card remains in `BACKLOG` (#1023).
+- Transition Kanban card to `DONE` upon workflow close when the board configuration supports a `DONE` lane (#1023).
+
 ## [0.20.92] - 2026-11-11
 
 ### Fixed
