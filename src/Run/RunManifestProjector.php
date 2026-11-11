@@ -419,6 +419,8 @@ final class RunManifestProjector
                         . 'Move the card to DOING or synchronize the board with agent-loop enter.',
                         $taskId,
                     ),
+                    'repair_action' => 'agent-loop enter ' . $taskId,
+                    'repair_invocation' => (new RunCommandInvocation('agent-loop', ['enter', $taskId]))->toArray(),
                 ];
             }
 

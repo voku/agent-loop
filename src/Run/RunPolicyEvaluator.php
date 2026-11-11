@@ -54,7 +54,7 @@ final readonly class RunPolicyEvaluator
         }
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
-            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+            static fn (array $d): bool => !in_array($d['code'], ['board.active_after_run_complete', 'board.backlog_with_governed_run'], true),
         ));
         if ($blockingDisagreements !== []) {
             return 'blocked';
@@ -111,7 +111,7 @@ final readonly class RunPolicyEvaluator
     {
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
-            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+            static fn (array $d): bool => !in_array($d['code'], ['board.active_after_run_complete', 'board.backlog_with_governed_run'], true),
         ));
         if ($state !== 'incomplete' || $mode !== 'governed' || $blockingDisagreements !== []) {
             return false;
@@ -152,7 +152,7 @@ final readonly class RunPolicyEvaluator
         // naming a command that cannot change anything.
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
-            fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete'
+            fn (array $d): bool => !in_array($d['code'], ['board.active_after_run_complete', 'board.backlog_with_governed_run'], true)
                 && !$this->isPendingSupersession($d, $references),
         ));
         if ($blockingDisagreements !== []) {
@@ -557,7 +557,7 @@ final readonly class RunPolicyEvaluator
         }
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
-            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+            static fn (array $d): bool => !in_array($d['code'], ['board.active_after_run_complete', 'board.backlog_with_governed_run'], true),
         ));
         if ($blockingDisagreements !== []) {
             return $blockingDisagreements;
