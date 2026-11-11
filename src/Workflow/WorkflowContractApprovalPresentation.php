@@ -14,6 +14,7 @@ final readonly class WorkflowContractApprovalPresentation
         public TaskContract $contract,
         public ?TaskContract $previousRevision,
         public string $action,
+        public ?string $headCommit = null,
     ) {
     }
 
@@ -22,6 +23,7 @@ final readonly class WorkflowContractApprovalPresentation
     {
         return [
             'contract_revision' => $this->contract->revision,
+            'head_commit' => $this->headCommit,
             'goal' => $this->contract->goal,
             'scope' => $this->contract->scope,
             'non_goals' => $this->contract->nonGoals,

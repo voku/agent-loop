@@ -6,6 +6,13 @@ namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
 use voku\AgentLearning\RunLearningDecision;
+use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionPlanStore;
+use voku\AgentLoop\Execution\ExecutionProjection;
+use voku\AgentLoop\Execution\ExecutionStateStore;
+use voku\AgentLoop\Execution\AttentionResolution;
+use voku\AgentLoop\Execution\AttentionResolutionStore;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -36,7 +43,7 @@ final readonly class WorkflowHumanDecisionService
         if ($contract->status === TaskContract::CANDIDATE) {
             return new WorkflowHumanDecisionProjection(
                 $task->value,
-                [WorkflowHumanDecisionProjection::APPROVE_CONTRACT],
+                [WorkflowHumanDecisionProjection::APPROVE_CONTRACT, WorkflowHumanDecisionProjection::REJECT_CONTRACT],
                 null,
             );
         }
@@ -70,14 +77,82 @@ final readonly class WorkflowHumanDecisionService
         return new WorkflowHumanDecisionProjection($task->value, [], null);
     }
 
-    public function approveContract(string $taskId, string $approvedBy, int $expectedRevision): TaskContract
+    public function approveContract(string $taskId, string $approvedBy, int $expectedRevision, ?string $expectedHead = null): TaskContract
     {
         $task = new WorkflowTaskId($taskId);
         if (!$this->availableActions($task->value)->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)) {
             throw new RuntimeException('Contract approval is not a currently available human action.');
         }
 
-        return (new TaskContractStore($this->rootPath))->approve($task->value, $approvedBy, $expectedRevision);
+        return (new TaskContractStore($this->rootPath))->approve($task->value, $approvedBy, $expectedRevision, $expectedHead);
+    }
+
+    public function rejectContract(string $taskId, string $rejectedBy, int $expectedRevision, string $reason, ?string $expectedHead = null): TaskContract
+    {
+        $task = new WorkflowTaskId($taskId);
+        if (!$this->availableActions($task->value)->allows(WorkflowHumanDecisionProjection::REJECT_CONTRACT)) {
+            throw new RuntimeException('Contract rejection is not a currently available human action.');
+        }
+
+        return (new TaskContractStore($this->rootPath))->reject($task->value, $rejectedBy, $expectedRevision, $reason, $expectedHead);
+    }
+
+    public function pendingAttention(string $taskId): ?WorkflowAttentionProjection
+    {
+        $task = new WorkflowTaskId($taskId);
+        $execution = (new ExecutionGateway($this->rootPath))->projection($task->value);
+        if ($execution->attention === null) {
+            return null;
+        }
+        $contract = (new TaskContractStore($this->rootPath))->load($task->value);
+        if ($contract->revision !== $execution->contractRevision) {
+            throw new RuntimeException('Attention Contract revision is no longer current.');
+        }
+
+        return new WorkflowAttentionProjection(
+            $execution->attention,
+            $execution->contractRevision,
+            $contract->scope,
+            $execution->executionPlanDigest,
+            $execution->currentAttempt,
+            $execution->candidateRevision,
+            GitWorkTree::headCommit($this->rootPath),
+        );
+    }
+
+    /** @return list<AttentionResolution> */
+    public function attentionResolutions(string $taskId): array
+    {
+        $task = new WorkflowTaskId($taskId);
+
+        return (new AttentionResolutionStore($this->rootPath))->listForTask($task->value);
+    }
+
+    public function resolveAttention(string $taskId, string $attentionId, string $actor, ?string $response = null, ?WorkflowAttentionProjection $reviewed = null): ExecutionProjection
+    {
+        $task = new WorkflowTaskId($taskId);
+        if (trim($actor) === '' || trim($attentionId) === '') {
+            throw new RuntimeException('Attention resolution requires an attention ID and human actor.');
+        }
+        if (str_starts_with(trim($actor), 'standing:')) {
+            throw new RuntimeException('The standing: actor prefix is reserved and cannot resolve human Attention.');
+        }
+
+        // Validate the current approved Run through the public execution boundary
+        // before recording the human action under the execution state lock.
+        $execution = (new ExecutionGateway($this->rootPath))->projection($task->value);
+        $revision = $reviewed !== null ? $reviewed->contractRevision : $execution->contractRevision;
+
+        return (new TaskContractStore($this->rootPath))->withApprovedRevision(
+            $task->value,
+            $revision,
+            function () use ($task, $attentionId, $actor, $response, $reviewed): ExecutionProjection {
+                (new ExecutionGateway($this->rootPath))->projection($task->value);
+                $plan = (new ExecutionPlanStore($this->rootPath))->load($task->value);
+
+                return (new ExecutionStateStore($this->rootPath))->resolveAttention($plan, $attentionId, $actor, $response, $reviewed);
+            },
+        );
     }
 
     public function acknowledgeReview(

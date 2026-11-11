@@ -23,6 +23,7 @@ final readonly class WorkflowCli
             'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($rest),
             'plan' => self::isHelpRequest($rest) ? $this->printHelp() : (new WorkflowPlanCommand($this->rootPath))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath))->run($rest),
+            'reject' => (new WorkflowRejectCommand($this->rootPath))->run($rest),
             'execution-profile' => (new WorkflowExecutionProfileCommand($this->rootPath))->run($rest),
             'attention' => (new WorkflowAttentionCommand($this->rootPath))->run($rest),
             'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
@@ -48,9 +49,10 @@ Usage:
   agent-loop workflow help
   agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] [--acceptance-observation <json> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>] [--supersede]
   agent-loop workflow plan <task-id> --by <actor> --supersede --add-scope <path> [--add-scope <path> ...] [--format=json]
-  agent-loop workflow approve <task-id> --revision <current-revision> --by <actor>
+  agent-loop workflow approve <task-id> --revision <current-revision> --by <actor> [--head <reviewed-commit>]
+  agent-loop workflow reject <task-id> --revision <current-revision> --by <actor> --reason <text> [--head <reviewed-commit>]
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]
-  agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor>
+  agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor> [--response <text>]
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
   agent-loop workflow status <task-id> [--format text|json|toon] [--expect blocked|experiment|incomplete|ready_to_close|complete|retired]

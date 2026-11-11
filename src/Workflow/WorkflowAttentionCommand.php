@@ -6,9 +6,6 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
-use voku\AgentLoop\Execution\AttentionResolutionStore;
-use voku\AgentLoop\Execution\ExecutionGateway;
-use voku\AgentLoop\Execution\ExecutionPlanStore;
 
 final readonly class WorkflowAttentionCommand
 {
@@ -24,9 +21,10 @@ final readonly class WorkflowAttentionCommand
             $tokens = array_slice($args, 1);
             $attentionId = null;
             $actor = null;
+            $response = null;
             for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
                 $token = $tokens[$i];
-                if (!in_array($token, ['--resolve', '--by'], true)) {
+                if (!in_array($token, ['--resolve', '--by', '--response'], true)) {
                     throw new InvalidArgumentException('Unknown option: ' . $token);
                 }
                 if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -38,28 +36,17 @@ final readonly class WorkflowAttentionCommand
                 }
                 if ($token === '--resolve') {
                     $attentionId = $value;
-                } else {
+                } elseif ($token === '--by') {
                     $actor = $value;
+                } else {
+                    $response = $value;
                 }
             }
             if ($attentionId === null || $actor === null) {
-                throw new InvalidArgumentException('Usage: workflow attention <task-id> --resolve <attention-id> --by <actor>.');
+                throw new InvalidArgumentException('Usage: workflow attention <task-id> --resolve <attention-id> --by <actor> [--response <text>].');
             }
 
-            $gateway = new ExecutionGateway($this->rootPath);
-            $projection = $gateway->projection($taskId);
-            $attention = $projection->attention;
-            if ($attention === null || $attention->id !== $attentionId) {
-                throw new InvalidArgumentException('No matching pending Attention exists for this execution.');
-            }
-            $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
-            (new AttentionResolutionStore($this->rootPath))->record(
-                $plan,
-                $attention,
-                $projection->currentAttempt,
-                $actor,
-            );
-            $resumed = $gateway->resolveAttention($taskId, $attentionId);
+            $resumed = (new WorkflowHumanDecisionService($this->rootPath))->resolveAttention($taskId, $attentionId, $actor, $response);
             echo sprintf(
                 "[OK] workflow attention: %s resolved by %s; stage %s attempt %d is current\n",
                 $attentionId,

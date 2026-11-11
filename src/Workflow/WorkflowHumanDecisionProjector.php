@@ -108,7 +108,7 @@ final readonly class WorkflowHumanDecisionProjector
             }
         }
 
-        return new WorkflowContractApprovalPresentation($contract, $previous, $nextAction);
+        return new WorkflowContractApprovalPresentation($contract, $previous, $nextAction, \voku\AgentLoop\GitWorkTree::headCommit($this->rootPath));
     }
 
     /** @return array<string, mixed> */

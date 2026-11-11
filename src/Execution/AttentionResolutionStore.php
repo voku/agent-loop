@@ -23,6 +23,7 @@ final readonly class AttentionResolutionStore
         AttentionRequest $attention,
         int $attempt,
         string $actor,
+        ?string $response = null,
     ): AttentionResolution {
         if ($attention->taskId !== $plan->taskId || $attention->runId !== $plan->runId || $attention->stageId === null) {
             throw new RuntimeException('ATTENTION_MISMATCH: Attention does not belong to the current governed execution.');
@@ -35,8 +36,13 @@ final readonly class AttentionResolutionStore
                 && $existing->contractRevision === $plan->contractRevision
                 && hash_equals($existing->executionPlanDigest, $plan->digest())
                 && $existing->stageId === $attention->stageId
-                && $existing->attempt === $attempt
-                && $existing->actor === trim($actor)) {
+                && $existing->attempt === $attempt) {
+                // The human decision for this exact attempt is already recorded,
+                // but execution did not resume (for example the process stopped
+                // between the record and the state write). That record is the
+                // authoritative decision: a retry completes the transition with
+                // it rather than overwriting it or failing for good. Callers read
+                // the applied actor and response from the returned record.
                 return $existing;
             }
 
@@ -53,6 +59,7 @@ final readonly class AttentionResolutionStore
             $attempt,
             $actor,
             (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
+            $response,
         );
         $directory = dirname($path);
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
@@ -86,9 +93,48 @@ final readonly class AttentionResolutionStore
         }
     }
 
-    private function load(string $taskId, string $attentionId): AttentionResolution
+    public function load(string $taskId, string $attentionId): AttentionResolution
     {
         $path = $this->path($taskId, $attentionId);
+        $resolution = $this->loadPath($path);
+        if ($resolution->taskId !== $taskId || $resolution->attentionId !== $attentionId) {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: resolution identity does not match its requested task and Attention.');
+        }
+
+        return $resolution;
+    }
+
+    /** @return list<AttentionResolution> */
+    public function listForTask(string $taskId): array
+    {
+        $layout = new ProjectLayout($this->rootPath);
+        $directory = $layout->executionAttentionResolutionsRoot($taskId);
+        if (!is_dir($directory)) {
+            return [];
+        }
+        $entries = scandir($directory);
+        if ($entries === false) {
+            throw new RuntimeException('Unable to list Attention resolutions.');
+        }
+        $resolutions = [];
+        foreach ($entries as $entry) {
+            if (preg_match('/^[a-f0-9]{64}\.json$/D', $entry) !== 1) {
+                continue;
+            }
+            $path = $layout->runChildFile($taskId, 'attention-resolutions/' . $entry);
+            $resolution = $this->loadPath($path);
+            if ($resolution->taskId !== $taskId || !hash_equals(substr($entry, 0, 64), hash('sha256', $resolution->attentionId))) {
+                throw new RuntimeException('ATTENTION_RESOLUTION_STALE: resolution identity does not match its task and path.');
+            }
+            $resolutions[] = $resolution;
+        }
+        usort($resolutions, static fn (AttentionResolution $left, AttentionResolution $right): int => strcmp($left->resolvedAt, $right->resolvedAt) ?: strcmp($left->attentionId, $right->attentionId));
+
+        return $resolutions;
+    }
+
+    private function loadPath(string $path): AttentionResolution
+    {
         if (!is_file($path)) {
             throw new RuntimeException('ATTENTION_RESOLUTION_REQUIRED: human-owned Attention has no authoritative resolution record.');
         }
@@ -109,6 +155,10 @@ final readonly class AttentionResolutionStore
         if (!is_int($revision) || $revision < 1 || !is_int($attempt) || $attempt < 1) {
             throw new RuntimeException('ATTENTION_RESOLUTION_STALE: invalid Attention resolution revision or attempt.');
         }
+        $response = $data['response'] ?? null;
+        if ($response !== null && !is_string($response)) {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: invalid Attention response.');
+        }
 
         return new AttentionResolution(
             ExecutionArtifactValue::string($data['attention_id'] ?? null, $path . '#attention_id'),
@@ -120,6 +170,7 @@ final readonly class AttentionResolutionStore
             $attempt,
             ExecutionArtifactValue::string($data['actor'] ?? null, $path . '#actor'),
             ExecutionArtifactValue::string($data['resolved_at'] ?? null, $path . '#resolved_at'),
+            $response,
         );
     }
 

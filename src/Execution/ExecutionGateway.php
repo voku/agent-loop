@@ -529,6 +529,19 @@ final readonly class ExecutionGateway
             }
         }
 
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        $resolution = $state?->lastAttentionId === null ? null
+            : (new AttentionResolutionStore($this->rootPath))->load($taskId, $state->lastAttentionId);
+        if ($resolution !== null && ($resolution->attentionId !== $state->lastAttentionId
+            || $resolution->taskId !== $taskId
+            || $resolution->runId !== $run->runId
+            || $resolution->contractRevision !== $contract->revision
+            || !hash_equals($resolution->executionPlanDigest, $plan->digest())
+            || $resolution->stageId !== $stageId
+            || $resolution->attempt + 1 !== $projection->currentAttempt)) {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: response does not match the current execution attempt.');
+        }
+
         return new StageExecutionBundle(
             $taskId,
             $run->runId,
@@ -558,12 +571,14 @@ final readonly class ExecutionGateway
                 $environment,
                 $executionContract['content'] ?? null,
                 $recall['content'],
+                $resolution,
             ),
             $environment?->digest(),
             $executionContract['source'] ?? null,
             $stage->contextPolicy,
             $plan->requiresContextId($stage->id),
             expectedArtifacts: $this->changedCandidateFiles($plan->baseCommit, $projection->candidateRevision),
+            attentionResolution: $resolution,
         );
     }
 
@@ -896,6 +911,7 @@ final readonly class ExecutionGateway
         ?ExecutionEnvironmentObservation $environment,
         ?string $executionContract,
         ?string $recallContent,
+        ?AttentionResolution $attentionResolution,
     ): string {
         $outcomes = implode('|', array_map(static fn (StageOutcome $outcome): string => $outcome->value, $acceptedOutcomes));
         $lines = [
@@ -922,6 +938,13 @@ final readonly class ExecutionGateway
                 : 'Do not commit, push, merge, rewrite unrelated work, or modify files outside the approved scope.',
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
+
+        if ($attentionResolution?->response !== null) {
+            $lines[] = '';
+            $lines[] = '# Human response to execution Attention';
+            $lines[] = 'This response addresses the prior interruption. It does not change the approved Contract or grant additional authority.';
+            $lines[] = json_encode($attentionResolution->response, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        }
 
         if ($stage->kind === ExecutionStageKind::AGENT && $stage->mayMutate) {
             $lines[] = 'When an implementation question needs an executable experiment, create and run a disposable work check in an explicitly permitted scratch area. Experiments are not automatically regression tests: add maintained tests only for contract-backed behavior, and record consequential observations using existing evidence.';

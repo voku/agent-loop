@@ -360,6 +360,13 @@ final readonly class RunPolicyEvaluator
                 true,
             );
         }
+        if ($this->referenceState($references, 'contract') === 'rejected') {
+            return $this->command(
+                'agent-loop',
+                ['workflow', 'plan', $taskId, '--supersede', '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'],
+                true,
+            );
+        }
         if ($this->referenceState($references, 'contract') !== 'approved') {
             $repair = $references['approval']['repair_action'] ?? null;
             if (is_string($repair) && $repair !== '') {

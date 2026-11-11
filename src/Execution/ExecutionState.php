@@ -28,6 +28,7 @@ final readonly class ExecutionState
         public ?AttentionRequest $attention,
         public array $history,
         public array $recoveryHistory = [],
+        public ?string $lastAttentionId = null,
     ) {
     }
 
@@ -47,6 +48,7 @@ final readonly class ExecutionState
             'attention' => $this->attention?->toArray(),
             'history' => array_map(static fn (AcceptedStageResult $result): array => $result->toArray(), $this->history),
             'recovery_history' => $this->recoveryHistory,
+            'last_attention_id' => $this->lastAttentionId,
         ];
     }
 }

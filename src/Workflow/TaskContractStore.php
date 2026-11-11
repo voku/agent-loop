@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\Execution\ExecutionProjection;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\ProjectLayout;
 
@@ -156,13 +157,36 @@ final class TaskContractStore
         });
     }
 
-    public function approve(string $taskId, string $by, int $expectedRevision): TaskContract
+    /**
+     * Keep a human action bound to the approved revision while it records its
+     * owner transition. Contract revisions use the same mutation lock.
+     *
+     * @param callable(TaskContract): ExecutionProjection $operation
+     */
+    public function withApprovedRevision(string $taskId, int $revision, callable $operation): ExecutionProjection
+    {
+        $handle = $this->acquireMutationLock($taskId);
+        try {
+            $contract = $this->load($taskId);
+            if ($contract->revision !== $revision || !$contract->hasNonReservedApproval()) {
+                throw new RuntimeException('ATTENTION_RESOLUTION_STALE: approved Contract revision changed.');
+            }
+
+            return $operation($contract);
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    public function approve(string $taskId, string $by, int $expectedRevision, ?string $expectedHead = null): TaskContract
     {
         if (str_starts_with(trim($by), 'standing:')) {
             throw new RuntimeException('The standing: actor prefix is reserved and cannot approve a Task Contract.');
         }
 
-        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision): TaskContract {
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $expectedHead): TaskContract {
+            $this->assertExpectedHead($expectedHead);
             $contract = $this->load($taskId);
             if ($expectedRevision !== $contract->revision) {
                 throw new RuntimeException(sprintf(
@@ -214,6 +238,59 @@ final class TaskContractStore
 
             return $approved;
         });
+    }
+
+    public function reject(string $taskId, string $by, int $expectedRevision, string $reason, ?string $expectedHead = null): TaskContract
+    {
+        $by = trim($by);
+        $reason = trim($reason);
+        if ($by === '' || str_starts_with($by, 'standing:') || $reason === '' || strlen($reason) > 4000) {
+            throw new RuntimeException('Contract rejection requires a named human actor and a reason of at most 4000 bytes.');
+        }
+
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $reason, $expectedHead): TaskContract {
+            $this->assertExpectedHead($expectedHead);
+            $contract = $this->load($taskId);
+            if ($contract->revision !== $expectedRevision || $contract->status !== TaskContract::CANDIDATE) {
+                throw new RuntimeException('Contract revision changed or is not awaiting a decision; reload before rejecting.');
+            }
+            $now = $this->now();
+            $rejected = new TaskContract(
+                $contract->taskId,
+                $contract->goal,
+                $contract->scope,
+                $contract->nonGoals,
+                $contract->validation,
+                TaskContract::REJECTED,
+                $contract->revision,
+                $contract->createdAt,
+                $now,
+                $contract->path,
+                $contract->plannedBy,
+                $contract->baseCommit,
+                $contract->tags,
+                $contract->behaviorAnchors,
+                $contract->operatingPromptManifest,
+                $contract->operatingPrompts,
+                null,
+                null,
+                $contract->acceptanceCriteria,
+                $contract->acceptanceObservations,
+                $by,
+                $now,
+                $reason,
+            );
+            $this->write($rejected);
+
+            return $rejected;
+        });
+    }
+
+    private function assertExpectedHead(?string $expectedHead): void
+    {
+        if ($expectedHead !== null && (preg_match('/^[a-f0-9]{40,64}$/D', $expectedHead) !== 1 || !hash_equals($expectedHead, \voku\AgentLoop\GitWorkTree::headCommit($this->rootPath) ?? ''))) {
+            throw new RuntimeException('Repository HEAD changed since the decision was reviewed.');
+        }
     }
 
     public function find(string $taskId): ?TaskContract
@@ -320,6 +397,9 @@ final class TaskContractStore
             $contract->approvedAt,
             $contract->acceptanceCriteria,
             $contract->acceptanceObservations,
+            $contract->rejectedBy,
+            $contract->rejectedAt,
+            $contract->rejectionReason,
         );
         $this->atomicWrite($superseded->path, CanonicalJson::pretty($superseded->toArray()));
     }
@@ -423,6 +503,18 @@ final class TaskContractStore
      */
     private function withMutationLock(string $taskId, Closure $operation): TaskContract
     {
+        $handle = $this->acquireMutationLock($taskId);
+        try {
+            return $operation();
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    /** @return resource */
+    private function acquireMutationLock(string $taskId): mixed
+    {
         $contractsRoot = (new ProjectLayout($this->rootPath))->contractsRoot();
         $this->makeDirectory($contractsRoot);
         $resolvedContractsRoot = realpath($contractsRoot);
@@ -452,12 +544,7 @@ final class TaskContractStore
             throw new RuntimeException('Unable to acquire Contract mutation lock: ' . $path);
         }
 
-        try {
-            return $operation();
-        } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
-        }
+        return $handle;
     }
 
     private function decode(string $json, string $path, string $expectedTaskId): TaskContract
@@ -475,7 +562,7 @@ final class TaskContractStore
             throw new RuntimeException('Contract task id does not match its requested task: ' . $path);
         }
         $status = $this->requiredString($data, 'status', $path);
-        if (!in_array($status, [TaskContract::CANDIDATE, TaskContract::APPROVED, TaskContract::SUPERSEDED], true)) {
+        if (!in_array($status, [TaskContract::CANDIDATE, TaskContract::APPROVED, TaskContract::REJECTED, TaskContract::SUPERSEDED], true)) {
             throw new RuntimeException('Unsupported Contract status in ' . $path . ': ' . $status);
         }
         $revision = $data['revision'] ?? null;
@@ -497,6 +584,15 @@ final class TaskContractStore
         }
         $approvedBy = $this->optionalStringField($data, 'approved_by', $path);
         $approvedAt = $this->optionalStringField($data, 'approved_at', $path);
+        $rejectedBy = $this->optionalStringField($data, 'rejected_by', $path);
+        $rejectedAt = $this->optionalStringField($data, 'rejected_at', $path);
+        $rejectionReason = $this->optionalStringField($data, 'rejection_reason', $path);
+        if ($status === TaskContract::REJECTED && ($rejectedBy === null || $rejectedAt === null || $rejectionReason === null || $approvedBy !== null || $approvedAt !== null || str_starts_with($rejectedBy, 'standing:'))) {
+            throw new RuntimeException('Rejected Contract has invalid rejection or approval metadata in ' . $path . '.');
+        }
+        if (in_array($status, [TaskContract::CANDIDATE, TaskContract::APPROVED], true) && ($rejectedBy !== null || $rejectedAt !== null || $rejectionReason !== null)) {
+            throw new RuntimeException('Contract contains stale rejection metadata in ' . $path . '.');
+        }
         if ($status === TaskContract::APPROVED && ($approvedBy === null || $approvedAt === null)) {
             throw new RuntimeException('Approved Contract is missing approval metadata in ' . $path . '.');
         }
@@ -536,6 +632,9 @@ final class TaskContractStore
             $approvedAt,
             $acceptanceCriteria,
             $acceptanceObservations,
+            $rejectedBy,
+            $rejectedAt,
+            $rejectionReason,
         );
     }
 

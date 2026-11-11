@@ -559,7 +559,7 @@ CARD,
             self::assertStringContainsString('vendor/bin/phpunit tests/ConsumerRequestTest.php', $output);
             self::assertStringContainsString('What approval authorizes:', $output);
             self::assertStringContainsString('Request changes:', $output);
-            self::assertStringContainsString('There is no separate rejection action;', $output);
+            self::assertStringContainsString('Reject: Record a rejection and reason.', $output);
 
             $subjectPosition = strpos($output, 'Decision required: Contract approval');
             $nextPosition = strpos($output, 'Next:');

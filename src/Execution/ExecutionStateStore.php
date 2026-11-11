@@ -9,6 +9,7 @@ use DateTimeInterface;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -253,7 +254,7 @@ final readonly class ExecutionStateStore
         }
     }
 
-    public function resolveAttention(ExecutionPlan $plan, string $attentionId): ExecutionProjection
+    public function resolveAttention(ExecutionPlan $plan, string $attentionId, ?string $actor = null, ?string $response = null, ?\voku\AgentLoop\Workflow\WorkflowAttentionProjection $reviewed = null): ExecutionProjection
     {
         $lock = $this->acquireLock($plan->taskId);
         try {
@@ -264,6 +265,24 @@ final readonly class ExecutionStateStore
             }
             if ($state->currentStageId === null) {
                 throw new RuntimeException('Completed execution cannot resolve stage Attention.');
+            }
+            if ($reviewed !== null && ($reviewed->attention->id !== $attentionId
+                || $reviewed->attention->runId !== $state->runId
+                || $reviewed->contractRevision !== $state->contractRevision
+                || !hash_equals($reviewed->executionPlanDigest, $state->executionPlanDigest)
+                || $reviewed->attempt !== $state->currentAttempt
+                || $reviewed->candidateRevision !== $state->candidateRevision
+                || $reviewed->headCommit !== GitWorkTree::headCommit($this->rootPath))) {
+                throw new RuntimeException('ATTENTION_RESOLUTION_STALE: reviewed execution state has changed.');
+            }
+            if ($actor !== null) {
+                (new AttentionResolutionStore($this->rootPath))->record(
+                    $plan,
+                    $state->attention,
+                    $state->currentAttempt,
+                    $actor,
+                    $response,
+                );
             }
             (new AttentionResolutionStore($this->rootPath))->assertCurrent(
                 $plan,
@@ -282,6 +301,7 @@ final readonly class ExecutionStateStore
                 null,
                 $state->history,
                 $state->recoveryHistory,
+                $attentionId,
             );
             $this->write($next);
 
@@ -479,6 +499,10 @@ final readonly class ExecutionStateStore
         if ($currentStageId !== null && (!is_string($currentStageId) || trim($currentStageId) === '')) {
             throw new RuntimeException('Execution state current_stage_id must be a non-empty string or null.');
         }
+        $lastAttentionId = $data['last_attention_id'] ?? null;
+        if ($lastAttentionId !== null && (!is_string($lastAttentionId) || trim($lastAttentionId) === '')) {
+            throw new RuntimeException('Execution state last_attention_id must be a non-empty string or null.');
+        }
 
         return new ExecutionState(
             $taskId,
@@ -491,6 +515,7 @@ final readonly class ExecutionStateStore
             $this->decodeAttention($data['attention'] ?? null, $path),
             $this->decodeHistory($data['history'] ?? null, $path),
             $this->decodeRecoveryHistory($data['recovery_history'] ?? [], $path),
+            $lastAttentionId,
         );
     }
 

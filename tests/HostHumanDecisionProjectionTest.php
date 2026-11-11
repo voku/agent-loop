@@ -130,7 +130,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
         self::assertStringContainsString('Abnahmekriterien:', $result['stdout']);
         self::assertStringContainsString('Mögliche Entscheidungen:', $result['stdout']);
         self::assertStringContainsString('Änderungen anfordern:', $result['stdout']);
-        self::assertStringContainsString('Es gibt keine separate Ablehnungsaktion', $result['stdout']);
+        self::assertStringContainsString('Ablehnen: Die Ablehnung mit Begründung festhalten.', $result['stdout']);
         self::assertStringContainsString('Freigabeaktion: agent-loop workflow approve DECISION-DE --revision 1 --by <named-actor>', $result['stdout']);
     }
 
