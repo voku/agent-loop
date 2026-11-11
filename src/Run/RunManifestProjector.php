@@ -403,6 +403,23 @@ final class RunManifestProjector
                         $card->lane->toString(),
                     ),
                 ];
+            } elseif (
+                $usesDefaultTopology
+                && $card->lane->toString() === 'BACKLOG'
+                && $contract !== null
+                && $contract->status === TaskContract::APPROVED
+                && $run !== null
+                && !$this->isRunComplete($taskId, $contract, $run, $session)
+            ) {
+                $disagreements[] = [
+                    'code' => 'board.backlog_with_governed_run',
+                    'owner' => 'agent-kanban',
+                    'message' => sprintf(
+                        'Default Kanban card %s is in BACKLOG while an approved governed Run is in progress. '
+                        . 'Move the card to DOING or synchronize the board with agent-loop enter.',
+                        $taskId,
+                    ),
+                ];
             }
 
             return [

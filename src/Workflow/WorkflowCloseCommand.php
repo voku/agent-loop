@@ -248,6 +248,8 @@ final readonly class WorkflowCloseCommand
                 (new SessionStore())->setStatus($session, SessionStatus::DONE);
             }
 
+            (new KanbanLaneSynchronizer($this->rootPath))->synchronizeWorkClose($taskId->value);
+
             $manifestPath = $this->refreshCompleteManifest($taskId->value);
 
             if ($options['format'] === 'json') {
