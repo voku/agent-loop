@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [0.20.92] - 2026-11-11
+
 ### Fixed
 
 - Resolving a `review_changes_required` Attention (review rounds exhausted) now resumes at the review stage's changes-required route, e.g. build, with its next attempt, so a fix made after the Attention becomes the next candidate instead of the old candidate being reviewed again. The capped review's findings are that stage's prior handoff, and the human response reaches both the resumed stage and the next attempt of the review (e.g. to accept a request as out of scope). Other Attention kinds still resume the stage that raised them.
