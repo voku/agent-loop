@@ -48,7 +48,7 @@ final class WorkflowKanbanLaneSynchronizerTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testSynchronizesBacklogToDoingOnWorkStart(): void
+    public function testSynchronizesBacklogToReadyOnWorkStart(): void
     {
         $cardFile = $this->root . '/.agent-loop/todo/cards/ABC-1.md';
         file_put_contents($cardFile, <<<'CARD'
@@ -83,13 +83,68 @@ CARD
         self::assertNotNull($result);
         self::assertTrue($result->mutated);
         self::assertSame('BACKLOG', $result->previousLane);
-        self::assertSame('DOING', $result->currentLane);
+        self::assertSame('READY', $result->currentLane);
         self::assertNull($result->warning);
 
         $cardContent = file_get_contents($cardFile);
         self::assertIsString($cardContent);
-        self::assertStringContainsString('- **Lane:** DOING', $cardContent);
+        self::assertStringContainsString('- **Lane:** READY', $cardContent);
         self::assertStringContainsString('Implement automated kanban sync', $cardContent);
+    }
+
+    public function testSynchronizesBacklogToDoingWhenDirectTransitionAllowed(): void
+    {
+        $customRoot = sys_get_temp_dir() . '/agent-loop-direct-doing-' . bin2hex(random_bytes(8));
+        mkdir($customRoot . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $customRoot . '/.agent-loop/todo/kanban.config.json',
+            json_encode([
+                'projectPrefix' => 'DIR',
+                'cardDirectory' => 'todo/cards',
+                'lanes' => ['BACKLOG', 'DOING'],
+                'transitions' => [
+                    'BACKLOG' => ['DOING'],
+                    'DOING' => ['BACKLOG'],
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+
+        $cardFile = $customRoot . '/.agent-loop/todo/cards/DIR-1.md';
+        file_put_contents($cardFile, <<<'CARD'
+# DIR-1: Direct move task
+
+- **Ticket:** DIR-1
+- **Lane:** BACKLOG
+- **Status:** To Do
+- **Summary:** Direct transition test
+CARD
+            . "\n");
+
+        $contract = new TaskContract(
+            taskId: 'DIR-1',
+            goal: 'Direct goal',
+            scope: [],
+            nonGoals: [],
+            validation: [],
+            status: TaskContract::APPROVED,
+            revision: 1,
+            createdAt: '2026-11-11T12:00:00Z',
+            updatedAt: '2026-11-11T12:00:00Z',
+            path: '.agent-loop/contracts/DIR-1/contract-1.json',
+            plannedBy: 'test-planner',
+            approvedBy: 'test-approver',
+            approvedAt: '2026-11-11T12:05:00Z',
+        );
+
+        $synchronizer = new KanbanLaneSynchronizer($customRoot);
+        $result = $synchronizer->synchronizeWorkStart($contract);
+
+        self::assertNotNull($result);
+        self::assertTrue($result->mutated);
+        self::assertSame('BACKLOG', $result->previousLane);
+        self::assertSame('DOING', $result->currentLane);
+
+        $this->removeDirectory($customRoot);
     }
 
     public function testIdempotentWhenAlreadyInDoing(): void
@@ -181,7 +236,7 @@ CARD
 # ABC-4: Claimed by another
 
 - **Ticket:** ABC-4
-- **Lane:** READY
+- **Lane:** BACKLOG
 - **Status:** Selected
 - **Claim:** other-agent|claimed=2026-11-11T12:00:00+00:00|expires=-|rev=0000000000000000000000000000000000000000000000000000000000000000
 
@@ -212,7 +267,7 @@ CARD
 
         self::assertNotNull($result);
         self::assertFalse($result->mutated);
-        self::assertSame('READY', $result->currentLane);
+        self::assertSame('BACKLOG', $result->currentLane);
         self::assertNotNull($result->warning);
         self::assertStringContainsString('is already claimed by "other-agent"', $result->warning);
     }
@@ -294,35 +349,6 @@ CARD
         $synchronizer = new KanbanLaneSynchronizer($this->root);
         $result = $synchronizer->synchronizeWorkStart($contract);
         self::assertNull($result);
-    }
-
-    public function testSynchronizeWorkCloseTransitionsToDone(): void
-    {
-        $cardFile = $this->root . '/.agent-loop/todo/cards/ABC-5.md';
-        file_put_contents($cardFile, <<<'CARD'
-# ABC-5: Finishing task
-
-- **Ticket:** ABC-5
-- **Lane:** DOING
-- **Status:** Selected
-
-## Agent Task Brief
-
-Finishing brief.
-CARD
-            . "\n");
-
-        $synchronizer = new KanbanLaneSynchronizer($this->root);
-        $result = $synchronizer->synchronizeWorkClose('ABC-5', actor: 'test-closer');
-
-        self::assertNotNull($result);
-        self::assertTrue($result->mutated);
-        self::assertSame('DOING', $result->previousLane);
-        self::assertSame('DONE', $result->currentLane);
-
-        $cardContent = file_get_contents($cardFile);
-        self::assertIsString($cardContent);
-        self::assertStringContainsString('- **Lane:** DONE', $cardContent);
     }
 
     private function removeDirectory(string $path): void

@@ -70,7 +70,7 @@ final readonly class KanbanLaneSynchronizer
             );
         }
 
-        if (in_array(strtoupper($currentLane->toString()), ['VERIFY', 'DONE', 'CLOSED', 'ARCHIVED'], true)) {
+        if (in_array(strtoupper($currentLane->toString()), ['READY', 'VERIFY', 'DONE', 'CLOSED', 'ARCHIVED'], true)) {
             return new KanbanLaneSyncResult(
                 taskId: $contract->taskId,
                 previousLane: $currentLane->toString(),
@@ -81,7 +81,18 @@ final readonly class KanbanLaneSynchronizer
         }
 
         $transitionPolicy = new TransitionPolicy($context->config);
-        $path = $this->findTransitionPath($transitionPolicy, $currentLane, $activeLane);
+        $targetLane = $activeLane;
+        if (!$transitionPolicy->canTransition($currentLane, $activeLane)) {
+            foreach (['READY', 'TODO', 'PLANNED'] as $candidate) {
+                $laneCandidate = Lane::fromString($candidate);
+                if ($context->config->supportsLane($laneCandidate) && $transitionPolicy->canTransition($currentLane, $laneCandidate)) {
+                    $targetLane = $laneCandidate;
+                    break;
+                }
+            }
+        }
+
+        $path = $this->findTransitionPath($transitionPolicy, $currentLane, $targetLane);
         if ($path === null) {
             return new KanbanLaneSyncResult(
                 taskId: $contract->taskId,
@@ -92,7 +103,7 @@ final readonly class KanbanLaneSynchronizer
                     'Card %s cannot transition from %s to %s: no permitted transition path in board configuration.',
                     $cardId,
                     $currentLane,
-                    $activeLane,
+                    $targetLane,
                 ),
                 newRevision: $currentRevision->toString(),
             );
@@ -192,95 +203,24 @@ final readonly class KanbanLaneSynchronizer
         }
     }
 
-    public function synchronizeWorkClose(string $taskId, ?string $actor = null): ?KanbanLaneSyncResult
-    {
-        $normalized = trim($taskId);
-        if (str_contains($normalized, "\0") || preg_match(self::CARD_ID_PATTERN, strtoupper($normalized)) !== 1) {
-            return null;
-        }
-
-        $cardId = CardId::fromString(strtoupper($normalized));
-        $context = $this->resolveBoardContext($cardId);
-        if ($context === null || !$context->repository->exists($cardId)) {
-            return null;
-        }
-
-        $doneLane = null;
-        foreach (['DONE', 'CLOSED'] as $candidate) {
-            if ($context->config->supportsLane(Lane::fromString($candidate))) {
-                $doneLane = Lane::fromString($candidate);
-                break;
-            }
-        }
-
-        if ($doneLane === null) {
-            return null;
-        }
-
-        $card = $context->repository->load($cardId);
-        $currentLane = $card->lane;
-        if ($currentLane->equals($doneLane)) {
-            return new KanbanLaneSyncResult(
-                taskId: $taskId,
-                previousLane: $currentLane->toString(),
-                currentLane: $doneLane->toString(),
-                mutated: false,
-                newRevision: $card->revision->toString(),
-            );
-        }
-
-        $transitionPolicy = new TransitionPolicy($context->config);
-        if (!$transitionPolicy->canTransition($currentLane, $doneLane)) {
-            return null;
-        }
-
-        $effectiveActor = $actor !== null && trim($actor) !== '' ? trim($actor) : 'agent-loop';
-
-        try {
-            $mutationService = new CardMutationService(
-                $context->rootPath,
-                $context->config,
-                $context->repository,
-                $transitionPolicy,
-            );
-
-            $result = $mutationService->move(
-                $cardId,
-                $doneLane,
-                actor: $effectiveActor,
-                expectedRevision: $card->revision,
-            );
-
-            return new KanbanLaneSyncResult(
-                taskId: $taskId,
-                previousLane: $currentLane->toString(),
-                currentLane: $result->card->lane->toString(),
-                mutated: true,
-                newRevision: $result->newRevision->toString(),
-            );
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
     private function resolveBoardContext(CardId $cardId): ?BoardContext
     {
-        try {
-            $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
-            $resolver = new BoardContextResolver();
-            $context = $resolver->resolveOptional($boardRoot);
-            if ($context === null) {
-                return null;
-            }
-
-            if ($context->config->projectPrefix !== $cardId->prefix) {
-                $context = $this->contextForPrefix($resolver->resolveAll($boardRoot), $cardId->prefix);
-            }
-
-            return $context;
-        } catch (Throwable) {
+        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
+        if (!is_dir($boardRoot)) {
             return null;
         }
+
+        $resolver = new BoardContextResolver();
+        $context = $resolver->resolveOptional($boardRoot);
+        if ($context === null) {
+            return null;
+        }
+
+        if ($context->config->projectPrefix !== $cardId->prefix) {
+            $context = $this->contextForPrefix($resolver->resolveAll($boardRoot), $cardId->prefix);
+        }
+
+        return $context;
     }
 
     /** @param array<string, BoardContext> $contexts */
