@@ -209,7 +209,22 @@ This is distinct from `workflow handoff`:
 
 `BLOCKED`, `NEEDS_CLARIFICATION`, or `FAILED` stage results do not advance the
 plan. They create typed pending Attention and leave the current stage bound to
-its current candidate. Resolving Attention starts a new attempt of that stage.
+its current candidate. Resolving such Attention starts a new attempt of that
+stage.
+
+A review that requests changes once too often (every `MAX_REVIEW_ROUNDS`-th
+`CHANGES_REQUIRED`) creates `review_changes_required` Attention instead of
+returning to build on its own. Resolving it follows the review's own
+changes-required route, normally build, with its next attempt, so a fix made
+after the Attention becomes the next candidate. The capped review's findings
+are that stage's prior handoff. The human response reaches the resumed stage
+and the next attempt of the review, so a human can also ask the reviewer to
+accept a request as out of scope.
+
+A candidate workspace may hold commits on top of the governed base: the
+candidate is the workspace's files laid over the base, so committed and
+uncommitted work are the same candidate. A HEAD that does not descend from the
+base is refused with `STALE_CANDIDATE`.
 
 An external runner may surface or request Attention, but it cannot resolve a
 human-owned decision by guessing.

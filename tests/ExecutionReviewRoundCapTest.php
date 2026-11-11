@@ -14,6 +14,7 @@ use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionService;
 use voku\AgentLoop\Workflow\WorkflowPipelineCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
@@ -120,11 +121,61 @@ final class ExecutionReviewRoundCapTest extends TestCase
         (new AttentionResolutionStore($this->root))->record($plan, $attention, $this->projection()->currentAttempt, 'lars');
         (new ExecutionGateway($this->root))->resolveAttention('SUB-1', $attention->id);
         self::assertNull($this->projection()->attention);
-        self::assertSame('review', $this->projection()->currentStageId);
+        // The review requested changes; once a human resolves the cap, the Run
+        // follows that request back to build instead of re-judging the old candidate.
+        self::assertSame('build', $this->projection()->currentStageId, 'After a human decision the Run must reach build to take the fix.');
+        self::assertSame(ExecutionStateStore::MAX_REVIEW_ROUNDS + 1, $this->projection()->currentAttempt);
 
-        [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review-after']);
+        // A fix made after the Attention becomes the next candidate.
+        file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$y = 2; }\n");
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after']);
         self::assertSame(0, $exit, (string) json_encode($payload));
-        self::assertSame('build', $this->projection()->currentStageId, 'After a human decision the Run must be able to reach build again.');
+        self::assertSame('review', $this->projection()->currentStageId);
+    }
+
+    public function testTheHumanResponseReachesTheBuildStageTheResolutionRoutesTo(): void
+    {
+        $this->changeWorkspace();
+        for ($round = 1; $round <= ExecutionStateStore::MAX_REVIEW_ROUNDS; ++$round) {
+            $this->buildAndRequestChanges($round);
+        }
+        $attention = $this->projection()->attention;
+        self::assertNotNull($attention);
+
+        $resumed = (new WorkflowHumanDecisionService($this->root))
+            ->resolveAttention('SUB-1', $attention->id, 'lars', 'Split Foo into two classes before the next review.');
+        self::assertSame('build', $resumed->currentStageId);
+
+        $gateway = new ExecutionGateway($this->root);
+        $bundle = $gateway->prepareStage('SUB-1', 'build');
+        self::assertSame('Split Foo into two classes before the next review.', $bundle->attentionResolution?->response);
+        self::assertStringContainsString('Split Foo into two classes before the next review.', $bundle->prompt);
+        // The capped review's own findings are the build's prior handoff, not an older round's.
+        self::assertNotNull($bundle->priorHandoff);
+        self::assertSame('review', $bundle->priorHandoff->fromStage);
+        self::assertSame($this->projection()->candidateRevision, $bundle->priorHandoff->candidateRevision);
+        self::assertSame(ExecutionStateStore::MAX_REVIEW_ROUNDS, $this->reviewHandoffCount());
+
+        // The same human decision also reaches the next review (e.g. "accept as out of scope"), once.
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after-cap']);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        $review = $gateway->prepareStage('SUB-1', 'review');
+        self::assertSame('Split Foo into two classes before the next review.', $review->attentionResolution?->response);
+        [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review-after-cap']);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        self::assertNull($gateway->prepareStage('SUB-1', 'build')->attentionResolution, 'The response is not carried beyond the next review.');
+    }
+
+    private function reviewHandoffCount(): int
+    {
+        $count = 0;
+        foreach ($this->projection()->handoffs as $handoff) {
+            if ($handoff->fromStage === 'review' && $handoff->toStage === 'build') {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 
     public function testTheCapRecursAfterAnotherSetOfRoundsAndNamesTheRealCount(): void
@@ -139,10 +190,10 @@ final class ExecutionReviewRoundCapTest extends TestCase
         (new AttentionResolutionStore($this->root))->record($plan, $attention, $this->projection()->currentAttempt, 'lars');
         (new ExecutionGateway($this->root))->resolveAttention('SUB-1', $attention->id);
 
-        // The resolved review runs again; its changes_required is round 4 and returns to build.
-        [$exit] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review-4']);
-        self::assertSame(0, $exit);
+        // The resolution routes to build; rounds 4 and 5 return to build, round 6 opens Attention again.
         self::assertSame('build', $this->projection()->currentStageId);
+        $this->buildAndRequestChanges(4);
+        self::assertNull($this->projection()->attention);
         $this->buildAndRequestChanges(5);
         self::assertNull($this->projection()->attention);
         $this->buildAndRequestChanges(6);
