@@ -522,6 +522,9 @@ final class RunManifestProjector
             'revision' => $contract->revision,
             'run_revision' => $run?->contractRevision,
             'goal' => $contract->goal,
+            'rejected_by' => $contract->rejectedBy,
+            'rejected_at' => $contract->rejectedAt,
+            'rejection_reason' => $contract->rejectionReason,
             'acceptance_criteria' => $contract->acceptanceCriteria,
             'source' => $this->artifact($contract->path),
         ];

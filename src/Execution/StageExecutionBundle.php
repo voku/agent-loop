@@ -41,6 +41,7 @@ final readonly class StageExecutionBundle
         public ExecutionContextPolicy $contextPolicy = ExecutionContextPolicy::REUSE_ALLOWED,
         public bool $contextIdRequired = false,
         public array $expectedArtifacts = [],
+        public ?AttentionResolution $attentionResolution = null,
     ) {
     }
 }

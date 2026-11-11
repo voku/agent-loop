@@ -128,7 +128,7 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertLessThan($nextOffset, $authorityOffset, $result['stdout']);
         self::assertLessThan($nextOffset, $goalOffset, $result['stdout']);
         self::assertStringContainsString('Request changes: Describe what must change.', $result['stdout']);
-        self::assertStringContainsString('There is no separate rejection action; the task stays blocked.', $result['stdout']);
+        self::assertStringContainsString('Reject: Record a rejection and reason.', $result['stdout']);
     }
 
     public function testEnterJsonRemainsOneDocumentWhileRecallIsPrepared(): void

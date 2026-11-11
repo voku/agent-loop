@@ -8,20 +8,23 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
-use voku\AgentLoop\Execution\AttentionResolutionStore;
 use voku\AgentLoop\Execution\ExecutionEvidenceClaim;
 use voku\AgentLoop\Execution\ExecutionEvidenceKind;
 use voku\AgentLoop\Execution\ExecutionEvidenceStore;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\AttentionResolutionStore;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionService;
+use voku\AgentLoop\Workflow\WorkflowAttentionProjection;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 final class GovernedExecutionProtocolTest extends TestCase
@@ -395,13 +398,169 @@ final class GovernedExecutionProtocolTest extends TestCase
             self::assertStringContainsString('ATTENTION_RESOLUTION_REQUIRED', $exception->getMessage());
         }
 
-        $plan = (new ExecutionPlanStore($this->root))->load('ABC-123');
-        (new AttentionResolutionStore($this->root))->record($plan, $attention, 1, 'lars');
-        $resumed = $gateway->resolveAttention('ABC-123', $attention->id);
+        $service = new WorkflowHumanDecisionService($this->root);
+        $reviewed = $service->pendingAttention('ABC-123');
+        self::assertNotNull($reviewed);
+        self::assertSame([WorkflowAttentionProjection::RESOLVE], $reviewed->actions);
+        self::assertSame($bundle->contractRevision, $reviewed->contractRevision);
+        self::assertSame($bundle->allowedScope, $reviewed->scope);
+        $stale = new WorkflowAttentionProjection(
+            $reviewed->attention,
+            $reviewed->contractRevision,
+            $reviewed->scope,
+            $reviewed->executionPlanDigest,
+            $reviewed->attempt + 1,
+            $reviewed->candidateRevision,
+            $reviewed->headCommit,
+        );
+        try {
+            $service->resolveAttention('ABC-123', $attention->id, 'lars', 'Use the public compatibility boundary.', $stale);
+            self::fail('A stale reviewed attempt must not resolve Attention.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('ATTENTION_RESOLUTION_STALE', $exception->getMessage());
+        }
+        $git = 'git -C ' . escapeshellarg($this->root);
+        exec("$git commit --allow-empty -qm changed-head", $output, $exit);
+        self::assertSame(0, $exit);
+        try {
+            $service->resolveAttention('ABC-123', $attention->id, 'lars', 'Use the public compatibility boundary.', $reviewed);
+            self::fail('A changed repository HEAD must not resolve the reviewed Attention.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('ATTENTION_RESOLUTION_STALE', $exception->getMessage());
+        }
+        exec("$git reset --soft " . escapeshellarg($this->baseCommit), $output, $exit);
+        self::assertSame(0, $exit);
+        $resumed = $service->resolveAttention('ABC-123', $attention->id, 'lars', 'Use the public compatibility boundary.', $reviewed);
+        $history = $service->attentionResolutions('ABC-123');
+        self::assertCount(1, $history);
+        self::assertSame($attention->id, $history[0]->attentionId);
+        self::assertSame('Use the public compatibility boundary.', $history[0]->response);
         self::assertNull($resumed->attention);
         self::assertSame('investigate', $resumed->currentStageId);
         self::assertSame(2, $resumed->currentAttempt);
         self::assertSame($this->baseCommit, $resumed->candidateRevision);
+        $nextBundle = $gateway->prepareStage('ABC-123', 'investigate');
+        self::assertSame('Use the public compatibility boundary.', $nextBundle->attentionResolution?->response);
+        self::assertStringContainsString('Use the public compatibility boundary.', $nextBundle->prompt);
+        try {
+            $service->resolveAttention('ABC-123', $attention->id, 'lars');
+            self::fail('A duplicate human resolution must not advance another attempt.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('No matching pending Attention', $exception->getMessage());
+        }
+        self::assertSame(2, $gateway->projection('ABC-123')->currentAttempt);
+    }
+
+    public function testInterruptedResolutionCompletesWithTheRecordedDecision(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+        $bundle = $gateway->prepareStage('ABC-123', 'investigate');
+        $waiting = $gateway->submitStageResult(new StageResult(
+            'submission:clarify-interrupted',
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            StageOutcome::NEEDS_CLARIFICATION,
+            $bundle->candidateRevision,
+            [],
+            [],
+            'Which compatibility boundary is authoritative?',
+        ));
+        $attention = $waiting->attention;
+        self::assertNotNull($attention);
+
+        // The record is written but the state transition never happened.
+        $plan = (new ExecutionPlanStore($this->root))->load('ABC-123');
+        (new AttentionResolutionStore($this->root))->record($plan, $attention, $waiting->currentAttempt, 'lars', 'Keep the public API.');
+        self::assertNotNull($gateway->projection('ABC-123')->attention);
+
+        // A retry with different input completes the interrupted transition
+        // with the decision already on record; it never overwrites it.
+        $service = new WorkflowHumanDecisionService($this->root);
+        $resumed = $service->resolveAttention('ABC-123', $attention->id, 'someone-else', 'Retyped response.');
+        self::assertNull($resumed->attention);
+        self::assertSame(2, $resumed->currentAttempt);
+        $history = $service->attentionResolutions('ABC-123');
+        self::assertCount(1, $history);
+        self::assertSame('lars', $history[0]->actor);
+        self::assertSame('Keep the public API.', $history[0]->response);
+        $nextBundle = $gateway->prepareStage('ABC-123', 'investigate');
+        self::assertSame('Keep the public API.', $nextBundle->attentionResolution?->response);
+    }
+
+    public function testCliResolutionSuppliesResponseToResumedStageAndRejectsReplay(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+        $bundle = $gateway->prepareStage('ABC-123', 'investigate');
+        $sessionId = (new GovernedRunStore($this->root))->find('ABC-123')?->sessionId;
+        $waiting = $gateway->submitStageResult(new StageResult(
+            'submission:cli-clarify',
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            StageOutcome::NEEDS_CLARIFICATION,
+            $bundle->candidateRevision,
+            [],
+            [],
+            'What should happen?',
+        ));
+        self::assertNotNull($waiting->attention);
+        $command = [PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', 'workflow', 'attention', 'ABC-123',
+            '--resolve', $waiting->attention->id, '--by', 'lars', '--response', 'Keep the original behavior.'];
+        $run = function () use ($command): int {
+            $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+            stream_get_contents($pipes[1]);
+            stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            return proc_close($process);
+        };
+        $processes = [];
+        foreach ([1, 2] as $_) {
+            $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+            $processes[] = [$process, $pipes];
+        }
+        $exits = [];
+        foreach ($processes as [$process, $pipes]) {
+            stream_get_contents($pipes[1]);
+            stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $exits[] = proc_close($process);
+        }
+        sort($exits);
+        self::assertSame([0, 1], $exits, 'Exactly one concurrent human resolution may succeed.');
+        $resumed = $gateway->prepareStage('ABC-123', 'investigate');
+        self::assertSame($bundle->runId, $resumed->runId);
+        self::assertNotNull($sessionId);
+        self::assertSame($sessionId, (new GovernedRunStore($this->root))->find('ABC-123')?->sessionId);
+        self::assertSame(2, $resumed->attempt);
+        self::assertSame('Keep the original behavior.', $resumed->attentionResolution?->response);
+        $stageCommand = [PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', 'pipeline', 'stage', 'ABC-123', '--format=json'];
+        $stageProcess = proc_open($stageCommand, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $stagePipes, $this->root);
+        self::assertIsResource($stageProcess);
+        fclose($stagePipes[0]);
+        $stageOutput = stream_get_contents($stagePipes[1]);
+        $stageError = stream_get_contents($stagePipes[2]);
+        fclose($stagePipes[1]);
+        fclose($stagePipes[2]);
+        self::assertSame(0, proc_close($stageProcess), is_string($stageError) ? $stageError : '');
+        self::assertIsString($stageOutput);
+        self::assertStringContainsString('Keep the original behavior.', $stageOutput);
+        self::assertSame(1, $run());
+        self::assertSame(2, $gateway->projection('ABC-123')->currentAttempt);
     }
 
     public function testExecutionProfileCannotChangeAfterRunExists(): void

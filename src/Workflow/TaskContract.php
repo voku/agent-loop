@@ -8,6 +8,7 @@ final readonly class TaskContract
 {
     public const string CANDIDATE = 'candidate';
     public const string APPROVED = 'approved';
+    public const string REJECTED = 'rejected';
     public const string SUPERSEDED = 'superseded';
 
     /**
@@ -43,6 +44,9 @@ final readonly class TaskContract
         public ?string $approvedAt = null,
         public array $acceptanceCriteria = [],
         public array $acceptanceObservations = [],
+        public ?string $rejectedBy = null,
+        public ?string $rejectedAt = null,
+        public ?string $rejectionReason = null,
     ) {
     }
 
@@ -112,6 +116,9 @@ final readonly class TaskContract
             'base_commit' => $this->baseCommit,
             'approved_by' => $this->approvedBy,
             'approved_at' => $this->approvedAt,
+            'rejected_by' => $this->rejectedBy,
+            'rejected_at' => $this->rejectedAt,
+            'rejection_reason' => $this->rejectionReason,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

@@ -63,8 +63,9 @@ final readonly class WorkflowHumanDecisionTextRenderer
             ? '  Änderungen anfordern: Beschreibe die nötigen Änderungen. Der Contract bleibt nicht freigegeben, bis eine neue Revision vorgelegt und ausdrücklich freigegeben wird.'
             : '  Request changes: Describe what must change. The Contract remains unapproved until a revised version is presented and explicitly approved.';
         $lines[] = $german
-            ? '  Ablehnen: Nicht freigeben. Es gibt keine separate Ablehnungsaktion; die Aufgabe bleibt blockiert.'
-            : '  Decline: Do not approve. There is no separate rejection action; the task stays blocked.';
+            ? '  Ablehnen: Die Ablehnung mit Begründung festhalten. Vor weiterer Arbeit ist eine neue Contract-Revision erforderlich.'
+            : '  Reject: Record a rejection and reason. A new Contract revision is required before work can proceed.';
+        $lines[] = '    agent-loop workflow reject ' . $contract->taskId . ' --revision ' . $contract->revision . ' --by <actor> --reason <reason>';
 
         return implode("\n", $lines) . "\n";
     }

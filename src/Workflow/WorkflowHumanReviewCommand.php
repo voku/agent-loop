@@ -29,19 +29,7 @@ final readonly class WorkflowHumanReviewCommand
                 throw new RuntimeException('workflow review accepts exactly one task id and no options.');
             }
 
-            $contract = (new TaskContractStore($this->rootPath))->find($taskId->value);
-            if ($contract === null) {
-                throw new RuntimeException('Cannot render human review without a durable Contract.');
-            }
-
-            $diff = (new HumanReviewDiffCollector($this->rootPath))->collect($contract);
-            $reportCommand = new WorkflowReportCommand($this->rootPath);
-            $report = $reportCommand->buildReport($taskId->value, $diff->changedFiles);
-            $review = self::reviewArray($report);
-            $findings = $this->findings($taskId->value, $review);
-
-            $html = HumanReviewHtmlRenderer::fromPackageResources()->render($report, $findings, $diff);
-            $this->assertReviewIdentityUnchanged($taskId->value, $review);
+            $html = $this->render($taskId->value);
 
             $path = $this->path($taskId->value);
             $directory = dirname($path);
@@ -62,6 +50,25 @@ final readonly class WorkflowHumanReviewCommand
 
             return 1;
         }
+    }
+
+    /** Render a disposable human view; the returned HTML is not decision authority. */
+    public function render(string $taskId): string
+    {
+        $task = new WorkflowTaskId($taskId);
+        $contract = (new TaskContractStore($this->rootPath))->find($task->value);
+        if ($contract === null) {
+            throw new RuntimeException('Cannot render human review without a durable Contract.');
+        }
+
+        $diff = (new HumanReviewDiffCollector($this->rootPath))->collect($contract);
+        $report = (new WorkflowReportCommand($this->rootPath))->buildReport($task->value, $diff->changedFiles);
+        $review = self::reviewArray($report);
+        $findings = $this->findings($task->value, $review);
+        $html = HumanReviewHtmlRenderer::fromPackageResources()->render($report, $findings, $diff);
+        $this->assertReviewIdentityUnchanged($task->value, $review);
+
+        return $html;
     }
 
     /**

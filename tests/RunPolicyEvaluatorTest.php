@@ -9,6 +9,28 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 final class RunPolicyEvaluatorTest extends TestCase
 {
+    public function testRejectedContractRoutesToRevisionWithoutMutationAuthority(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'ABC-123',
+            'planned',
+            $this->references(
+                contract: 'rejected',
+                approval: 'missing',
+                session: 'missing',
+                recall: 'missing',
+                executionContract: 'not_required',
+                verification: 'pending_close',
+                review: 'missing',
+                learning: 'unavailable',
+            ),
+            [],
+        );
+        self::assertFalse($policy->mutationAllowed);
+        self::assertStringContainsString('workflow plan ABC-123 --supersede', $policy->nextAction);
+        self::assertSame('command_template', $policy->nextActionKind);
+    }
+
     public function testMissingWorkflowPointsToPlanWithoutMutationAuthority(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(

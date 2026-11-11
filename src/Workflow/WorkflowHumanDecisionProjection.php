@@ -7,10 +7,11 @@ namespace voku\AgentLoop\Workflow;
 final readonly class WorkflowHumanDecisionProjection
 {
     public const string APPROVE_CONTRACT = 'approve_contract';
+    public const string REJECT_CONTRACT = 'reject_contract';
     public const string ACKNOWLEDGE_REVIEW = 'acknowledge_review';
     public const string RECORD_LEARNING = 'record_learning';
 
-    /** @param list<self::APPROVE_CONTRACT|self::ACKNOWLEDGE_REVIEW|self::RECORD_LEARNING> $actions */
+    /** @param list<self::APPROVE_CONTRACT|self::REJECT_CONTRACT|self::ACKNOWLEDGE_REVIEW|self::RECORD_LEARNING> $actions */
     public function __construct(
         public string $taskId,
         public array $actions,

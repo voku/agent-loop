@@ -1,0 +1,24 @@
+{
+    "id": "finding.2026-11-11.7066c9",
+    "task_id": "UI-483895334605852449",
+    "session": "2026-11-11-ui-483895334605852449-r4-e54c41e3",
+    "created_at": "2026-11-11T07:41:33+00:00",
+    "created_by": "claude-opus-5-5",
+    "scope": [
+        "src/Execution/",
+        "src/Run/"
+    ],
+    "observation": "In run r3 a blindspot-review returned changes_required after the review-round limit, raising a review_changes_required Attention. The fix was made in the workspace after the last build submission. Resolving the Attention resumed blindspot-review (not build); after its pass, verify refused with CANDIDATE_MISMATCH because the governed candidate was the earlier build tree. Submitting verify as failed raised a runner_failed Attention whose resolution would re-run verify against the same stale candidate. Separately, build submission refused with STALE_CANDIDATE once the work was committed, because the workspace HEAD must equal the governed base commit.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "agent-loop pipeline run returned CANDIDATE_MISMATCH (workspace tree f08c299b vs governed de79fc5c) after Attention attention:bd1aa30218239c6f resumed blindspot-review attempt 3; verify failed raised attention:7f5c9325f919886e; build submit after commit 74e3ad60 returned STALE_CANDIDATE (HEAD 74e3ad60 vs base f85fffed). Recovered via Contract revision 4 and a detached worktree at f85fffed."
+        }
+    ],
+    "hypothesis": "Attention resolution resumes the interrupted stage with attempt+1 and has no route back to build, so any candidate change after the last build cannot enter the governed candidate without a new Run.",
+    "validated_conclusion": "When a fix is needed after review rounds are exhausted, resolving the review Attention cannot carry the new candidate; recovery requires superseding the Contract to start a fresh Run, and build/verify must be submitted from a workspace whose HEAD is the governed base (e.g. a detached worktree with the diff applied uncommitted).",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
