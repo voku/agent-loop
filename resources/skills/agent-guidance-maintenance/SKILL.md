@@ -84,8 +84,9 @@ When reviewing upstream patterns (`docs/architecture/upstream-capability-matrix.
 
 ## Dogfood & Hard Constraints
 
-- **Trigger Anchor:** Behavior or guidance change -> run A/B dogfood with identical inputs before promoting.
-- Test one mechanism at a time. Record failures, not just the final passing state.
+- **Trigger Anchor:** Behavior or guidance changes -> verify the affected owner contract, code and tests first. Choose evidence for the actual claim; factual guidance repairs do not require an A/B experiment.
+- Claims of better agent decisions require relevant engineering tasks and independent outcome checks. Keep comparable inputs and report negative or unknown results; evaluate interacting mechanisms together when isolation would hide their effect. An irrelevant task cannot disprove a component's value.
+- For knowledge accumulated across tasks, track source-linked usage, correct decisions, drift and maintenance cost over time. Do not infer long-term benefit from a single prompt or task.
 - For bootstrap state tests, inject hostile free-form manifest content to verify projection boundaries.
 - When an invariant is statically verifiable, author a focused PHPStan rule or test fixture rather than prose advice.
 
