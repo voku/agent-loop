@@ -139,6 +139,7 @@ final class RunRetentionInventoryTest extends TestCase
         $runsRoot = (new ProjectLayout($this->root))->runsRoot();
         $this->writeText($runsRoot . '/ITP-' . chr(255) . '/run.json', '{}');
         $this->writeText($runsRoot . '/ITP-' . chr(254) . '/run.json', '{}');
+        $this->writeText($runsRoot . '/invalid-utf8-hex:invalid:4954502dff/run.json', '{}');
 
         ob_start();
         $exit = (new WorkflowCli($this->root))->run(['retention', 'report', '--format=json']);
@@ -146,9 +147,9 @@ final class RunRetentionInventoryTest extends TestCase
         /** @var array{records: list<array{path: string, task_id: string}>} $report */
         $report = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(0, $exit);
-        self::assertCount(2, $report['records']);
-        self::assertNotSame($report['records'][0]['path'], $report['records'][1]['path']);
-        self::assertNotSame($report['records'][0]['task_id'], $report['records'][1]['task_id']);
+        self::assertCount(3, $report['records']);
+        self::assertCount(3, array_unique(array_column($report['records'], 'path')));
+        self::assertCount(3, array_unique(array_column($report['records'], 'task_id')));
     }
 
     public function testCliReportsJsonAndNeverWritesArtifacts(): void

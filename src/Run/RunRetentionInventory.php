@@ -189,7 +189,16 @@ final readonly class RunRetentionInventory
     /** Preserve valid names unchanged; make invalid byte sequences uniquely printable. */
     private function safeName(string $name): string
     {
-        return preg_match('//u', $name) === 1 ? $name : 'invalid-utf8-hex:' . bin2hex($name);
+        $prefix = 'invalid-utf8-hex:';
+        if (preg_match('//u', $name) === 1 && !str_starts_with($name, $prefix)) {
+            return $name;
+        }
+
+        // Reserve the prefix for *both* encoded invalid names and literal names
+        // starting with it. The disjoint markers make the mapping injective.
+        $marker = preg_match('//u', $name) === 1 ? 'valid:' : 'invalid:';
+
+        return $prefix . $marker . bin2hex($name);
     }
 
     /** A persisted Run time must be absolute, strict RFC3339 and calendar-valid. */
