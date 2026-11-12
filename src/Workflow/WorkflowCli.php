@@ -31,6 +31,7 @@ final readonly class WorkflowCli
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
+            'retention' => (new WorkflowRetentionCommand($this->rootPath))->run($rest),
             'transparency' => (new WorkflowTransparencyCommand($this->rootPath))->run($rest),
             'review' => (new WorkflowHumanReviewCommand($this->rootPath))->run($rest),
             'reflect' => (new WorkflowReflectCommand($this->rootPath))->run($rest),
@@ -59,6 +60,7 @@ Usage:
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json]
   agent-loop workflow report <task-id> [--format text|json] [--changed-file <path> ...]
+  agent-loop workflow retention report [--older-than-days=90] [--format=text|json]
   agent-loop workflow transparency <task-id> [--format text|json]
   agent-loop workflow review <task-id>
   agent-loop workflow reflect <task-id> [--scope project|task]
@@ -77,6 +79,7 @@ Commands:
   manifest           Inspect or atomically persist the cross-package Run projection.
   context            Render bounded read-only context from the durable Contract and current owner artifacts.
   report             Show an auditable task/Run completion report.
+  retention          Read-only inventory of current and superseded Run evidence; never authorizes archival.
   transparency       Show the read-only task-transparency projection: approved boundary, Contract-based repository observation, implementation identity, context skipped/omitted facts and exact review findings, each labelled with its authority class.
   review             Write a self-contained human review workbench from the existing audit projection. The HTML is non-authoritative and cannot acknowledge a review.
   reflect            Emit a context-light future-work prompt; task scope requires ready_to_close or complete, project scope requires complete; never mutates workflow state.

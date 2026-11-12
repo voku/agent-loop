@@ -211,15 +211,23 @@ final readonly class ProjectLayout
         return $relative !== '' && !$this->hasSymlinkComponent($rawRunsRoot, $relative);
     }
 
-    /** Superseded governed Runs remain durable and addressable by their original task. */
-    public function runHistoryRoot(string $taskId): string
+    /** Owned root for all superseded governed Run histories. */
+    public function runsHistoryRoot(): string
     {
-        self::assertTaskId($taskId);
         $runsRoot = $this->runsRoot();
         $historyRoot = $this->stateDirectory('runs/.history');
         if (is_link($runsRoot) || is_link($historyRoot)) {
             throw new RuntimeException('Workflow run history path must not contain a symbolic link.');
         }
+
+        return $historyRoot;
+    }
+
+    /** Superseded governed Runs remain durable and addressable by their original task. */
+    public function runHistoryRoot(string $taskId): string
+    {
+        self::assertTaskId($taskId);
+        $this->runsHistoryRoot();
         $path = $this->stateDirectory('runs/.history/' . $taskId);
         if (is_link($path)) {
             throw new RuntimeException('Workflow task history directory must not be a symbolic link: ' . $taskId);
