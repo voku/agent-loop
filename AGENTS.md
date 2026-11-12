@@ -42,19 +42,7 @@ It deliberately composes narrower owners rather than absorbing them:
 
 For non-trivial engineering work, use `voku/agent-skills/engineering-codelight` as a compact reasoning lens inside the current Loop action. The canonical long-form reference lives in `voku/learnings/CODELIGHT_MANIFESTO.md`. Neither the manifesto nor the skill owns Loop lifecycle state, approvals, mutation authority, or required evidence.
 
-Use this mnemonic to orient attention, not as a second workflow:
-
-```text
-C  Context is a dependency
-O  Outcomes and constraints precede generation
-D  Decisions, dependencies, identity, and state must be explicit
-E  Evidence must be falsifiable and bound to exact state
-L  Learning must transfer and should become structure
-I  Intent and consequential authority remain human-owned
-G  Guardrails, provenance, boundaries, security, observability by default
-H  Humans and agents form a control loop; human attention is scarce
-T  Test, measure, review, and re-ground meaningful changes
-```
+Load the focused skill only when the task needs it; do not duplicate its general principles in this always-on router.
 
 When a repeated Codelight lesson can become a typed owner API, test, static-analysis rule, generated check, or other deterministic constraint, prefer that structure and remove duplicated prose instead of growing this file.
 
