@@ -142,28 +142,30 @@ final readonly class RunRetentionInventory
                 $reasons[] = 'missing_run_document';
             } else {
                 $status = 'invalid';
-                $data = $this->readJson($runFile);
-                if ($data === null) {
-                    $reasons[] = 'malformed_run_document';
-                } elseif (!$this->validRun($data, $taskId)) {
-                    $reasons[] = 'invalid_run_identity_or_schema';
-                } else {
-                    $status = 'valid';
-                    $runId = $data['run_id'];
-                    try {
-                        $date = new DateTimeImmutable($data['prepared_at']);
-                        $difference = $now->getTimestamp() - $date->getTimestamp();
-                        if ($difference < 0) {
-                            $reasons[] = 'future_preparation_time';
-                        } else {
-                            $ageDays = intdiv($difference, 86400);
+                try {
+                    $document = $this->readJson($runFile);
+                    if (!$this->validRun($document, $taskId)) {
+                        $reasons[] = 'invalid_run_identity_or_schema';
+                    } else {
+                        $status = 'valid';
+                        $runId = (string) $document['run_id'];
+                        try {
+                            $date = new DateTimeImmutable((string) $document['prepared_at']);
+                            $difference = $now->getTimestamp() - $date->getTimestamp();
+                            if ($difference < 0) {
+                                $reasons[] = 'future_preparation_time';
+                            } else {
+                                $ageDays = intdiv($difference, 86400);
+                            }
+                        } catch (Throwable) {
+                            $reasons[] = 'invalid_preparation_time';
                         }
-                    } catch (Throwable) {
-                        $reasons[] = 'invalid_preparation_time';
+                        if ($scope === 'history') {
+                            $this->inspectSupersession($directory, $taskId, $runId, $reasons);
+                        }
                     }
-                    if ($scope === 'history') {
-                        $this->inspectSupersession($directory, $taskId, $runId, $reasons);
-                    }
+                } catch (RuntimeException) {
+                    $reasons[] = 'malformed_run_document';
                 }
             }
         }
@@ -233,23 +235,27 @@ final readonly class RunRetentionInventory
         return [$files, $bytes];
     }
 
-    /** @return array<string, mixed>|null */
-    private function readJson(string $file): ?array
+    /** @return array<string, mixed> */
+    private function readJson(string $file): array
     {
         if (is_link($file) || !is_file($file) || !is_readable($file)) {
-            return null;
+            throw new RuntimeException('Run evidence is not a readable regular file: ' . $file);
         }
         $raw = file_get_contents($file);
         if ($raw === false) {
-            return null;
+            throw new RuntimeException('Cannot read Run evidence: ' . $file);
         }
         try {
-            $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            return null;
+            $document = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Invalid Run evidence JSON: ' . $file, 0, $exception);
         }
 
-        return is_array($data) && !array_is_list($data) ? $data : null;
+        if (!is_array($document) || array_is_list($document)) {
+            throw new RuntimeException('Run evidence must be a JSON object: ' . $file);
+        }
+
+        return $document;
     }
 
     /** @param array<string, mixed> $data */
@@ -281,14 +287,17 @@ final readonly class RunRetentionInventory
 
             return;
         }
-        $data = $this->readJson($file);
-        if ($data === null
-            || ($data['kind'] ?? null) !== 'governed_run_supersession'
-            || ($data['task_id'] ?? null) !== $taskId
-            || ($data['superseded_run_id'] ?? null) !== $runId
-            || !is_string($data['replacement_run_id'] ?? null)
-            || $data['replacement_run_id'] === ''
-        ) {
+        try {
+            $supersession = $this->readJson($file);
+            if (($supersession['kind'] ?? null) !== 'governed_run_supersession'
+                || ($supersession['task_id'] ?? null) !== $taskId
+                || ($supersession['superseded_run_id'] ?? null) !== $runId
+                || !is_string($supersession['replacement_run_id'] ?? null)
+                || $supersession['replacement_run_id'] === ''
+            ) {
+                $reasons[] = 'invalid_supersession_evidence';
+            }
+        } catch (RuntimeException) {
             $reasons[] = 'invalid_supersession_evidence';
         }
     }
