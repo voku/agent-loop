@@ -41,9 +41,9 @@ final class RunRetentionInventoryTest extends TestCase
     public function testCurrentAndHistoryAreReportedButNeverDeclaredEligible(): void
     {
         $layout = new ProjectLayout($this->root);
-        $this->writeJson($layout->runRoot('ITP-10') . '/run.json', $this->run('ITP-10', 'run:ITP-10:new'));
+        $this->writeJson($layout->runRoot('ITP-10') . '/run.json', $this->runDocument('ITP-10', 'run:ITP-10:new'));
         $history = $layout->runHistoryRoot('ITP-10') . '/old-run';
-        $this->writeJson($history . '/run.json', $this->run('ITP-10', 'run:ITP-10:old'));
+        $this->writeJson($history . '/run.json', $this->runDocument('ITP-10', 'run:ITP-10:old'));
         $this->writeJson($history . '/supersession.json', [
             'kind' => 'governed_run_supersession',
             'task_id' => 'ITP-10',
@@ -85,7 +85,7 @@ final class RunRetentionInventoryTest extends TestCase
     {
         $layout = new ProjectLayout($this->root);
         $history = $layout->runHistoryRoot('ITP-30') . '/old-run';
-        $this->writeJson($history . '/run.json', $this->run('WRONG-30', 'run:WRONG-30:old'));
+        $this->writeJson($history . '/run.json', $this->runDocument('WRONG-30', 'run:WRONG-30:old'));
         $external = $this->root . '/external.txt';
         $this->writeText($external, 'do-not-follow');
         self::assertTrue(symlink($external, $history . '/linked.txt'));
@@ -113,7 +113,7 @@ final class RunRetentionInventoryTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function run(string $taskId, string $runId): array
+    private function runDocument(string $taskId, string $runId): array
     {
         return [
             'schema_version' => '1.0', 'kind' => 'governed_run',
