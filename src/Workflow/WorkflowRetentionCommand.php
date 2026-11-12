@@ -64,16 +64,22 @@ final readonly class WorkflowRetentionCommand
             $totals = $report['totals'];
             printf(
                 "Governed Runs: %d current, %d historical; %d files, %d bytes.\n",
-                $totals['current'], $totals['history'], $totals['files'], $totals['bytes'],
+                $totals['current'],
+                $totals['history'],
+                $totals['files'],
+                $totals['bytes'],
             );
             printf(
                 "Age threshold: %d days; %d meet it. Age is not archival authorization.\n",
-                $days, $totals['age_threshold_met'],
+                $days,
+                $totals['age_threshold_met'],
             );
             foreach ($report['records'] as $record) {
                 printf(
                     "  %s [%s] %s: BLOCKED (%s)\n",
-                    $record['path'], $record['scope'], $record['run_document'],
+                    $record['path'],
+                    $record['scope'],
+                    $record['run_document'],
                     implode(', ', $record['reasons']),
                 );
             }
