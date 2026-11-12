@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Run;
 
 use DateTimeImmutable;
+use DateTimeInterface;
 use FilesystemIterator;
 use JsonException;
 use RecursiveDirectoryIterator;
@@ -52,14 +53,14 @@ final readonly class RunRetentionInventory
             }
             $directory = $runsRoot . '/' . $taskId;
             if (is_dir($directory) || is_link($directory)) {
-                $records[] = $this->inspectRun($directory, $taskId, $taskId, 'current', $minimumAgeDays, $now);
+                $records[] = $this->inspectRun($directory, $this->safeName($taskId), $this->safeName($taskId), 'current', $minimumAgeDays, $now);
             }
         }
 
         foreach ($this->entries($historyRoot) as $taskId) {
             $taskHistory = $historyRoot . '/' . $taskId;
             if (is_link($taskHistory)) {
-                $records[] = $this->inspectRun($taskHistory, '.history/' . $taskId, $taskId, 'history', $minimumAgeDays, $now);
+                $records[] = $this->inspectRun($taskHistory, '.history/' . $this->safeName($taskId), $this->safeName($taskId), 'history', $minimumAgeDays, $now);
 
                 continue;
             }
@@ -71,8 +72,8 @@ final readonly class RunRetentionInventory
                 if (is_dir($directory) || is_link($directory)) {
                     $records[] = $this->inspectRun(
                         $directory,
-                        '.history/' . $taskId . '/' . $runDirectoryName,
-                        $taskId,
+                        '.history/' . $this->safeName($taskId) . '/' . $this->safeName($runDirectoryName),
+                        $this->safeName($taskId),
                         'history',
                         $minimumAgeDays,
                         $now,
@@ -185,6 +186,25 @@ final readonly class RunRetentionInventory
         ];
     }
 
+    /** Preserve valid names unchanged; make invalid byte sequences uniquely printable. */
+    private function safeName(string $name): string
+    {
+        return preg_match('//u', $name) === 1 ? $name : 'invalid-utf8-hex:' . bin2hex($name);
+    }
+
+    /** A persisted Run time must be absolute, strict RFC3339 and calendar-valid. */
+    private function validTimestamp(string $timestamp): bool
+    {
+        if (preg_match('/\\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:Z|[+-][0-9]{2}:[0-9]{2})\\z/D', $timestamp) !== 1) {
+            return false;
+        }
+
+        $parsed = DateTimeImmutable::createFromFormat(DateTimeInterface::ATOM, $timestamp);
+        $errors = DateTimeImmutable::getLastErrors();
+
+        return $parsed !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0));
+    }
+
     /** @return list<string> */
     private function entries(string $directory): array
     {
@@ -269,7 +289,7 @@ final readonly class RunRetentionInventory
             && is_string($data['run_id'] ?? null) && $data['run_id'] !== ''
             && is_int($data['contract_revision'] ?? null) && $data['contract_revision'] > 0
             && is_string($data['session_id'] ?? null) && $data['session_id'] !== ''
-            && is_string($data['prepared_at'] ?? null) && $data['prepared_at'] !== ''
+            && is_string($data['prepared_at'] ?? null) && $this->validTimestamp($data['prepared_at'])
             && array_key_exists('learning_root', $data)
             && ($data['learning_root'] === null || (is_string($data['learning_root']) && $data['learning_root'] !== ''))
             && is_array($source)
@@ -289,7 +309,8 @@ final readonly class RunRetentionInventory
         }
         try {
             $supersession = $this->readJson($file);
-            if (($supersession['kind'] ?? null) !== 'governed_run_supersession'
+            if (($supersession['schema_version'] ?? null) !== '1.0'
+                || ($supersession['kind'] ?? null) !== 'governed_run_supersession'
                 || ($supersession['task_id'] ?? null) !== $taskId
                 || ($supersession['superseded_run_id'] ?? null) !== $runId
                 || !is_string($supersession['replacement_run_id'] ?? null)

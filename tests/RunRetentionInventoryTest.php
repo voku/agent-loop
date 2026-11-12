@@ -45,6 +45,7 @@ final class RunRetentionInventoryTest extends TestCase
         $history = $layout->runHistoryRoot('ITP-10') . '/old-run';
         $this->writeJson($history . '/run.json', $this->runDocument('ITP-10', 'run:ITP-10:old'));
         $this->writeJson($history . '/supersession.json', [
+            'schema_version' => '1.0',
             'kind' => 'governed_run_supersession',
             'task_id' => 'ITP-10',
             'superseded_run_id' => 'run:ITP-10:old',
@@ -95,6 +96,59 @@ final class RunRetentionInventoryTest extends TestCase
         self::assertContains('symlink_evidence', $report['records'][0]['reasons']);
         self::assertSame('blocked', $report['records'][0]['retention_decision']);
         self::assertSame('do-not-follow', file_get_contents($external));
+    }
+
+    public function testInvalidPreparationTimesAreRejected(): void
+    {
+        $layout = new ProjectLayout($this->root);
+        foreach (['yesterday', '2000-02-30T01:00:00+00:00', '2020-01-01T00:00:00'] as $i => $timestamp) {
+            $task = 'ITP-' . (50 + $i);
+            $document = $this->runDocument($task, 'run:' . $task . ':example');
+            $document['prepared_at'] = $timestamp;
+            $this->writeJson($layout->runRoot($task) . '/run.json', $document);
+        }
+
+        $report = (new RunRetentionInventory($this->root))->inspect();
+        self::assertCount(3, $report['records']);
+        foreach ($report['records'] as $record) {
+            self::assertSame('invalid', $record['run_document']);
+            self::assertContains('invalid_run_identity_or_schema', $record['reasons']);
+            self::assertSame('blocked', $record['retention_decision']);
+        }
+    }
+
+    public function testUnsupportedSupersessionSchemaIsRejected(): void
+    {
+        $layout = new ProjectLayout($this->root);
+        $history = $layout->runHistoryRoot('ITP-60') . '/old-run';
+        $this->writeJson($history . '/run.json', $this->runDocument('ITP-60', 'run:ITP-60:old'));
+        $this->writeJson($history . '/supersession.json', [
+            'schema_version' => '2.0',
+            'kind' => 'governed_run_supersession',
+            'task_id' => 'ITP-60',
+            'superseded_run_id' => 'run:ITP-60:old',
+            'replacement_run_id' => 'run:ITP-60:new',
+        ]);
+
+        $report = (new RunRetentionInventory($this->root))->inspect();
+        self::assertContains('invalid_supersession_evidence', $report['records'][0]['reasons']);
+    }
+
+    public function testInvalidUtf8NamesArePrintableWithoutDiscardingDistinctRuns(): void
+    {
+        $runsRoot = (new ProjectLayout($this->root))->runsRoot();
+        $this->writeText($runsRoot . '/ITP-' . chr(255) . '/run.json', '{}');
+        $this->writeText($runsRoot . '/ITP-' . chr(254) . '/run.json', '{}');
+
+        ob_start();
+        $exit = (new WorkflowCli($this->root))->run(['retention', 'report', '--format=json']);
+        $output = (string) ob_get_clean();
+        /** @var array{records: list<array{path: string, task_id: string}>} $report */
+        $report = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(0, $exit);
+        self::assertCount(2, $report['records']);
+        self::assertNotSame($report['records'][0]['path'], $report['records'][1]['path']);
+        self::assertNotSame($report['records'][0]['task_id'], $report['records'][1]['task_id']);
     }
 
     public function testCliReportsJsonAndNeverWritesArtifacts(): void

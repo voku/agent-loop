@@ -76,10 +76,13 @@ final readonly class WorkflowRetentionCommand
             );
             foreach ($report['records'] as $record) {
                 printf(
-                    "  %s [%s] %s: BLOCKED (%s)\n",
+                    "  %s [%s] %s: age=%s days files=%d bytes=%d BLOCKED (%s)\n",
                     $record['path'],
                     $record['scope'],
                     $record['run_document'],
+                    $record['age_days'] === null ? 'unknown' : (string) $record['age_days'],
+                    $record['file_count'],
+                    $record['bytes'],
                     implode(', ', $record['reasons']),
                 );
             }
