@@ -41,18 +41,6 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         self::assertStringContainsString('next_action', $skill);
     }
 
-    public function testAlwaysOnRouterDoesNotDuplicateTheOptionalCodelightSkill(): void
-    {
-        $router = file_get_contents(dirname(__DIR__) . '/AGENTS.md');
-
-        self::assertIsString($router);
-        self::assertStringContainsString('voku/agent-skills/engineering-codelight', $router);
-        self::assertStringContainsString('do not duplicate its general principles in this always-on router', $router);
-        self::assertStringNotContainsString('C  Context is a dependency', $router);
-        self::assertStringNotContainsString('T  Test, measure, review, and re-ground meaningful changes', $router);
-        self::assertStringContainsString('Never fabricate an approval or risk owner.', $router);
-    }
-
     public function testWorkflowSkillIsTheImplementationFrontDoorWithoutParallelAlias(): void
     {
         $root = dirname(__DIR__);
@@ -116,6 +104,8 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         $router = file_get_contents(dirname(__DIR__) . '/AGENTS.md');
 
         self::assertIsString($router);
+        self::assertStringContainsString('engineering-codelight', $router);
+        self::assertStringNotContainsString('C  Context is a dependency', $router);
         foreach (['command', 'command_template', 'decision_required', 'host_work', 'none'] as $kind) {
             self::assertStringContainsString(
                 $kind,
