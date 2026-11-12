@@ -61,6 +61,7 @@ final class TaskAutonomyGrantCertificateTest extends TestCase
             TaskAutonomyGrant::request(self::contract(), 'owner', $now, $now->modify('+1 hour')),
         )->toArray();
 
+        $rejected = 0;
         foreach ([
             ['expires_at' => 'tomorrow'],
             ['issued_at' => '2026-11-11T13:00:00Z'],
@@ -71,9 +72,10 @@ final class TaskAutonomyGrantCertificateTest extends TestCase
                 TaskAutonomyGrantCertificate::fromArray(array_replace($record, $invalid));
                 self::fail('Untrusted certificate must reject malformed or extra claims.');
             } catch (InvalidArgumentException) {
-                self::assertTrue(true);
+                ++$rejected;
             }
         }
+        self::assertSame(4, $rejected);
     }
 
     public function testRevokedRequestCannotBeSealed(): void
