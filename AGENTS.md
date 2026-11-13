@@ -42,9 +42,6 @@ It deliberately composes narrower owners rather than absorbing them:
 
 For non-trivial engineering work, use `voku/agent-skills/engineering-codelight` as a compact reasoning lens inside the current Loop action. The canonical long-form reference lives in `voku/learnings/CODELIGHT_MANIFESTO.md`. Neither the manifesto nor the skill owns Loop lifecycle state, approvals, mutation authority, or required evidence.
 
-Load the focused skill only when the task needs it.
-Do not duplicate its general principles in this always-on router.
-
 When a repeated Codelight lesson can become a typed owner API, test, static-analysis rule, generated check, or other deterministic constraint, prefer that structure and remove duplicated prose instead of growing this file.
 
 ## Cross-owner changes
