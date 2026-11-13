@@ -55,14 +55,19 @@ final readonly class ExecutionGateway
      */
     public function observePendingAttention(string $taskId): ?AttentionRequest
     {
+        // A corrupt Contract is unavailable evidence even when no execution
+        // state exists. Check it before treating missing state as absence.
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
-        if ($state === null) {
+        if ($contract === null || $contract->status !== TaskContract::APPROVED) {
+            if ($state !== null) {
+                throw new RuntimeException('Pending Attention state exists without a current approved Contract.');
+            }
+
             return null;
         }
-
-        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
-        if ($contract->status !== TaskContract::APPROVED) {
-            throw new RuntimeException('Pending Attention cannot be read for a non-approved Contract.');
+        if ($state === null) {
+            return null;
         }
 
         $run = (new GovernedRunStore($this->rootPath))->findForContract($contract);
