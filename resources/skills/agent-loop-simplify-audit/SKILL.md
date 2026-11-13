@@ -1,6 +1,8 @@
 ---
 name: agent-loop-simplify-audit
 description: Run a bounded repo-wide complexity audit through the canonical code-review-simplicity lens, using agent-map only to choose and verify candidates.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Simplify Audit
