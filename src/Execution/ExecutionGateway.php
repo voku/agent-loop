@@ -82,6 +82,12 @@ final readonly class ExecutionGateway
             throw new RuntimeException('Pending Attention state is stale for the current governed execution plan.');
         }
 
+        if ($state->attention !== null
+            && ($state->attention->taskId !== $state->taskId
+                || $state->attention->runId !== $state->runId)) {
+            throw new RuntimeException('Pending Attention identity does not match the current governed execution state.');
+        }
+
         return $state->attention;
     }
 
