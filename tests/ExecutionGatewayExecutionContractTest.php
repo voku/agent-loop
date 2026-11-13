@@ -8,6 +8,8 @@ use FilesystemIterator;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
+use voku\AgentLoop\Execution\AttentionKind;
+use voku\AgentLoop\Execution\AttentionRequest;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionStateStore;
@@ -233,6 +235,34 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         self::assertNull($gateway->observePendingAttention(self::TASK));
         self::assertSame($planBefore, file_get_contents($planPath));
         self::assertSame($stateBefore, file_get_contents($statePath));
+    }
+
+    public function testReadOnlyAttentionReturnsCurrentBoundAttentionWithoutRewritingState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $state = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($state);
+
+        $attention = new AttentionRequest(
+            'attention:fixture',
+            self::TASK,
+            $state['run_id'],
+            AttentionKind::CLARIFICATION_REQUIRED,
+            'Owner needs clarification.',
+            'investigate',
+            '2026-11-13T20:00:00Z',
+        );
+        $state['attention'] = $attention->toArray();
+        self::assertNotFalse(file_put_contents($statePath, json_encode($state, JSON_THROW_ON_ERROR)));
+        $before = file_get_contents($statePath);
+
+        $observed = $gateway->observePendingAttention(self::TASK);
+        self::assertNotNull($observed);
+        self::assertSame($attention->toArray(), $observed->toArray());
+        self::assertSame($before, file_get_contents($statePath));
     }
 
     public function testReadOnlyAttentionRefusesStaleExecutionPlanBinding(): void
