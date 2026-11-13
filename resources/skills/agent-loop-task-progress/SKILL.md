@@ -1,6 +1,8 @@
 ---
 name: agent-loop-task-progress
 description: Record bounded working memory during an agent-loop task, including decisions, checkpoints, validation evidence, scope changes, simplification ceilings, and blockers without copying raw evidence.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Task Progress

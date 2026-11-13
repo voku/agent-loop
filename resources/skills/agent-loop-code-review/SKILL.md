@@ -1,6 +1,8 @@
 ---
 name: agent-loop-code-review
 description: Govern a read-only review of the complete raw diff using the guaranteed Loop/Recall first-draft contract, with at most one optional focused engineering-lens handoff while preserving exact evidence and deterministic terminal state.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Code Review

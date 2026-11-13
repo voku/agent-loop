@@ -1,6 +1,8 @@
 ---
 name: agent-loop-dogfood
 description: Evaluate agent guidance against real agent-* tasks with clean, comparable runs and observable artifact metrics instead of invented token savings.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Dogfood

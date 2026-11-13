@@ -1,0 +1,23 @@
+# NVIDIA SkillEvaluator 0.9.0 (immutable reviewed workflow and image pins).
+# Only package-owned source skills; do not scan projected consumer copies.
+name: Skill checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  skills:
+    uses: NVIDIA/SkillEvaluator/.github/workflows/evaluate-skills.yml@ba7779ad617c6444c98b6241a75bce92067e9d56
+    with:
+      image: ghcr.io/nvidia/skillevaluator-tier1@sha256:e96e3aaad89bf78c4f3f8c621e88005d18bd7c485b29c0d7945864700e5944e6
+      paths: resources/skills
+      min-score: 70
+      scan-mode: all
+      llm: false
