@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use FilesystemIterator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
@@ -266,9 +267,7 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         self::assertSame($before, file_get_contents($statePath));
     }
 
-    /**
-     * @dataProvider mismatchedAttentionIdentityProvider
-     */
+    #[DataProvider('mismatchedAttentionIdentityProvider')]
     public function testReadOnlyAttentionRejectsMismatchedNestedIdentity(string $field, string $value): void
     {
         $this->prepareSurgicalRun(l2: false);
