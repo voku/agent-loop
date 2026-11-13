@@ -5,16 +5,22 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use FilesystemIterator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
+use voku\AgentLoop\Execution\AttentionKind;
+use voku\AgentLoop\Execution\AttentionRequest;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionPlanStore;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
 
@@ -196,6 +202,151 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         $this->expectExceptionMessage('refusing to present a partial L1');
 
         (new WorkflowContextCommand($this->root))->build(self::TASK, 12, 512);
+    }
+
+    public function testReadOnlyAttentionDoesNotPrepareMissingPlanOrState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+
+        if (is_file($statePath)) {
+            self::assertTrue(unlink($statePath));
+        }
+        if (is_file($planPath)) {
+            self::assertTrue(unlink($planPath));
+        }
+
+        self::assertNull((new ExecutionGateway($this->root))->observePendingAttention(self::TASK));
+        self::assertFileDoesNotExist($planPath);
+        self::assertFileDoesNotExist($statePath);
+    }
+
+    public function testReadOnlyAttentionDoesNotHideCorruptContractAsMissingState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        if (is_file($statePath)) {
+            self::assertTrue(unlink($statePath));
+        }
+        if (is_file($planPath)) {
+            self::assertTrue(unlink($planPath));
+        }
+
+        $contractPath = (new TaskContractStore($this->root))->path(self::TASK);
+        self::assertNotFalse(file_put_contents($contractPath, '{broken JSON'));
+
+        try {
+            (new ExecutionGateway($this->root))->observePendingAttention(self::TASK);
+            self::fail('Corrupt Contract must never be classified as no Attention.');
+        } catch (RuntimeException) {
+            self::assertFileDoesNotExist($planPath);
+            self::assertFileDoesNotExist($statePath);
+        }
+    }
+
+    public function testReadOnlyAttentionPreservesExistingPlanAndStateBytes(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $planBefore = file_get_contents($planPath);
+        $stateBefore = file_get_contents($statePath);
+        self::assertIsString($planBefore);
+        self::assertIsString($stateBefore);
+
+        self::assertNull($gateway->observePendingAttention(self::TASK));
+        self::assertSame($planBefore, file_get_contents($planPath));
+        self::assertSame($stateBefore, file_get_contents($statePath));
+    }
+
+    public function testReadOnlyAttentionReturnsCurrentBoundAttentionWithoutRewritingState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $state = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($state);
+        self::assertIsString($state['run_id'] ?? null);
+
+        $attention = new AttentionRequest(
+            'attention:fixture',
+            self::TASK,
+            $state['run_id'],
+            AttentionKind::CLARIFICATION_REQUIRED,
+            'Owner needs clarification.',
+            'investigate',
+            '2026-11-13T20:00:00Z',
+        );
+        $state['attention'] = $attention->toArray();
+        self::assertNotFalse(file_put_contents($statePath, json_encode($state, JSON_THROW_ON_ERROR)));
+        $before = file_get_contents($statePath);
+
+        $observed = $gateway->observePendingAttention(self::TASK);
+        self::assertNotNull($observed);
+        self::assertSame($attention->toArray(), $observed->toArray());
+        self::assertSame($before, file_get_contents($statePath));
+    }
+
+    #[DataProvider('mismatchedAttentionIdentityProvider')]
+    public function testReadOnlyAttentionRejectsMismatchedNestedIdentity(string $field, string $value): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $state = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($state);
+        self::assertIsString($state['run_id'] ?? null);
+
+        $attention = new AttentionRequest(
+            'attention:fixture',
+            self::TASK,
+            $state['run_id'],
+            AttentionKind::CLARIFICATION_REQUIRED,
+            'Owner needs clarification.',
+            'investigate',
+            '2026-11-13T20:00:00Z',
+        );
+        $state['attention'] = $attention->toArray();
+        $state['attention'][$field] = $value;
+        self::assertNotFalse(file_put_contents($statePath, json_encode($state, JSON_THROW_ON_ERROR)));
+        $before = file_get_contents($statePath);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Pending Attention identity does not match');
+        try {
+            $gateway->observePendingAttention(self::TASK);
+        } finally {
+            self::assertSame($before, file_get_contents($statePath));
+        }
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function mismatchedAttentionIdentityProvider(): iterable
+    {
+        yield 'task identity' => ['task_id', 'OTHER-123'];
+        yield 'run identity' => ['run_id', 'run:other'];
+    }
+
+    public function testReadOnlyAttentionRefusesStaleExecutionPlanBinding(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $data = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($data);
+        $data['execution_plan_digest'] = 'sha256:' . str_repeat('0', 64);
+        self::assertNotFalse(file_put_contents($statePath, json_encode($data, JSON_THROW_ON_ERROR)));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Pending Attention state is stale');
+        $gateway->observePendingAttention(self::TASK);
     }
 
     private function prepareSurgicalRun(bool $l2): void
