@@ -1,6 +1,8 @@
 ---
 name: agent-loop-task-start
 description: Define durable task intent for a governed agent-loop task, then route startup through the lifecycle kernel instead of reproducing preparation or discovery choreography in host guidance.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Task Start
