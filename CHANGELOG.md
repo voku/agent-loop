@@ -1,3 +1,17 @@
+## [0.20.94] - 2026-11-13
+
+### Added
+
+- `agent-loop workflow retention report [--older-than-days=90] [--format=text|json]`: read-only inventory of current and superseded Run evidence. It changes no artifacts and reports every retention decision as blocked, so it never authorizes archival (#1029).
+
+### Removed
+
+- Duplicated always-on Codelight mnemonic from `AGENTS.md`; lifecycle and approval guidance is unchanged (#1032).
+
+### Dependencies
+
+- Require `voku/agent-recall-compiler` `^0.29.0`. Recall no longer computes implicit repository-wide `architecture_discovery` facts for tasks without explicit files/targets. That fact was never part of the `system.md` that Loop delivers, so governed runs lose no delivered context and skip the discovery cost (agent-recall-compiler#273, #1031). Candidate workflows pin the 0.29.0 release commit.
+
 ## [0.20.93] - 2026-11-11
 
 ### Added
