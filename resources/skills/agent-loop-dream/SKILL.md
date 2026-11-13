@@ -1,6 +1,8 @@
 ---
 name: agent-loop-dream
 description: Review Dream/Learning guidance candidates and audit stale or conflicting prompts, memory and agent instructions across coding-agent hosts; propose evidence-backed edits without changing durable guidance.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Dream

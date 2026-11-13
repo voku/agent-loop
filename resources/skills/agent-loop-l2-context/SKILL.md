@@ -1,6 +1,8 @@
 ---
 name: agent-loop-l2-context
 description: Use agent-loop to compile, inspect, and govern task-scoped Recall/L2 context without duplicating agent-recall-compiler's prompt schema or treating generated artifacts as executed work.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop L2 Context
