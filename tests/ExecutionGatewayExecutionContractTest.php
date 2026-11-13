@@ -20,6 +20,7 @@ use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
 
@@ -219,6 +220,30 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         self::assertNull((new ExecutionGateway($this->root))->observePendingAttention(self::TASK));
         self::assertFileDoesNotExist($planPath);
         self::assertFileDoesNotExist($statePath);
+    }
+
+    public function testReadOnlyAttentionDoesNotHideCorruptContractAsMissingState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        if (is_file($statePath)) {
+            self::assertTrue(unlink($statePath));
+        }
+        if (is_file($planPath)) {
+            self::assertTrue(unlink($planPath));
+        }
+
+        $contractPath = (new TaskContractStore($this->root))->path(self::TASK);
+        self::assertNotFalse(file_put_contents($contractPath, '{broken JSON'));
+
+        try {
+            (new ExecutionGateway($this->root))->observePendingAttention(self::TASK);
+            self::fail('Corrupt Contract must never be classified as no Attention.');
+        } catch (RuntimeException) {
+            self::assertFileDoesNotExist($planPath);
+            self::assertFileDoesNotExist($statePath);
+        }
     }
 
     public function testReadOnlyAttentionPreservesExistingPlanAndStateBytes(): void
