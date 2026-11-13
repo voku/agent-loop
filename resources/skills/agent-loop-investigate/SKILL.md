@@ -1,6 +1,10 @@
 ---
 name: agent-loop-investigate
-description: Locate PHP definitions, callers, tests, and change sites; investigate regressions using bounded Git history and source-backed temporal evidence. Read-only: report exact path/line/symbol/commit evidence without proposing or applying fixes.
+description: >-
+  Locate PHP definitions, callers, tests, and change sites; investigate
+  regressions using bounded Git history and source-backed temporal evidence.
+  Read-only: report exact path/line/symbol/commit evidence without proposing
+  or applying fixes.
 ---
 
 # Agent Loop Investigate
