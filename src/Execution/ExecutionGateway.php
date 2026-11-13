@@ -608,17 +608,7 @@ final readonly class ExecutionGateway
             return null;
         }
 
-        $candidateTree = null;
-        if (hash_equals($baseCommit, $candidateRevision)) {
-            $candidateTree = $baseCommit;
-        } elseif (preg_match(
-            '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
-            $candidateRevision,
-            $matches,
-        ) === 1) {
-            $candidateTree = $matches[1];
-        }
-
+        $candidateTree = self::candidateTreeForListing($baseCommit, $candidateRevision);
         if ($candidateTree === null) {
             return null;
         }
@@ -651,6 +641,19 @@ final readonly class ExecutionGateway
         }
 
         return array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));
+    }
+
+    private static function candidateTreeForListing(string $baseCommit, string $candidateRevision): ?string
+    {
+        if (hash_equals($baseCommit, $candidateRevision)) {
+            return $baseCommit;
+        }
+
+        return preg_match(
+            '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+            $candidateRevision,
+            $matches,
+        ) === 1 ? $matches[1] : null;
     }
 
     private function assertEnvironmentObservation(
