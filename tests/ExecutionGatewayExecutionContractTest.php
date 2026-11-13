@@ -266,6 +266,49 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         self::assertSame($before, file_get_contents($statePath));
     }
 
+    /**
+     * @dataProvider mismatchedAttentionIdentityProvider
+     */
+    public function testReadOnlyAttentionRejectsMismatchedNestedIdentity(string $field, string $value): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $state = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($state);
+        self::assertIsString($state['run_id'] ?? null);
+
+        $attention = new AttentionRequest(
+            'attention:fixture',
+            self::TASK,
+            $state['run_id'],
+            AttentionKind::CLARIFICATION_REQUIRED,
+            'Owner needs clarification.',
+            'investigate',
+            '2026-11-13T20:00:00Z',
+        );
+        $state['attention'] = $attention->toArray();
+        $state['attention'][$field] = $value;
+        self::assertNotFalse(file_put_contents($statePath, json_encode($state, JSON_THROW_ON_ERROR)));
+        $before = file_get_contents($statePath);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Pending Attention identity does not match');
+        try {
+            $gateway->observePendingAttention(self::TASK);
+        } finally {
+            self::assertSame($before, file_get_contents($statePath));
+        }
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function mismatchedAttentionIdentityProvider(): iterable
+    {
+        yield 'task identity' => ['task_id', 'OTHER-123'];
+        yield 'run identity' => ['run_id', 'run:other'];
+    }
+
     public function testReadOnlyAttentionRefusesStaleExecutionPlanBinding(): void
     {
         $this->prepareSurgicalRun(l2: false);
