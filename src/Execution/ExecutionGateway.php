@@ -591,8 +591,21 @@ final readonly class ExecutionGateway
      */
     public function changedCandidateFiles(?string $baseCommit, string $candidateRevision): array
     {
+        return $this->observeChangedCandidateFiles($baseCommit, $candidateRevision) ?? [];
+    }
+
+    /** @return list<string> */
+    public function changedCandidateFilesOrThrow(?string $baseCommit, string $candidateRevision): array
+    {
+        return $this->observeChangedCandidateFiles($baseCommit, $candidateRevision)
+            ?? throw new RuntimeException('Unable to inspect changed candidate files.');
+    }
+
+    /** @return list<string>|null Null means the candidate could not be inspected. */
+    private function observeChangedCandidateFiles(?string $baseCommit, string $candidateRevision): ?array
+    {
         if ($baseCommit === null) {
-            return [];
+            return null;
         }
 
         $candidateTree = null;
@@ -607,12 +620,12 @@ final readonly class ExecutionGateway
         }
 
         if ($candidateTree === null) {
-            return [];
+            return null;
         }
 
         $root = realpath($this->rootPath);
         if (!is_string($root)) {
-            return [];
+            return null;
         }
 
         $process = proc_open(
@@ -626,7 +639,7 @@ final readonly class ExecutionGateway
             $root,
         );
         if (!is_resource($process)) {
-            return [];
+            return null;
         }
         fclose($pipes[0]);
         $changedOutput = stream_get_contents($pipes[1]);
@@ -634,7 +647,7 @@ final readonly class ExecutionGateway
         fclose($pipes[2]);
         $exit = proc_close($process);
         if ($exit !== 0 || !is_string($changedOutput)) {
-            return [];
+            return null;
         }
 
         return array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));

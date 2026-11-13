@@ -215,8 +215,12 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertStringContainsString("agent-loop does not start one", $projection["context_guidance"]);
         $textStatus = $this->captureRun($command, ["status", "PIPE-VISIBILITY"]);
         self::assertStringContainsString("Context guidance: Run this stage in a separate host context", $textStatus["stdout"]);
-        $reused = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=pass", "--context-id=builder"]);
+        $reused = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=pass", "--context-id=builder", "--format=json"]);
         self::assertNotSame(0, $reused["exit"]);
+        $rejection = json_decode($reused["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertStringContainsString("CONTEXT_REUSE_FORBIDDEN", $rejection["message"]);
+        $unchanged = $this->captureRun($command, ["status", "PIPE-VISIBILITY", "--format=json"]);
+        self::assertSame("review", json_decode($unchanged["stdout"], true, 512, JSON_THROW_ON_ERROR)["current_stage"]);
     }
 
     public function testPipelineProgressionWithReviewFeedbackLoop(): void
