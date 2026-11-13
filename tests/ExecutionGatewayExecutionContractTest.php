@@ -9,6 +9,8 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionPlanStore;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
@@ -196,6 +198,57 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         $this->expectExceptionMessage('refusing to present a partial L1');
 
         (new WorkflowContextCommand($this->root))->build(self::TASK, 12, 512);
+    }
+
+    public function testReadOnlyAttentionDoesNotPrepareMissingPlanOrState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+
+        if (is_file($statePath)) {
+            self::assertTrue(unlink($statePath));
+        }
+        if (is_file($planPath)) {
+            self::assertTrue(unlink($planPath));
+        }
+
+        self::assertNull((new ExecutionGateway($this->root))->observePendingAttention(self::TASK));
+        self::assertFileDoesNotExist($planPath);
+        self::assertFileDoesNotExist($statePath);
+    }
+
+    public function testReadOnlyAttentionPreservesExistingPlanAndStateBytes(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $planBefore = file_get_contents($planPath);
+        $stateBefore = file_get_contents($statePath);
+        self::assertIsString($planBefore);
+        self::assertIsString($stateBefore);
+
+        self::assertNull($gateway->observePendingAttention(self::TASK));
+        self::assertSame($planBefore, file_get_contents($planPath));
+        self::assertSame($stateBefore, file_get_contents($statePath));
+    }
+
+    public function testReadOnlyAttentionRefusesStaleExecutionPlanBinding(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $data = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($data);
+        $data['execution_plan_digest'] = 'sha256:' . str_repeat('0', 64);
+        self::assertNotFalse(file_put_contents($statePath, json_encode($data, JSON_THROW_ON_ERROR)));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Pending Attention state is stale');
+        $gateway->observePendingAttention(self::TASK);
     }
 
     private function prepareSurgicalRun(bool $l2): void
