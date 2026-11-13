@@ -44,6 +44,48 @@ final readonly class ExecutionGateway
     }
 
     /**
+     * Observe current Execution Attention without preparing a plan or state.
+     *
+     * No state means no pending Attention. An existing state must be bound to
+     * the currently approved, non-retired Contract/Run/plan; stale or corrupt
+     * artifacts throw instead of silently becoming an empty observation.
+     *
+     * This is the read-only API for dashboards. projection() is deliberately
+     * not used here because it may persist missing Execution artifacts.
+     */
+    public function observePendingAttention(string $taskId): ?AttentionRequest
+    {
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        if ($state === null) {
+            return null;
+        }
+
+        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+        if ($contract->status !== TaskContract::APPROVED) {
+            throw new RuntimeException('Pending Attention cannot be read for a non-approved Contract.');
+        }
+
+        $run = (new GovernedRunStore($this->rootPath))->findForContract($contract);
+        if ($run === null || (new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            throw new RuntimeException('Pending Attention state is not bound to a current governed Run.');
+        }
+
+        $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
+        if ($plan->taskId !== $taskId
+            || $plan->runId !== $run->runId
+            || $plan->contractRevision !== $contract->revision
+            || $plan->contractSource !== $run->contractSource
+            || $state->taskId !== $taskId
+            || $state->runId !== $run->runId
+            || $state->contractRevision !== $contract->revision
+            || !hash_equals($state->executionPlanDigest, $plan->digest())) {
+            throw new RuntimeException('Pending Attention state is stale for the current governed execution plan.');
+        }
+
+        return $state->attention;
+    }
+
+    /**
      * Recover the current approved Run after proving that its completed
      * candidate differs from the candidate held by the owner workspace.
      */
