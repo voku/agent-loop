@@ -162,6 +162,10 @@ final readonly class WorkflowPipelineCommand
             $nextAction = "agent-loop pipeline run " . $taskId;
         }
 
+        $contextGuidance = $contextPolicy === "fresh_required" && $projection->attention === null
+            ? "Run this stage in a separate host context from its predecessor; submit its distinct context ID. Use host-native delegation or an available execution consumer; agent-loop does not start one."
+            : null;
+
         $payload = [
             "schema_version" => "1.0",
             "command" => "pipeline status",
@@ -175,6 +179,7 @@ final readonly class WorkflowPipelineCommand
             "may_mutate" => $mayMutate,
             "context_policy" => $contextPolicy,
             "context_id_required" => $contextIdRequired,
+            "context_guidance" => $contextGuidance,
             "attempt" => $projection->currentAttempt,
             "candidate_revision" => $projection->candidateRevision,
             "attention" => $projection->attention?->toArray(),
@@ -196,6 +201,9 @@ final readonly class WorkflowPipelineCommand
                 echo "Stage role: " . ($currentRole ?? "none") . " (mutation: " . ($mayMutate ? "allowed" : "read-only") . ")\n";
                 echo "Context policy: " . $contextPolicy . "\n";
                 echo "Context identity required: " . ($contextIdRequired ? "yes" : "no") . "\n";
+            }
+            if ($contextGuidance !== null) {
+                echo "Context guidance: " . $contextGuidance . "\n";
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
@@ -440,7 +448,16 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        return $this->renderTransition($taskId, $newProjection, $format);
+        $candidateFiles = null;
+        if ($completing && $bundle->mayMutate && $newProjection->currentStageId !== null && $newProjection->attention === null) {
+            try {
+                $candidateFiles = $gateway->changedCandidateFilesOrThrow($bundle->baseCommit, $effectiveCandidate);
+            } catch (RuntimeException $exception) {
+                fwrite(STDERR, "NOTE: stage submission succeeded, but candidate file listing is unavailable: " . $exception->getMessage() . "\nInspect the next stage before review.\n");
+            }
+        }
+
+        return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles);
     }
 
     /**
@@ -526,7 +543,8 @@ final readonly class WorkflowPipelineCommand
         return $this->renderTransition($taskId, $projection, $format);
     }
 
-    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format): int
+    /** @param list<string>|null $candidateFiles */
+    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null): int
     {
         $isComplete = $projection->complete();
         $currentStage = $projection->currentStageId;
@@ -569,25 +587,42 @@ final readonly class WorkflowPipelineCommand
             "next_action_kind" => $nextActionKind,
         ];
 
+        if ($candidateFiles !== null) {
+            $payload["candidate_changed_files"] = $candidateFiles;
+            $payload["candidate_scope_notice"] = "These are all changed files in the accepted candidate; pre-existing scoped changes are included and ownership is not inferred.";
+        }
+
         if ($format === "json") {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
         } else {
-            if ($isComplete) {
-                echo "[OK] Pipeline execution complete for " . $taskId . ".\n";
-                echo "Next: " . $nextAction . "\n";
-            } elseif ($projection->attention !== null) {
-                echo "[WAIT] Pipeline requires attention: " . $projection->attention->message . "\n";
-                echo "Attention ID: " . $projection->attention->id . "\n";
-                echo "Resolve: " . $nextAction . "\n";
-            } else {
-                echo "Pipeline active: " . $taskId . "\n";
-                echo "Profile: " . $projection->profile->value . "\n";
-                echo "Stage: " . ($currentStage ?? "none") . " (Attempt " . $projection->currentAttempt . ")\n";
-                echo "Next: " . $nextAction . "\n";
-            }
+            $this->renderTransitionText($taskId, $projection, $nextAction, $candidateFiles);
         }
 
         return $projection->attention !== null ? 1 : 0;
+    }
+
+    /** @param list<string>|null $candidateFiles */
+    private function renderTransitionText(string $taskId, ExecutionProjection $projection, string $nextAction, ?array $candidateFiles): void
+    {
+        if ($candidateFiles !== null) {
+            echo "Accepted candidate changed files (including any pre-existing scoped changes; ownership not inferred):\n";
+            foreach ($candidateFiles as $file) {
+                echo "  " . $file . "\n";
+            }
+        }
+        if ($projection->complete()) {
+            echo "[OK] Pipeline execution complete for " . $taskId . ".\n";
+            echo "Next: " . $nextAction . "\n";
+        } elseif ($projection->attention !== null) {
+            echo "[WAIT] Pipeline requires attention: " . $projection->attention->message . "\n";
+            echo "Attention ID: " . $projection->attention->id . "\n";
+            echo "Resolve: " . $nextAction . "\n";
+        } else {
+            echo "Pipeline active: " . $taskId . "\n";
+            echo "Profile: " . $projection->profile->value . "\n";
+            echo "Stage: " . ($projection->currentStageId ?? "none") . " (Attempt " . $projection->currentAttempt . ")\n";
+            echo "Next: " . $nextAction . "\n";
+        }
     }
 
     private function printHelp(): void

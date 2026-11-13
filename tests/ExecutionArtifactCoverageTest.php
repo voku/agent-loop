@@ -79,6 +79,23 @@ final class ExecutionArtifactCoverageTest extends TestCase
         self::assertSame(['src/A.php', 'src/B.php'], $changed);
     }
 
+    public function testStrictChangedCandidateListingDistinguishesEmptyFromFailure(): void
+    {
+        file_put_contents($this->root . '/a.txt', "base\n");
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'a.txt');
+        $this->git('commit', '-qm', 'base');
+        $base = $this->git('rev-parse', 'HEAD');
+        $gateway = new ExecutionGateway($this->root);
+        self::assertSame([], $gateway->changedCandidateFilesOrThrow($base, $base));
+        self::assertSame([], $gateway->changedCandidateFiles($base, 'invalid'));
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to inspect changed candidate files');
+        $gateway->changedCandidateFilesOrThrow($base, 'git-tree-v1:' . $base . ':' . str_repeat('f', 40));
+    }
+
     public function testExclusionRecordingRequiresNonEmptyReason(): void
     {
         mkdir($this->root . '/src', 0o775, true);
