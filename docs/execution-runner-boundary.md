@@ -49,7 +49,9 @@ Review outcomes may route back to an explicit mutation stage. Reviewer roles are
 read-only by default. Independent review stages additionally declare
 `context_policy=fresh_required`: the host must execute them under an observable
 context identity that differs from their direct agent predecessor(s). This keeps
-"read-only" and "independent context" as separate invariants. The deterministic
+"read-only" and "independent context" as separate invariants. The pipeline status explains that a fresh host context is required; the host may use native delegation or an available execution consumer, and Loop does not start one. After a mutating stage is submitted, the transition lists every changed file in the accepted candidate. In a shared checkout this includes all changes inside the approved scope, including pre-existing changes; the list does not establish ownership. Review that list before treating the candidate as the intended task.
+
+The deterministic
 final `verify` stage remains an `agent-loop` operation rather than an LLM
 claim. It runs in the workspace that holds the governed candidate (the execution
 consumer passes its Run worktree; the default is the project root). Loop first
