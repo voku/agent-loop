@@ -245,6 +245,7 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
         $state = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($state);
+        self::assertIsString($state['run_id'] ?? null);
 
         $attention = new AttentionRequest(
             'attention:fixture',
