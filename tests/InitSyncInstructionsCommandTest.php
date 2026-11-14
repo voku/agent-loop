@@ -56,7 +56,7 @@ final class InitSyncInstructionsCommandTest extends TestCase
         }
         self::assertStringContainsString('genuine human-authority decision', $agents);
         self::assertStringContainsString('exact current decision subject', $agents);
-        self::assertStringContainsString('do not pre-build Map/Search', $agents);
+        self::assertStringContainsString('Do not pre-build Map/Search', $agents);
         self::assertStringContainsString('vendor/bin/agent-loop init status', $agents);
         self::assertStringContainsString('init sync-instructions', $agents);
         self::assertStringContainsString('voku/agent-learning', $agents);
