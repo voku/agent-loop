@@ -6,4 +6,4 @@ Before the CLI is runnable, do only reversible workspace bootstrap, not product 
 
 For durable tasks, run `{{agent_loop_cli}} enter <task-id> --format=json` before edits and `{{agent_loop_cli}} finish <task-id> --format=json` after host work; follow each returned `next_action_kind` / `next_action` until `none` / complete. Execute `command`, fill evidence-backed `command_template`, perform `host_work`; only `decision_required` needs a genuine human-authority decision. Show the exact current decision subject; never invent approval.
 
-Use skills for specialist work, not lifecycle phases; do not pre-build Map/Search or invent Session/Recall state. Use ephemeral sessions for untracked exploration. Claim hooks, checks, CI, merges, and releases only with evidence.
+Use skills for specialist work: a router may select a specialist but never a lifecycle phase. Only the current result routes task start/progress, Recall/L2, repair, Learning, review, or close. Do not pre-build Map/Search or invent Session/Recall state. Use ephemeral sessions for untracked exploration. Claim hooks, checks, CI, merges, and releases only with evidence.
