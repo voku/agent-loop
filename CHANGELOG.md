@@ -1,3 +1,14 @@
+## [0.20.95] - 2026-11-15
+
+### Changed
+
+- Reduce the always-on `agent-loop` workflow router in generated `AGENTS.md`, keeping CLI lifecycle routing, human-decision authority, evidence requirements and project-owned instructions intact (#1041).
+
+### Tests
+
+- Align the case-sensitive router projection assertion with the generated wording (#1041).
+- Validate canonical agent-loop skills with pinned NVIDIA SkillEvaluator 0.9.0 in CI.
+
 ## [0.20.94] - 2026-11-13
 
 ### Added
