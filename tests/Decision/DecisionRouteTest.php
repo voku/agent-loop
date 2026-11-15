@@ -95,7 +95,7 @@ final class DecisionRouteTest extends TestCase
                 new LayaRoutingClient($endpoint, 1000);
                 self::fail('Untrusted endpoint accepted: ' . $endpoint);
             } catch (InvalidArgumentException) {
-                self::assertTrue(true);
+                // The trust boundary rejected the unapproved endpoint.
             }
         }
         self::assertInstanceOf(LayaRoutingClient::class, new LayaRoutingClient('http://127.0.0.1:8172/v1/systemone', 1000, true));
