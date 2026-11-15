@@ -65,6 +65,11 @@ if (str_starts_with($state, 'NON_FINITE_INFINITY')) {
     echo '{"answers":{"decision":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"agent-loop-investigator":Infinity}}}}';
     exit;
 }
+if (str_starts_with($state, 'OVERSIZED')) {
+    // The consumer must reject before storing a remote body this large.
+    echo str_repeat('X', 65536);
+    exit;
+}
 if (str_starts_with($state, 'OUT_OF_RANGE')) {
     $invalid = array_fill_keys(array_keys($criteria), 0.0);
     $invalid['agent-loop-investigator'] = 1.2;
