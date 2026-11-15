@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use Throwable;
-use voku\AgentLoop\Decision\DecisionModel;
-use voku\AgentLoop\Decision\SystemOneChoiceHttpClient;
+use voku\AgentDecision\DecisionModel;
+use voku\AgentDecision\Provider\SystemOneChoiceHttpClient;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
 
