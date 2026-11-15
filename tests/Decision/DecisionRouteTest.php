@@ -6,6 +6,8 @@ namespace voku\AgentLoop\Tests\Decision;
 
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Decision\DecisionRouteCommand;
+use voku\AgentLoop\Decision\DecisionModel;
+use voku\AgentLoop\Decision\DecisionChoiceResult;
 use voku\AgentLoop\Decision\SystemOneChoiceHttpClient;
 use InvalidArgumentException;
 
@@ -138,6 +140,49 @@ final class DecisionRouteTest extends TestCase
             }
         }
         self::assertInstanceOf(SystemOneChoiceHttpClient::class, new SystemOneChoiceHttpClient('http://127.0.0.1:8172/v1/systemone', 1000, true));
+    }
+
+    public function testInjectedDecisionModelCannotRouteUnknownOrInvalidChoices(): void
+    {
+        foreach ([
+            ['unmanaged-role', 0.95],
+            ['agent-loop-investigator', NAN],
+            ['agent-loop-investigator', 1.2],
+            ['agent-loop-investigator', null],
+            [null, 0.5],
+        ] as [$candidateId, $probability]) {
+            $model = new class ($candidateId, $probability) implements DecisionModel {
+                public function __construct(
+                    private ?string $candidateId,
+                    private ?float $probability,
+                ) {
+                }
+
+                /** @param non-empty-array<string, non-empty-string> $criteria */
+                public function decide(string $publicState, array $criteria, ?string $model): DecisionChoiceResult
+                {
+                    return new DecisionChoiceResult($this->candidateId, $this->probability);
+                }
+            };
+
+            ob_start();
+            $exit = (new DecisionRouteCommand(dirname(__DIR__, 2), $model))->run([
+                'route',
+                '--mode=assist',
+                '--data-classification=public',
+                '--public-state=A publicly classified specialist routing fixture',
+                '--candidate=agent-loop-investigator',
+                '--endpoint=https://example.org/v1/systemone',
+                '--format=json',
+            ]);
+            $raw = (string) ob_get_clean();
+            self::assertSame(0, $exit, $raw);
+            $receipt = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('invalid_response', $receipt['disposition'] ?? null);
+            self::assertSame('response_schema', $receipt['provider_error'] ?? null);
+            self::assertNull($receipt['routing_hint'] ?? null);
+            self::assertFalse($receipt['lifecycle_mutation'] ?? true);
+        }
     }
 
     /** @param list<string> $args */
