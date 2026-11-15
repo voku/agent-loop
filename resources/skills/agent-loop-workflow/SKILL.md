@@ -40,6 +40,12 @@ changing the visible recommendation; `off` makes no network request.
 The adapter receives **only counts and decision category**, never Contract
 goals, paths, tasks, reviews, or private text. It does not know enough to
 verify human approval. Provider failure falls back to deterministic advice.
+Repository `init.json` is **not trusted operator consent**. Automated human-gate
+provider calls additionally require the trusted launcher to set an exact
+`AGENT_LOOP_DECISION_APPROVED_ENDPOINT`, and, if a token environment variable
+is configured, an exact `AGENT_LOOP_DECISION_APPROVED_TOKEN_ENV`. Never
+supply grants through repository-controlled files or load credentials solely
+because `token_env` appears in a project configuration.
 
 ### Optional host-neutral specialist hint
 
