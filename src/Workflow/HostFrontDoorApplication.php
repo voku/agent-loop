@@ -286,9 +286,6 @@ final readonly class HostFrontDoorApplication
         }
     }
 
-    /**
-     * @param array{status: string, url: string|null, detail: string|null, start_command?: non-empty-list<string>|null}|null $presentation
-     */
     private function printAdvisoryBesideHtml(string $taskId): void
     {
         try {
@@ -316,6 +313,9 @@ final readonly class HostFrontDoorApplication
         }
     }
 
+    /**
+     * @param array{status: string, url: string|null, detail: string|null, start_command?: non-empty-list<string>|null}|null $presentation
+     */
     private function printHtmlDecisionPresentation(
         ?array $presentation,
         string $language,
