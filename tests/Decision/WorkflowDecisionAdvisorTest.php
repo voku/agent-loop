@@ -120,8 +120,11 @@ final class WorkflowDecisionAdvisorTest extends TestCase
 
         self::assertSame('deterministic', $advice['source']);
         self::assertSame('request_changes', $advice['suggested_choice']);
-        self::assertSame('approve', $advice['provider_observed_choice']);
-        self::assertSame('suggest', $advice['provider_disposition']);
+        // Structural metadata cannot justify a positive authority-bearing action,
+        // including in shadow mode. The conservative baseline remains intact.
+        self::assertNull($advice['provider_observed_choice']);
+        self::assertSame('abstain', $advice['provider_disposition']);
+        self::assertSame('insufficient_decision_evidence', $advice['provider_error']);
     }
 
     public function testProviderFailurePreservesDeterministicRecommendation(): void
