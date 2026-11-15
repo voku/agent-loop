@@ -62,6 +62,24 @@ the project can explicitly configure
 }
 ```
 
+The project configuration describes the *requested* provider, not the
+operator's permission to contact it or read credentials. An auto-projected
+human gate requires a separate, exact process-environment grant from the
+trusted host/launcher, **not** another key in repository-owned `init.json`:
+
+```bash
+export AGENT_LOOP_DECISION_APPROVED_ENDPOINT='https://trusted-public-provider.example/v1/systemone'
+# Only when init.json names token_env=DECISION_MODEL_TOKEN:
+export AGENT_LOOP_DECISION_APPROVED_TOKEN_ENV='DECISION_MODEL_TOKEN'
+```
+
+Without matching grants the optional model remains disabled and the
+conservative human decision stays available. A project's `token_env` can
+never authorize reading that variable by itself. Keep host grants out of
+committed scripts and project-controlled dotenv loaders. Explicit
+`agent-loop decision route` CLI invocations are separately initiated by
+their caller and must not be treated as automated human-gate permission.
+
 Only decision type and bounded structural counts are transmitted, not source
 code, task identifiers, goal text, review content, file paths, or private
 Contract details. `shadow` records model output without replacing the
