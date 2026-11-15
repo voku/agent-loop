@@ -54,6 +54,9 @@ final class InteractionPreferenceTest extends TestCase
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['host', 'autonomous']));
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['host', 'collaborative', '1052']));
             self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->bindSession('fresh-host')?->modeFor('1052'));
+            self::assertSame(0, (new WorkflowInteractionCommand())->run(['host', 'inherit', '1052']));
+            self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->find('host')?->modeFor('1052'));
+            self::assertSame(0, (new WorkflowInteractionCommand())->run(['host', 'collaborative', '1052']));
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['other-host', 'collaborative']));
             self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->find('fresh-host')?->defaultMode);
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['new-host', '--reuse', 'host']));

@@ -205,7 +205,11 @@ final readonly class WorkflowContextCommand
             try {
                 $preference = (new InteractionPreferenceStore($interactionDirectory))->find($hostSession);
                 if ($preference !== null) {
-                    $budget->add('policy', 'Interaction mode: ' . $preference->modeFor($taskId) . '; behavioral guidance only, no authorization or gate changes.');
+                    $mode = $preference->modeFor($taskId);
+                    $guidance = $mode === 'autonomous'
+                        ? 'Continue authorized implementation, verification, independent review and in-scope repair without redundant permission requests.'
+                        : 'Discuss meaningful implementation choices and invite feedback; handle routine work without ceremonial confirmations.';
+                    $budget->add('policy', 'Interaction mode: ' . $mode . '. ' . $guidance . ' Behavioral guidance only; no authorization or gate changes.');
                 }
             } catch (Throwable) {
                 $budget->add('policy', 'Interaction preference unavailable or invalid; no authority is inferred.');

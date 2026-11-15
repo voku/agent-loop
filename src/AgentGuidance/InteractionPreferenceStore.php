@@ -58,12 +58,41 @@ final readonly class InteractionPreferenceStore
                     throw new RuntimeException('Set a session default before setting a task override.');
                 }
                 $overrides = $existing->taskOverrides;
-                $overrides[$taskId] = $mode;
+                if ($mode === 'inherit') {
+                    unset($overrides[$taskId]);
+                } else {
+                    $overrides[$taskId] = $mode;
+                }
                 $preference = new InteractionPreference($sessionId, $existing->defaultMode, $overrides);
             } else {
                 $preference = new InteractionPreference($sessionId, $mode, $existing !== null ? $existing->taskOverrides : []);
             }
             $this->save($preference);
+        } finally {
+            fclose($lock);
+        }
+    }
+
+    /** Serialize session-default changes with publication of the shared default. */
+    public function setDefault(string $sessionId, string $mode): void
+    {
+        if (!is_dir($this->directory) && !mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
+            throw new RuntimeException('Cannot create interaction preference directory.');
+        }
+        $lock = fopen($this->directory . '/default.lock', 'c');
+        if ($lock === false) {
+            throw new RuntimeException('Cannot open shared preference lock.');
+        }
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                throw new RuntimeException('Cannot lock shared preference.');
+            }
+            $this->update($sessionId, $mode, null);
+            try {
+                $this->update("\0host-default", $mode, null);
+            } catch (\Throwable $exception) {
+                throw new RuntimeException('Session preference was saved, but the shared host default was not: ' . $exception->getMessage(), 0, $exception);
+            }
         } finally {
             fclose($lock);
         }

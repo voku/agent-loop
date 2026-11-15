@@ -9,6 +9,7 @@ use RuntimeException;
 use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
@@ -100,6 +101,10 @@ final class WorkflowContextCommandTest extends TestCase
         try {
             $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
             self::assertStringContainsString('Interaction mode: autonomous', implode("\n", $context['lines']));
+            self::assertStringContainsString('Continue authorized implementation, verification, independent review and in-scope repair', implode("\n", $context['lines']));
+            $store->update('host-a', 'collaborative', 'ABC-123');
+            $changed = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            self::assertStringContainsString('Discuss meaningful implementation choices', implode("\n", $changed['lines']));
             self::assertSame('human_required', $context['interaction']['authority_bearing_decisions']);
             self::assertEquals($before, (new RunManifestProjector($this->root))->project('ABC-123'));
         } finally {
@@ -122,7 +127,33 @@ final class WorkflowContextCommandTest extends TestCase
             $context = (new WorkflowContextCommand($this->root))->build('PENDING-1', 120, 12000);
             self::assertStringContainsString('Interaction mode: autonomous', implode("\n", $context['lines']));
             self::assertStringContainsString('not approved', implode("\n", $context['lines']));
-            self::assertEquals($before, $projector->project('PENDING-1'));
+            $after = $projector->project('PENDING-1');
+            self::assertEquals($before, $after);
+            self::assertFalse((new RunPolicyEvaluator())->evaluateManifest($after)->mutationAllowed);
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+        }
+    }
+
+    public function testAutonomousPreferenceDoesNotBypassPendingReviewPolicy(): void
+    {
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        $references = $manifest->references;
+        $references['verification'] = ['state' => 'blocked', 'gate' => 'execution_review'];
+        $references['review'] = ['state' => 'unacknowledged'];
+        $policy = new RunPolicyEvaluator();
+        $before = $policy->evaluate('ABC-123', 'governed', $references, []);
+        $directory = $this->root . '/host-preferences';
+        (new InteractionPreferenceStore($directory))->update('host-a', 'autonomous', null);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=host-a');
+        try {
+            (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            $after = $policy->evaluate('ABC-123', 'governed', $references, []);
+            self::assertFalse($after->mutationAllowed);
+            self::assertSame($before->nextAction, $after->nextAction);
+            self::assertEquals($before, $after);
         } finally {
             putenv('AGENT_LOOP_INTERACTION_DIR');
             putenv('AGENT_LOOP_HOST_SESSION_ID');

@@ -25,6 +25,9 @@ final readonly class WorkflowInteractionCommand
             if (count($args) > 3 || trim($session) === '' || ($task !== null && trim($task) === '')) {
                 throw new RuntimeException('Usage: workflow interaction <host-session-id> <collaborative|autonomous> [task-id].');
             }
+            if ($mode === 'inherit' && $task === null) {
+                throw new RuntimeException('A task identity is required to clear an override.');
+            }
             $store = new InteractionPreferenceStore($directory);
             if ($mode === '--reuse') {
                 if ($task === null) {
@@ -37,13 +40,10 @@ final readonly class WorkflowInteractionCommand
                 $mode = $previous->defaultMode;
                 $task = null;
             }
-            $store->update($session, $mode, $task);
             if ($task === null) {
-                try {
-                    $store->update("\0host-default", $mode, null);
-                } catch (Throwable $exception) {
-                    throw new RuntimeException('Session preference was saved, but the shared host default was not: ' . $exception->getMessage(), 0, $exception);
-                }
+                $store->setDefault($session, $mode);
+            } else {
+                $store->update($session, $mode, $task);
             }
             echo "[OK] interaction preference saved; it grants no authority.\n";
             return 0;

@@ -11,6 +11,8 @@ agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" autonomous
 # Or reuse a prior session default explicitly:
 agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" --reuse previous-host-session-id
 agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" collaborative TASK-1
+# Clear an override and use the session default again:
+agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" inherit TASK-1
 ```
 
 SessionStart exposes the host hook's `session_id` when it is a safe identifier. For task context, the host must
