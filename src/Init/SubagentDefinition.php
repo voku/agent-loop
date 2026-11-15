@@ -58,6 +58,11 @@ final readonly class SubagentDefinition
         );
     }
 
+    public function description(): string
+    {
+        return $this->description;
+    }
+
     /** @return list<string> */
     public static function validationErrors(string $filePath): array
     {
