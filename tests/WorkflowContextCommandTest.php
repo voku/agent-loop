@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -85,6 +86,26 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertStringContainsString('G-001 (.agent-loop/recall/ABC-123/meta.json)', $output);
         self::assertStringContainsString('Demo\\Foo', $output);
         self::assertSame($before, hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json'));
+    }
+
+    public function testInteractionOverrideDoesNotChangeAuthorityOrReviewState(): void
+    {
+        $directory = $this->root . '/host-preferences';
+        $before = (new RunManifestProjector($this->root))->project('ABC-123');
+        $store = new InteractionPreferenceStore($directory);
+        $store->update('host-a', 'collaborative', null);
+        $store->update('host-a', 'autonomous', 'ABC-123');
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=host-a');
+        try {
+            $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            self::assertStringContainsString('Interaction mode: autonomous', implode("\n", $context['lines']));
+            self::assertSame('human_required', $context['interaction']['authority_bearing_decisions']);
+            self::assertEquals($before, (new RunManifestProjector($this->root))->project('ABC-123'));
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+        }
     }
 
     public function testContextProjectsNeverPolicyWithoutChangingHumanAuthority(): void

@@ -181,7 +181,8 @@ final readonly class AgentDisciplineHook
             ));
         }
 
-        $context = $this->workflowResumeHint()
+        $context = ($event === 'SessionStart' ? $this->interactionHint($payload) : '')
+            . $this->workflowResumeHint()
             . $this->learningBacklogHint()
             . ($event === 'SessionStart' ? $this->dreamHint() : '')
             . $this->disciplineContext($clientDirectory);
@@ -190,6 +191,31 @@ final readonly class AgentDisciplineHook
             'hookEventName' => $event,
             'additionalContext' => $this->truncateUtf8ByBytes($context, $maxContextBytes),
         ];
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function interactionHint(array $payload): string
+    {
+        $sessionId = $payload['session_id'] ?? null;
+        if (!is_string($sessionId) || trim($sessionId) === '' || strlen($sessionId) > 128 || preg_match('/\A[A-Za-z0-9._-]+\z/', $sessionId) !== 1) {
+            return '';
+        }
+        $hint = "## Host interaction\nHost session identity: `" . $sessionId . "`. Set AGENT_LOOP_HOST_SESSION_ID to this value when invoking task context.\n";
+        $directory = getenv('AGENT_LOOP_INTERACTION_DIR');
+        if (!is_string($directory) || $directory === '') {
+            return $hint . "No preference directory is configured. Reuse the developer's stated preference.\n\n";
+        }
+        try {
+            $preference = (new InteractionPreferenceStore($directory))->forSession($sessionId);
+        } catch (Throwable) {
+            return $hint . "Preference unavailable or invalid. It conveys no authority.\n\n";
+        }
+        if ($preference === null) {
+            return $hint . "No saved preference; reuse the developer's stated preference.\n\n";
+        }
+        return $hint . 'Session default: ' . $preference->defaultMode
+            . ". For a task, read workflow context using this host session identity to apply its override. "
+            . "Autonomous mode continues authorized implementation, verification, review and in-scope repair. Collaborative mode discusses meaningful choices. Neither changes authority or gates.\n\n";
     }
 
     /** @return array<string, mixed> */

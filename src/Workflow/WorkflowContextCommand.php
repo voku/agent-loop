@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\FutureWorkMode;
 use voku\AgentLoop\HumanExplanationPolicy;
 use voku\AgentLoop\Init\InitConfigLoader;
@@ -197,6 +198,19 @@ final readonly class WorkflowContextCommand
         $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
         $budget->add('policy', 'Response language: ' . $prompting['language'] . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
         $budget->add('policy', 'Blind-spot presentation: ' . $prompting['blindspots']['tone'] . ' tone. Focus on the task or concern supplied by the user; do not invent personal motives or evidence.');
+
+        $interactionDirectory = getenv('AGENT_LOOP_INTERACTION_DIR');
+        $hostSession = getenv('AGENT_LOOP_HOST_SESSION_ID');
+        if (is_string($interactionDirectory) && $interactionDirectory !== '' && is_string($hostSession) && $hostSession !== '') {
+            try {
+                $preference = (new InteractionPreferenceStore($interactionDirectory))->forSession($hostSession);
+                if ($preference !== null) {
+                    $budget->add('policy', 'Interaction mode: ' . $preference->modeFor($taskId) . '; behavioral guidance only, no authorization or gate changes.');
+                }
+            } catch (Throwable) {
+                $budget->add('policy', 'Interaction preference unavailable or invalid; no authority is inferred.');
+            }
+        }
 
         $this->addLifecycleAuthority($budget, $taskId);
 
