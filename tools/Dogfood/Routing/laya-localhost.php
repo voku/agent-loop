@@ -57,6 +57,29 @@ if (str_starts_with($state, 'STALE')) {
     echo '{"answers":{"specialist":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"none":0.1}}}}';
     exit;
 }
+if (str_starts_with($state, 'NON_FINITE_NAN')) {
+    echo '{"answers":{"specialist":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"agent-loop-investigator":NaN}}}}';
+    exit;
+}
+if (str_starts_with($state, 'NON_FINITE_INFINITY')) {
+    echo '{"answers":{"specialist":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"agent-loop-investigator":Infinity}}}}';
+    exit;
+}
+if (str_starts_with($state, 'OUT_OF_RANGE')) {
+    $invalid = array_fill_keys(array_keys($criteria), 0.0);
+    $invalid['agent-loop-investigator'] = 1.2;
+    echo json_encode([
+        'answers' => [
+            'specialist' => [
+                'type' => 'choice',
+                'choice' => 'agent-loop-investigator',
+                'probabilities' => $invalid,
+                'confidence' => 0.7,
+            ],
+        ],
+    ], JSON_THROW_ON_ERROR);
+    exit;
+}
 $choice = str_starts_with($state, 'ABSTAIN') ? 'none' : 'agent-loop-investigator';
 if (!array_key_exists($choice, $criteria)) {
     http_response_code(400);
