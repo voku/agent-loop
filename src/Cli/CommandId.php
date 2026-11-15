@@ -15,6 +15,7 @@ enum CommandId: string
     case Repair = 'repair';
     case Pipeline = 'pipeline';
     case Edit = 'edit';
+    case Decision = 'decision';
     case Board = 'board';
     case Verify = 'verify';
     case BoardVerify = 'board:verify';

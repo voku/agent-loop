@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "00599f230e028feeedf1f83b177232a3",
+    "content-hash": "f0765ea9a426c28c3ebe2d7fdbfa5ec5",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -922,6 +922,54 @@
                 }
             ],
             "time": "2024-09-09T11:45:10+00:00"
+        },
+        {
+            "name": "voku/agent-decision",
+            "version": "0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/voku/agent-decision.git",
+                "reference": "d45933b969fd646e180b3ddd3f6e83981c10725b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/voku/agent-decision/zipball/d45933b969fd646e180b3ddd3f6e83981c10725b",
+                "reference": "d45933b969fd646e180b3ddd3f6e83981c10725b",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.95",
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^12.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "voku\\AgentDecision\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Provider-neutral bounded decision advice with explicit human authority and privacy boundaries",
+            "homepage": "https://github.com/voku/agent-decision",
+            "keywords": [
+                "advisory",
+                "agents",
+                "decisions",
+                "php",
+                "provider-neutral"
+            ],
+            "support": {
+                "issues": "https://github.com/voku/agent-decision/issues",
+                "source": "https://github.com/voku/agent-decision/tree/0.1.0"
+            },
+            "time": "2026-11-15T15:42:00+00:00",
+            "published-time": "2026-11-15T15:43:01+00:00"
         },
         {
             "name": "voku/agent-edit",

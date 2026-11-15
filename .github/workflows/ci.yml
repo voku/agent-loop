@@ -6,6 +6,9 @@ on:
     tags: ['**']
   pull_request:
 
+env:
+  CI_EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -15,7 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Assert exact source checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$CI_EXACT_HEAD"
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
@@ -91,8 +98,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact source checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$CI_EXACT_HEAD"
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -110,7 +121,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: execution-contract-dogfood-${{ github.sha }}
+          name: execution-contract-dogfood-${{ env.CI_EXACT_HEAD }}
           if-no-files-found: warn
           path: build/execution-contract-dogfood.json
 
@@ -131,8 +142,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact source checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$CI_EXACT_HEAD"
       - name: Classify Self-Shape applicability
         id: self-shape-scope
         shell: bash
@@ -189,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: self-shape-${{ github.sha }}
+          name: self-shape-${{ env.CI_EXACT_HEAD }}
           if-no-files-found: warn
           path: |
             build/self-shape-*.json
@@ -207,7 +222,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Assert exact source checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$CI_EXACT_HEAD"
       - name: Checkout pinned first-party engineering skills
         uses: actions/checkout@v7
         with:
@@ -486,7 +505,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: release-set-dogfood-${{ github.sha }}
+          name: release-set-dogfood-${{ env.CI_EXACT_HEAD }}
           if-no-files-found: warn
           path: |
             build/release-set-report.json
@@ -504,7 +523,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Assert exact source checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$CI_EXACT_HEAD"
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -525,6 +548,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: slop-scan-${{ github.sha }}
+          name: slop-scan-${{ env.CI_EXACT_HEAD }}
           if-no-files-found: warn
           path: build-slop-report.json

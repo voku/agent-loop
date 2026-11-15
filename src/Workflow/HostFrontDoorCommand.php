@@ -344,6 +344,23 @@ final readonly class HostFrontDoorCommand
             $policy->nextActionKind,
         );
         if ($decision === null) {
+            $projection = (new WorkflowHumanDecisionProjector($this->rootPath))->project(
+                $taskId,
+                $policy->nextAction,
+                $policy->nextActionKind,
+                $policy->blockers,
+            );
+            if ($projection !== null) {
+                $recommendation = $projection['recommendation'] ?? null;
+                if (is_array($recommendation)) {
+                    $choice = $recommendation['suggested_choice'] ?? null;
+                    echo "\nDecision required: " . $projection['type'] . "\n";
+                    echo "Advisory recommendation: " . (is_string($choice) ? $choice : 'abstain') . "\n";
+                    echo "Reason: " . (string) ($recommendation['reason'] ?? 'Human judgment required.') . "\n";
+                    echo "Only the human can authorize this decision.\n";
+                }
+            }
+
             return;
         }
 

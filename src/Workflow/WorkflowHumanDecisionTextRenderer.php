@@ -6,6 +6,11 @@ namespace voku\AgentLoop\Workflow;
 
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\PathResolver;
+use Throwable;
+use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentLoop\Run\RunPolicyEvaluation;
 
 /**
  * Human-readable CLI view of a typed Contract approval projection.
@@ -67,7 +72,55 @@ final readonly class WorkflowHumanDecisionTextRenderer
             : '  Reject: Record a rejection and reason. A new Contract revision is required before work can proceed.';
         $lines[] = '    agent-loop workflow reject ' . $contract->taskId . ' --revision ' . $contract->revision . ' --by <actor> --reason <reason>';
 
+        $subject = $decision->subject(PathResolver::relativeTo($this->rootPath, $decision->contract->path));
+        $advice = (new WorkflowDecisionAdvisor($this->rootPath))->advise('contract_approval', $subject);
+        $lines[] = '';
+        $lines[] = $german ? 'Unverbindliche Entscheidungsempfehlung:' : 'Advisory decision recommendation:';
+        $choice = $advice['suggested_choice'];
+        $lines[] = ($german ? '  Vorschlag: ' : '  Suggestion: ') . ($choice === null ? 'abstain' : $choice);
+        $lines[] = '  ' . $advice['reason'];
+        $lines[] = $german
+            ? '  Die Entscheidung und Freigabe verbleiben ausschließlich beim Menschen.'
+            : '  The human retains sole decision and approval authority.';
+
         return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Supplemental non-authoritative advice when the HTML link replaces
+     * the larger CLI decision presentation. Never changes approval state.
+     */
+    public function renderHtmlDecisionAdvice(string $taskId): string
+    {
+        try {
+            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
+            $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+            if ($policy->nextActionKind !== RunPolicyEvaluation::KIND_DECISION_REQUIRED) {
+                return '';
+            }
+
+            $decision = (new WorkflowHumanDecisionProjector($this->rootPath))->project(
+                $taskId,
+                $policy->nextAction,
+                $policy->nextActionKind,
+                $policy->blockers,
+            );
+            $recommendation = $decision['recommendation'] ?? null;
+            if (!is_array($recommendation)) {
+                return '';
+            }
+
+            $choice = $recommendation['suggested_choice'] ?? null;
+
+            return "\nAdvisory recommendation: "
+                . (is_string($choice) ? $choice : 'abstain')
+                . "\nReason: "
+                . (string) ($recommendation['reason'] ?? 'Review the exact subject.')
+                . "\nThe decision still requires explicit human approval.\n";
+        } catch (Throwable) {
+            // This optional presentation cannot hide or grant a human gate.
+            return "\n[WARN] Decision advice unavailable; inspect the exact human gate in agent-ui.\n";
+        }
     }
 
     private function isGerman(string $language): bool

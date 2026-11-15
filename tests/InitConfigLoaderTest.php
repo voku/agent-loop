@@ -36,6 +36,82 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testAbsoluteConfigPathsWorkForWindowsAndUnixProjectRoots(): void
+    {
+        // Verify the path passed to is_file(), without depending on a Windows
+        // filesystem being available on the Linux CI runners.
+        $resolve = new \ReflectionMethod(InitConfigLoader::class, 'resolvePath');
+        self::assertSame(
+            DIRECTORY_SEPARATOR === '\\'
+                ? 'C:/work/project/.agent-loop/init.json'
+                : 'C:/work/project/C:/work/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('C:/work/project'), 'C:/work/project/.agent-loop/init.json'),
+        );
+        self::assertSame(
+            '//server/share/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('//server/share/project'), '//server/share/project/.agent-loop/init.json'),
+        );
+        self::assertSame(
+            '/srv/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('/srv/project'), '/srv/project/.agent-loop/init.json'),
+        );
+        self::assertSame(
+            '/srv/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('/srv/project'), '.agent-loop/init.json'),
+        );
+    }
+
+    public function testUnixLiteralBackslashInConfigFilenameIsNotRewritten(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('Literal backslash filename is a Unix filesystem behavior.');
+        }
+
+        $root = $this->tempDir();
+        $name = 'config\\local.json';
+        file_put_contents($root . '/' . $name, '{"prompting":{"language":"de"}}');
+
+        $config = (new InitConfigLoader($root))->load($name);
+        self::assertSame('de', $config['prompting']['language']);
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testUnixLeadingBackslashesAreLiteralRelativeConfigFilename(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('UNC-style leading backslashes are absolute on Windows.');
+        }
+
+        $root = $this->tempDir();
+        // Two leading backslashes are a valid Unix filename, not a UNC path.
+        $name = '\\\\server\\share.json';
+        file_put_contents($root . '/' . $name, '{"prompting":{"language":"de"}}');
+
+        $config = (new InitConfigLoader($root))->load($name);
+        self::assertSame('de', $config['prompting']['language']);
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testUnixWindowsDriveLetterShapedFilenamesRemainRelative(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('Drive-letter-prefixed paths are absolute on Windows.');
+        }
+
+        $root = $this->tempDir();
+        $literalBackslash = 'C:\\config.json';
+        file_put_contents($root . '/' . $literalBackslash, '{"prompting":{"language":"de"}}');
+        $backslashConfig = (new InitConfigLoader($root))->load($literalBackslash);
+        self::assertSame('de', $backslashConfig['prompting']['language']);
+        self::assertSame([], $backslashConfig['warnings']);
+
+        mkdir($root . '/C:');
+        file_put_contents($root . '/C:/config.json', '{"prompting":{"language":"fr"}}');
+        $slashConfig = (new InitConfigLoader($root))->load('C:/config.json');
+        self::assertSame('fr', $slashConfig['prompting']['language']);
+        self::assertSame([], $slashConfig['warnings']);
+    }
+
     public function testProvidedBoundedContentIsUsedWithoutSecondFilesystemRead(): void
     {
         $root = $this->tempDir();

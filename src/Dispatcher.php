@@ -12,6 +12,7 @@ use voku\AgentLoop\Cli\CommandCatalog;
 use voku\AgentLoop\Cli\CommandId;
 use voku\AgentLoop\Cli\CommandsCommand;
 use voku\AgentLoop\Edit\EditCommand;
+use voku\AgentLoop\Decision\DecisionRouteCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
@@ -66,6 +67,7 @@ final class Dispatcher
             CommandId::Repair => (new HostFrontDoorApplication($this->rootPath))->run('repair', $rest),
             CommandId::Pipeline => (new HostFrontDoorApplication($this->rootPath))->run('pipeline', $rest),
             CommandId::Edit => (new EditCommand($this->rootPath))->run($rest),
+            CommandId::Decision => (new DecisionRouteCommand($this->rootPath))->run($rest),
             CommandId::Board => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
             CommandId::Verify => (new AgentLoopVerifier($this->rootPath))->run($rest),
             CommandId::BoardVerify => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
