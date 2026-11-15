@@ -72,6 +72,19 @@ final class ExecutionEnvironmentObservationTest extends TestCase
         self::assertSame('lars', $store->find('ABC-123')?->selectedBy, 'Rejected selection must preserve the existing artifact.');
     }
 
+    public function testLegacyReservedProfileAttributionCannotActivateProfile(): void
+    {
+        $this->prepareSurgicalRun();
+        $store = new ExecutionProfileSelectionStore($this->root);
+        $path = $store->path('ABC-123');
+        $selection = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        $selection['selected_by'] = ' standing:legacy-spoof ';
+        file_put_contents($path, json_encode($selection, JSON_THROW_ON_ERROR));
+
+        self::assertNull($store->find('ABC-123'));
+        self::assertSame(ExecutionProfileName::STANDARD, $store->resolve((new TaskContractStore($this->root))->load('ABC-123')));
+    }
+
     public function testCurrentBoundedObservationFinalizesAgentPromptWithoutEnvironmentDump(): void
     {
         $this->prepareSurgicalRun();

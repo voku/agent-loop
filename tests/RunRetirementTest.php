@@ -142,6 +142,25 @@ final class RunRetirementTest extends TestCase
         self::assertSame('operator-1', $retirement->retiredBy);
     }
 
+    public function testLegacyReservedRetirementDoesNotRetireRunAndCanBeReplaced(): void
+    {
+        $run = $this->preparedRun();
+        $store = new RunRetirementStore($this->root);
+        $store->record($run, 'abandoned', 'Legacy record.', 'lars');
+        $path = (new \voku\AgentLoop\ProjectLayout($this->root))->runChildFile('ABC-123', 'retirement.json');
+        $artifact = json_decode((string) file_get_contents($path), true, 8, JSON_THROW_ON_ERROR);
+        $artifact['retired_by'] = ' standing:legacy-spoof ';
+        file_put_contents($path, json_encode($artifact, JSON_THROW_ON_ERROR));
+
+        self::assertNull($store->findForRun($run));
+        self::assertNotSame('retired', (new RunManifestProjector($this->root))->project('ABC-123')->state);
+
+        $replacement = $store->record($run, 'abandoned', 'Confirmed by an operator.', 'operator-1');
+        self::assertSame('operator-1', $replacement->retiredBy);
+        $persisted = json_decode((string) file_get_contents($path), true, 8, JSON_THROW_ON_ERROR);
+        self::assertSame('operator-1', $persisted['retired_by'] ?? null);
+    }
+
     public function testRunWithFinalVerificationEvidenceCannotBeRetired(): void
     {
         $run = $this->preparedRun();

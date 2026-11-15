@@ -101,12 +101,19 @@ final readonly class ExecutionProfileSelectionStore
             throw new RuntimeException('Unsupported execution profile in ' . $path . '.');
         }
 
+        $selectedBy = $this->requiredString($data, 'selected_by', $path);
+        // Older artifacts may contain an actor label written before the reserved
+        // standing: namespace was enforced. It must not activate a profile.
+        if (str_starts_with(trim($selectedBy), 'standing:')) {
+            return null;
+        }
+
         return new ExecutionProfileSelection(
             $taskId,
             $revision,
             ['path' => $sourcePath, 'sha256' => $sourceSha],
             $profile,
-            $this->requiredString($data, 'selected_by', $path),
+            $selectedBy,
             $this->requiredString($data, 'selected_at', $path),
             $path,
         );

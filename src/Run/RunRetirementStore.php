@@ -103,6 +103,13 @@ final class RunRetirementStore
             throw new RuntimeException('Run retirement artifact is malformed: ' . $path);
         }
 
+        // A legacy reserved actor cannot authorize retirement. Treat the artifact
+        // as non-authoritative so projection stays usable and a named operator can
+        // replace it through record().
+        if (str_starts_with(trim($data['retired_by']), 'standing:')) {
+            return null;
+        }
+
         return new RunRetirement(
             $taskId,
             $data['run_id'],
