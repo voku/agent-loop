@@ -595,7 +595,7 @@ final class HostFrontDoorCommandTest extends TestCase
         }
         $pipes = [];
         $process = proc_open(
-            [PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', ...$args],
+            [PHP_BINARY, '-d', 'error_reporting=24575', dirname(__DIR__) . '/bin/agent-loop', ...$args],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
