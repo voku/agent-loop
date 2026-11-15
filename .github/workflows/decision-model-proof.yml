@@ -243,3 +243,72 @@ jobs:
           name: decision-model-routing-evidence-${{ github.event.pull_request.head.sha || github.sha }}
           path: build/decision-model-routing-proof/
           if-no-files-found: warn
+
+  portable-package-consumer:
+    name: Pinned Composer package to agent-loop CLI compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LOOP_EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      AGENT_DECISION_EXACT_SHA: d71be7c3787547c5870abfae399d3faab1a90451
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: voku/agent-decision
+          ref: d71be7c3787547c5870abfae399d3faab1a90451
+          path: build/agent-decision-checkout
+          persist-credentials: false
+      - name: Assert immutable source and dependency commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$LOOP_EXACT_HEAD"
+          test "$(git -C build/agent-decision-checkout rev-parse HEAD)" = "$AGENT_DECISION_EXACT_SHA"
+          test "$(jq -r .name build/agent-decision-checkout/composer.json)" = 'voku/agent-decision'
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install agent-loop source dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Install actual portable package in an isolated Composer consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/decision-package-consumer
+          cat > build/decision-package-consumer/composer.json <<'JSON'
+          {
+            "name": "voku/agent-loop-decision-package-compatibility",
+            "type": "project",
+            "require": {
+              "voku/agent-decision": "dev-main"
+            },
+            "minimum-stability": "dev",
+            "repositories": [
+              {
+                "type": "path",
+                "url": "../agent-decision-checkout",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-decision": "dev-main"}
+                }
+              }
+            ],
+            "config": {"allow-plugins": false, "platform": {"php": "8.3.0"}}
+          }
+          JSON
+          composer install --working-dir=build/decision-package-consumer --no-dev --no-interaction --prefer-dist --no-progress
+          composer show --working-dir=build/decision-package-consumer voku/agent-decision
+      - name: Prove portable advisory contract and real agent-loop CLI bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$LOOP_EXACT_HEAD"
+          php -l tools/Dogfood/Routing/decision-package-compatibility.php
+          export AGENT_DECISION_CONSUMER_AUTOLOAD="$GITHUB_WORKSPACE/build/decision-package-consumer/vendor/autoload.php"
+          php tools/Dogfood/Routing/decision-package-compatibility.php
