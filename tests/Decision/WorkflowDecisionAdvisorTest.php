@@ -201,7 +201,10 @@ final class WorkflowDecisionAdvisorTest extends TestCase
         if (!is_dir($path)) {
             return;
         }
-        foreach (new \FilesystemIterator($path) as $entry) {
+        foreach (new \DirectoryIterator($path) as $entry) {
+            if ($entry->isDot()) {
+                continue;
+            }
             $child = $entry->getPathname();
             if ($entry->isDir()) {
                 $this->deleteDirectory($child);
