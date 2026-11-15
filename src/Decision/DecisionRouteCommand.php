@@ -17,7 +17,7 @@ use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowTaskId;
 
 /**
- * Optional advisory front door for direct Codex CLI users.
+ * Optional advisory CLI front door for any supported coding host.
  *
  * Does not call enter/finish, load private task context, or mutate lifecycle state.
  */
@@ -89,7 +89,7 @@ final readonly class DecisionRouteCommand
                 'provider_latency_ms' => null,
                 'provider_error' => null,
                 'request_sha256' => null,
-                'selection_authority' => 'codex_host',
+                'selection_authority' => 'invoking_host',
                 'lifecycle_mutation' => false,
             ];
 
@@ -273,7 +273,7 @@ final readonly class DecisionRouteCommand
         }
         // Only package-owned public definitions may cross the remote data boundary.
         // Project-managed and extra-root subagents can be private, even when their
-        // identifiers are otherwise valid and usable by the local Codex host.
+        // identifiers are otherwise valid and usable by the invoking host.
         $packageRoot = realpath(PackageResources::subagentsRoot());
         if ($packageRoot === false) {
             throw new InvalidArgumentException('Public package subagent source root is unavailable.');
