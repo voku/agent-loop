@@ -480,6 +480,12 @@ final readonly class InitConfigLoader
 
     private function resolvePath(string $path): string
     {
-        return PathResolver::join($this->rootPath, $path);
+        // Recognise Windows/UNC absolute paths without rewriting literal
+        // backslashes, which are valid characters in Unix filenames.
+        if (PathResolver::isAbsolute($path)) {
+            return $path;
+        }
+
+        return rtrim($this->rootPath, '/') . '/' . ltrim($path, '/');
     }
 }
