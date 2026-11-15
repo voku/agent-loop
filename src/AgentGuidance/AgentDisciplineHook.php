@@ -206,7 +206,7 @@ final readonly class AgentDisciplineHook
             return $hint . "No preference directory is configured. Reuse the developer's stated preference.\n\n";
         }
         try {
-            $preference = (new InteractionPreferenceStore($directory))->forSession($sessionId);
+            $preference = (new InteractionPreferenceStore($directory))->bindSession($sessionId);
         } catch (Throwable) {
             return $hint . "Preference unavailable or invalid. It conveys no authority.\n\n";
         }

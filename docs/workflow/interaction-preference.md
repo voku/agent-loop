@@ -14,7 +14,7 @@ agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" collaborative TASK
 ```
 
 SessionStart exposes the host hook's `session_id` when it is a safe identifier. For task context, the host must
-set `AGENT_LOOP_HOST_SESSION_ID` to that same identity. A new session uses the last session default stored in that host-owned directory; task overrides remain session-specific. With no preference the
+set `AGENT_LOOP_HOST_SESSION_ID` to that same identity. SessionStart binds a new session to the last default stored in that host-owned directory; task overrides remain session-specific. With no preference the
 host follows the user's existing instructions and may ask when a preference
 matters; it must not infer consent. A task override applies only to the named task.
 Autonomous mode guides ordinary implementation, verification and in-scope repair

@@ -52,7 +52,7 @@ final readonly class InteractionPreferenceStore
             if (!flock($lock, LOCK_EX)) {
                 throw new RuntimeException('Cannot lock interaction preference.');
             }
-            $existing = $this->forSession($sessionId);
+            $existing = $this->find($sessionId);
             if ($taskId !== null) {
                 if ($existing === null) {
                     throw new RuntimeException('Set a session default before setting a task override.');
@@ -69,17 +69,37 @@ final readonly class InteractionPreferenceStore
         }
     }
 
-    public function forSession(string $sessionId): ?InteractionPreference
+    /** Bind a new host session to the current shared default exactly once. */
+    public function bindSession(string $sessionId): ?InteractionPreference
     {
         if (trim($sessionId) === '') {
             return null;
         }
-        $current = $this->find($sessionId);
-        if ($current !== null) {
-            return $current;
+        if (!is_dir($this->directory)) {
+            return null;
         }
-        $default = $this->find("\0host-default");
-        return $default === null ? null : new InteractionPreference($sessionId, $default->defaultMode);
+        $lock = fopen($this->path($sessionId) . '.lock', 'c');
+        if ($lock === false) {
+            throw new RuntimeException('Cannot open interaction preference lock.');
+        }
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                throw new RuntimeException('Cannot lock interaction preference.');
+            }
+            $current = $this->find($sessionId);
+            if ($current !== null) {
+                return $current;
+            }
+            $default = $this->find("\0host-default");
+            if ($default === null) {
+                return null;
+            }
+            $current = new InteractionPreference($sessionId, $default->defaultMode);
+            $this->save($current);
+            return $current;
+        } finally {
+            fclose($lock);
+        }
     }
 
     public function find(string $sessionId): ?InteractionPreference

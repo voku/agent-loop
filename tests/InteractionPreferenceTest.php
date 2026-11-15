@@ -53,10 +53,11 @@ final class InteractionPreferenceTest extends TestCase
             ob_start();
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['host', 'autonomous']));
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['host', 'collaborative', '1052']));
-            self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->forSession('fresh-host')?->modeFor('1052'));
+            self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->bindSession('fresh-host')?->modeFor('1052'));
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['other-host', 'collaborative']));
+            self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->find('fresh-host')?->defaultMode);
             self::assertSame(0, (new WorkflowInteractionCommand())->run(['new-host', '--reuse', 'host']));
-            self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->forSession('future-host')?->defaultMode);
+            self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->bindSession('future-host')?->defaultMode);
             ob_end_clean();
             self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->find('new-host')?->modeFor('1052'));
             $found = (new InteractionPreferenceStore($directory))->find('host');
@@ -80,7 +81,23 @@ final class InteractionPreferenceTest extends TestCase
         symlink($directory . '/missing', $link);
         try {
             $this->expectException(\RuntimeException::class);
-            $store->forSession('host');
+            $store->bindSession('host');
+        } finally {
+            foreach (glob($directory . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            rmdir($directory);
+        }
+    }
+    public function testMalformedSessionDoesNotInheritSharedDefault(): void
+    {
+        $directory = sys_get_temp_dir() . '/interaction-malformed-' . bin2hex(random_bytes(8));
+        $store = new InteractionPreferenceStore($directory);
+        $store->update("\0host-default", 'autonomous', null);
+        file_put_contents($directory . '/' . hash('sha256', 'host') . '.json', '{');
+        try {
+            $this->expectException(\RuntimeException::class);
+            $store->bindSession('host');
         } finally {
             foreach (glob($directory . '/*') ?: [] as $file) {
                 unlink($file);

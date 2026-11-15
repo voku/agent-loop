@@ -203,7 +203,7 @@ final readonly class WorkflowContextCommand
         $hostSession = getenv('AGENT_LOOP_HOST_SESSION_ID');
         if (is_string($interactionDirectory) && $interactionDirectory !== '' && is_string($hostSession) && $hostSession !== '') {
             try {
-                $preference = (new InteractionPreferenceStore($interactionDirectory))->forSession($hostSession);
+                $preference = (new InteractionPreferenceStore($interactionDirectory))->find($hostSession);
                 if ($preference !== null) {
                     $budget->add('policy', 'Interaction mode: ' . $preference->modeFor($taskId) . '; behavioral guidance only, no authorization or gate changes.');
                 }

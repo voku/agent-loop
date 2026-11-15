@@ -108,6 +108,27 @@ final class WorkflowContextCommandTest extends TestCase
         }
     }
 
+    public function testAutonomousPreferenceDoesNotApproveAnUnapprovedContract(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('PENDING-1', 'Pending work', ['src/Foo.php'], [], ['true'], 'lars');
+        $projector = new RunManifestProjector($this->root);
+        $before = $projector->project('PENDING-1');
+        $directory = $this->root . '/host-preferences';
+        (new InteractionPreferenceStore($directory))->update('host-a', 'autonomous', null);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=host-a');
+        try {
+            $context = (new WorkflowContextCommand($this->root))->build('PENDING-1', 120, 12000);
+            self::assertStringContainsString('Interaction mode: autonomous', implode("\n", $context['lines']));
+            self::assertStringContainsString('not approved', implode("\n", $context['lines']));
+            self::assertEquals($before, $projector->project('PENDING-1'));
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+        }
+    }
+
     public function testContextProjectsNeverPolicyWithoutChangingHumanAuthority(): void
     {
         file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
