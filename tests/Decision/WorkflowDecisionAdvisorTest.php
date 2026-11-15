@@ -139,6 +139,38 @@ final class WorkflowDecisionAdvisorTest extends TestCase
         self::assertSame('configuration_or_transport', $advice['provider_error']);
     }
 
+    public function testPositiveModelApprovalFromMetadataIsRejected(): void
+    {
+        $this->configure('assist', 'public_metadata');
+        $model = new FakeDecisionModel('approve');
+        $advice = (new WorkflowDecisionAdvisor($this->root, $model))->advise(
+            'contract_approval',
+            ['scope' => ['src'], 'validation' => ['phpunit'], 'acceptance_criteria' => ['test']],
+        );
+
+        self::assertSame('abstain', $advice['disposition']);
+        self::assertNull($advice['suggested_choice']);
+        self::assertSame('deterministic', $advice['source']);
+        self::assertSame('insufficient_decision_evidence', $advice['provider_error']);
+        self::assertSame('abstain', $advice['provider_disposition']);
+        self::assertTrue($advice['human_decision_required']);
+    }
+
+    public function testPositiveRiskAcceptanceFromMetadataIsRejected(): void
+    {
+        $this->configure('assist', 'public_metadata');
+        $model = new FakeDecisionModel('accept_risk');
+        $advice = (new WorkflowDecisionAdvisor($this->root, $model))->advise(
+            'risk_acceptance',
+            ['blockers' => [['code' => 'risk', 'message' => 'private']]],
+        );
+
+        self::assertSame('defer_risk_acceptance', $advice['suggested_choice']);
+        self::assertSame('deterministic', $advice['source']);
+        self::assertSame('insufficient_decision_evidence', $advice['provider_error']);
+        self::assertSame('abstain', $advice['provider_disposition']);
+    }
+
     public function testUntrustedModelCannotInventApprovalChoice(): void
     {
         $this->configure('assist', 'public_metadata');
