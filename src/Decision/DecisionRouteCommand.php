@@ -23,8 +23,10 @@ use voku\AgentLoop\Workflow\WorkflowTaskId;
  */
 final readonly class DecisionRouteCommand
 {
-    public function __construct(private string $rootPath)
-    {
+    public function __construct(
+        private string $rootPath,
+        private ?DecisionModel $model = null,
+    ) {
     }
 
     /** @param list<string> $args */
@@ -130,7 +132,7 @@ final readonly class DecisionRouteCommand
                 $token = $read;
             }
 
-            $client = new SystemOneChoiceHttpClient(
+            $client = $this->model ?? new SystemOneChoiceHttpClient(
                 $endpoint,
                 (int) $timeoutRaw,
                 isset($options['allow-loopback']),
