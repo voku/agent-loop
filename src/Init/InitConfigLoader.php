@@ -482,7 +482,10 @@ final readonly class InitConfigLoader
     {
         // Recognise Windows/UNC absolute paths without rewriting literal
         // backslashes, which are valid characters in Unix filenames.
-        if (PathResolver::isAbsolute($path)) {
+        if (
+            PathResolver::isAbsolute($path)
+            && (DIRECTORY_SEPARATOR === '\\' || !str_starts_with($path, '\\\\'))
+        ) {
             return $path;
         }
 
