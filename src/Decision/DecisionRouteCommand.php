@@ -9,6 +9,8 @@ use Throwable;
 use UnexpectedValueException;
 use voku\AgentLoop\Init\AgentAssetSourcePaths;
 use voku\AgentLoop\Init\ManagedSubagentSourceResolver;
+use voku\AgentLoop\Init\InitConfigLoader;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowTaskId;
@@ -228,7 +230,13 @@ final readonly class DecisionRouteCommand
      */
     private function managedCandidates(array $requested): array
     {
-        $sources = (new ManagedSubagentSourceResolver($this->rootPath))->resolve(AgentAssetSourcePaths::fromSources($this->rootPath));
+        $layout = new ProjectLayout($this->rootPath);
+        $configPath = $layout->configPath();
+        $config = (new InitConfigLoader($this->rootPath))->load(
+            is_file($configPath) ? $layout->display($configPath) : null,
+        );
+        $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config);
+        $sources = (new ManagedSubagentSourceResolver($this->rootPath))->resolve($paths);
         if ($sources === []) {
             throw new InvalidArgumentException('No managed subagents available.');
         }
