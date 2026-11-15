@@ -20,6 +20,27 @@ Obey `next_action_kind` / `next_action` from that result. `AGENTS.md` already de
 
 A task router may choose a specialist skill, never a lifecycle phase. Only the current result routes task start/progress, Recall or repair, Learning, review, and close.
 
+### Human-decision recommendations
+
+Every current `next_action_kind=decision_required` question now includes a separate
+`human_decision.recommendation`. Treat its `suggested_choice`, `reason`, and
+`evidence_keys` as **advice, never authorization**. Show the recommendation
+alongside the exact approval subject and supported choices; do not execute
+`approve`, `accept-risk`, review acknowledgement, supersession, or Learning
+on its behalf. An `abstain` means the available evidence cannot support a
+recommendation, not that the human gate can be skipped.
+
+Without explicitly configured inference, recommendations are conservative
+local rules. When a project explicitly sets
+`interaction.decision_advice.mode=assist` with
+`provider=system_one`, an endpoint, and
+`data_classification=public_metadata`, the optional model can advise at
+the existing human gate. `shadow` records its selected option without
+changing the visible recommendation; `off` makes no network request.
+The adapter receives **only counts and decision category**, never Contract
+goals, paths, tasks, reviews, or private text. It does not know enough to
+verify human approval. Provider failure falls back to deterministic advice.
+
 ### Optional Codex specialist hint
 
 After `enter`, only when specialist selection could materially change the first investigation, a developer may explicitly request read-only advice:
