@@ -6,9 +6,9 @@ namespace voku\AgentLoop\Tests\Decision;
 
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Decision\DecisionRouteCommand;
-use voku\AgentLoop\Decision\DecisionModel;
-use voku\AgentLoop\Decision\DecisionChoiceResult;
-use voku\AgentLoop\Decision\SystemOneChoiceHttpClient;
+use voku\AgentDecision\DecisionChoiceResult;
+use voku\AgentDecision\DecisionModel;
+use voku\AgentDecision\Provider\SystemOneChoiceHttpClient;
 use InvalidArgumentException;
 
 final class DecisionRouteTest extends TestCase

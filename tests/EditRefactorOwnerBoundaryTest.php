@@ -54,15 +54,30 @@ final class EditRefactorOwnerBoundaryTest extends TestCase
         }
     }
 
-    public function testAgentEditIsRequiredAsAStableReleaseWithoutRepositoryOverrides(): void
+    public function testAgentEditStaysStableWhileOnlyDecisionUsesItsVcsOwner(): void
     {
         $composer = json_decode((string) file_get_contents(dirname(__DIR__) . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($composer);
 
-        // Candidate wiring (dev constraints, commit-refs, path/package repositories) must not become the published
-        // dependency boundary; agent-edit comes from its released version on Packagist.
+        // Agent-edit comes from its released version on Packagist. The decision package
+        // has no published Packagist versions, so only its owning VCS source is allowed.
         self::assertMatchesRegularExpression('/\A\^\d+\.\d+\.\d+\z/', (string) $composer['require']['voku/agent-edit']);
-        self::assertArrayNotHasKey('repositories', $composer);
+        self::assertSame([
+            [
+                'type' => 'vcs',
+                'url' => 'https://github.com/voku/agent-decision',
+            ],
+        ], $composer['repositories'] ?? []);
+
+        $lock = json_decode((string) file_get_contents(dirname(__DIR__) . '/composer.lock'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($lock);
+        $decisionPackages = array_values(array_filter(
+            $lock['packages'],
+            static fn (array $package): bool => ($package['name'] ?? null) === 'voku/agent-decision',
+        ));
+        self::assertCount(1, $decisionPackages);
+        self::assertSame('dev-main', $decisionPackages[0]['version']);
+        self::assertMatchesRegularExpression('/\A[0-9a-f]{40}\z/', $decisionPackages[0]['source']['reference']);
     }
 
     public function testLoopDoesNotCarryItsOwnCopyOfTheWorkingTreeSnapshotter(): void

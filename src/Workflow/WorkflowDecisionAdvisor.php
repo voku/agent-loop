@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use Throwable;
-use voku\AgentLoop\Decision\DecisionModel;
-use voku\AgentLoop\Decision\SystemOneChoiceHttpClient;
+use voku\AgentDecision\BoundedDecisionAdvisor;
+use voku\AgentDecision\DataClassification;
+use voku\AgentDecision\DecisionMode;
+use voku\AgentDecision\DecisionModel;
+use voku\AgentDecision\DecisionRequest;
+use voku\AgentDecision\Provider\SystemOneChoiceHttpClient;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
 
@@ -114,49 +118,29 @@ final readonly class WorkflowDecisionAdvisor
                 $settings['allow_loopback'],
                 $token,
             );
-            $decision = $model->decide(
-                self::publicMetadata($type, $subject),
-                $choices,
-                $settings['model'],
+            $request = new DecisionRequest(
+                criteria: $choices,
+                publicState: self::publicMetadata($type, $subject),
+                classification: DataClassification::Public,
+                baselineChoice: $baseline['choice'],
+                choicesRequiringEvidence: self::evidenceProtectedChoices($choices),
+                model: $settings['model'],
             );
-            if (
-                ($decision->candidateId !== null && !array_key_exists($decision->candidateId, $choices))
-                || ($decision->candidateId === null && $decision->answerProbability !== null)
-                || ($decision->candidateId !== null && $decision->answerProbability === null)
-                || ($decision->answerProbability !== null && (
-                    !is_finite($decision->answerProbability)
-                    || $decision->answerProbability < 0.0
-                    || $decision->answerProbability > 1.0
-                ))
-            ) {
-                throw new \UnexpectedValueException('Decision model returned an invalid bounded recommendation.');
-            }
-            // Public structural metadata does not contain the full Contract, review,
-            // residual risk or named human's acceptance. Never let a model infer
-            // a positive authority-bearing action from counts alone.
-            if ($decision->candidateId !== null && self::requiresHumanEvidence($decision->candidateId)) {
-                $recommendation['provider_disposition'] = 'abstain';
-                $recommendation['provider_error'] = 'insufficient_decision_evidence';
-                $recommendation['provider_observed_choice'] = null;
-                $recommendation['provider_probability'] = null;
-                $recommendation['provider'] = 'system_one';
-                $recommendation['provider_latency_ms'] = round((hrtime(true) - $start) / 1_000_000, 3);
-
-                return $recommendation;
-            }
-            $recommendation['provider_disposition'] = $decision->candidateId === null ? 'abstain' : 'suggest';
-            $recommendation['provider_observed_choice'] = $decision->candidateId;
-            $recommendation['provider_probability'] = $decision->answerProbability;
-            if ($mode === 'assist' && $decision->candidateId !== null) {
+            $decisionAdvice = (new BoundedDecisionAdvisor($model))->advise($request, DecisionMode::from($mode));
+            $recommendation['provider_disposition'] = $decisionAdvice->providerDisposition->value;
+            $recommendation['provider_observed_choice'] = $decisionAdvice->providerObservedChoice;
+            $recommendation['provider_probability'] = $decisionAdvice->providerProbability;
+            $recommendation['provider_error'] = match ($decisionAdvice->providerError) {
+                'provider_unavailable' => 'configuration_or_transport',
+                default => $decisionAdvice->providerError,
+            };
+            if ($decisionAdvice->source === 'decision_model') {
                 $recommendation['source'] = 'decision_model';
                 $recommendation['disposition'] = 'suggest';
-                $recommendation['suggested_choice'] = $decision->candidateId;
+                $recommendation['suggested_choice'] = $decisionAdvice->suggestedChoice;
                 $recommendation['reason'] = 'Model recommendation from structural metadata only. Verify the full decision subject yourself; the model does not know its private contents.';
                 $recommendation['evidence_keys'] = ['public_structural_metadata_only'];
             }
-        } catch (\UnexpectedValueException) {
-            $recommendation['provider_disposition'] = 'invalid_response';
-            $recommendation['provider_error'] = 'response_schema';
         } catch (Throwable) {
             $recommendation['provider_disposition'] = 'provider_unavailable';
             $recommendation['provider_error'] = 'configuration_or_transport';
@@ -178,6 +162,22 @@ final readonly class WorkflowDecisionAdvisor
             'accept_risk',
             'supersede_contract',
         ], true);
+    }
+
+    /**
+     * @param array<string, non-empty-string> $choices
+     * @return list<non-empty-string>
+     */
+    private static function evidenceProtectedChoices(array $choices): array
+    {
+        $protected = [];
+        foreach (array_keys($choices) as $choice) {
+            if ($choice !== '' && self::requiresHumanEvidence($choice)) {
+                $protected[] = $choice;
+            }
+        }
+
+        return $protected;
     }
 
     /**

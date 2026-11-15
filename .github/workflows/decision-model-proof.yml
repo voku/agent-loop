@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/decision-model-proof.yml'
+      - 'composer.json'
+      - 'composer.lock'
       - 'src/Decision/**'
       - 'src/Cli/**'
       - 'src/Dispatcher.php'
@@ -15,6 +17,7 @@ on:
       - 'src/Workflow/HostFrontDoorApplication.php'
       - 'src/Workflow/HostFrontDoorCommand.php'
       - 'tests/Decision/**'
+      - 'tests/EditRefactorOwnerBoundaryTest.php'
       - 'tools/Dogfood/Routing/decision-model-localhost.php'
       - 'resources/skills/agent-loop-workflow/SKILL.md'
   workflow_dispatch:
@@ -46,7 +49,6 @@ jobs:
       - name: Static PHP and focused PHPUnit
         run: |
           php -l src/Decision/DecisionRouteCommand.php
-          php -l src/Decision/SystemOneChoiceHttpClient.php
           php -l tools/Dogfood/Routing/decision-model-localhost.php
           vendor/bin/phpunit tests/Decision/DecisionRouteTest.php tests/Decision/WorkflowDecisionAdvisorTest.php
           composer phpstan
@@ -103,7 +105,7 @@ jobs:
             and .routing_hint == null' build/decision-model-routing-proof/oversized.json >/dev/null
           php -r '
             require "vendor/autoload.php";
-            $client = new \voku\AgentLoop\Decision\SystemOneChoiceHttpClient($argv[1], 1000, true);
+            $client = new \voku\AgentDecision\Provider\SystemOneChoiceHttpClient($argv[1], 1000, true);
             try {
                 $client->decide("OVERSIZED exact exception check", ["agent-loop-investigator" => "Choose specialist"], null);
                 exit(1);
@@ -198,7 +200,7 @@ jobs:
           sleep 1.6
           php -r '
             require "vendor/autoload.php";
-            $client = new \voku\AgentLoop\Decision\SystemOneChoiceHttpClient($argv[1], 350, true);
+            $client = new \voku\AgentDecision\Provider\SystemOneChoiceHttpClient($argv[1], 350, true);
             $started = microtime(true);
             try {
                 $client->decide("SLOW_TRICKLE public fixture", ["agent-loop-investigator" => "Investigate"], null);
@@ -245,7 +247,7 @@ jobs:
           if-no-files-found: warn
 
   portable-package-consumer:
-    name: Pinned Composer package to agent-loop CLI compatibility
+    name: Pinned Composer package directly powers agent-loop CLI
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -256,19 +258,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/checkout@v7
-        with:
-          repository: voku/agent-decision
-          ref: d71be7c3787547c5870abfae399d3faab1a90451
-          path: build/agent-decision-checkout
-          persist-credentials: false
-      - name: Assert immutable source and dependency commits
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$LOOP_EXACT_HEAD"
-          test "$(git -C build/agent-decision-checkout rev-parse HEAD)" = "$AGENT_DECISION_EXACT_SHA"
-          test "$(jq -r .name build/agent-decision-checkout/composer.json)" = 'voku/agent-decision'
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.3'
@@ -276,39 +265,19 @@ jobs:
           tools: composer:v2
       - name: Install agent-loop source dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Install actual portable package in an isolated Composer consumer
+      - name: Assert immutable portable dependency reference
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/decision-package-consumer
-          cat > build/decision-package-consumer/composer.json <<'JSON'
-          {
-            "name": "voku/agent-loop-decision-package-compatibility",
-            "type": "project",
-            "require": {
-              "voku/agent-decision": "dev-main"
-            },
-            "minimum-stability": "dev",
-            "repositories": [
-              {
-                "type": "path",
-                "url": "../agent-decision-checkout",
-                "options": {
-                  "symlink": false,
-                  "versions": {"voku/agent-decision": "dev-main"}
-                }
-              }
-            ],
-            "config": {"allow-plugins": false, "platform": {"php": "8.3.0"}}
-          }
-          JSON
-          composer install --working-dir=build/decision-package-consumer --no-dev --no-interaction --prefer-dist --no-progress
-          composer show --working-dir=build/decision-package-consumer voku/agent-decision
-      - name: Prove portable advisory contract and real agent-loop CLI bridge
+          test "$(git rev-parse HEAD)" = "$LOOP_EXACT_HEAD"
+          jq -e --arg sha "$AGENT_DECISION_EXACT_SHA" \
+            '.packages[] | select(.name == "voku/agent-decision" and .source.reference == $sha)' \
+            composer.lock >/dev/null
+          test -f vendor/voku/agent-decision/src/BoundedDecisionAdvisor.php
+      - name: Prove portable advisory contract and direct CLI integration
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$LOOP_EXACT_HEAD"
           php -l tools/decision-package-compatibility.php
-          export AGENT_DECISION_CONSUMER_AUTOLOAD="$GITHUB_WORKSPACE/build/decision-package-consumer/vendor/autoload.php"
           php tools/decision-package-compatibility.php

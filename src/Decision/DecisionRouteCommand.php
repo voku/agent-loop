@@ -6,7 +6,13 @@ namespace voku\AgentLoop\Decision;
 
 use InvalidArgumentException;
 use Throwable;
-use UnexpectedValueException;
+use voku\AgentDecision\BoundedDecisionAdvisor;
+use voku\AgentDecision\DataClassification;
+use voku\AgentDecision\DecisionDisposition;
+use voku\AgentDecision\DecisionMode;
+use voku\AgentDecision\DecisionModel;
+use voku\AgentDecision\DecisionRequest;
+use voku\AgentDecision\Provider\SystemOneChoiceHttpClient;
 use voku\AgentLoop\Init\AgentAssetSourcePaths;
 use voku\AgentLoop\Init\ManagedSubagentSourceResolver;
 use voku\AgentLoop\Init\InitConfigLoader;
@@ -149,50 +155,49 @@ final readonly class DecisionRouteCommand
             if ($candidateDescriptions === []) {
                 throw new InvalidArgumentException('No eligible routing candidates.');
             }
+            $request = new DecisionRequest(
+                criteria: $candidateDescriptions,
+                publicState: $state,
+                classification: DataClassification::Public,
+                model: $model,
+            );
             $start = hrtime(true);
+            $advice = (new BoundedDecisionAdvisor($client))->advise($request, DecisionMode::from($mode));
             try {
-                $choice = $client->decide($state, $candidateDescriptions, $model);
-                if (
-                    ($choice->candidateId !== null && !array_key_exists($choice->candidateId, $candidateDescriptions))
-                    || ($choice->candidateId === null && $choice->answerProbability !== null)
-                    || ($choice->candidateId !== null && $choice->answerProbability === null)
-                    || ($choice->answerProbability !== null && (
-                        !is_finite($choice->answerProbability)
-                        || $choice->answerProbability < 0.0
-                        || $choice->answerProbability > 1.0
-                    ))
-                ) {
-                    throw new UnexpectedValueException('Decision model supplied an invalid bounded specialist choice.');
-                }
-
-                // A remote suggestion cannot outlive the approved Contract or
-                // the exact canonical candidate definitions it was computed for.
-                if ($taskId !== null) {
-                    $currentContract = (new TaskContractStore($this->rootPath))->find($taskId);
-                    if (
-                        $currentContract === null
-                        || $currentContract->status !== TaskContract::APPROVED
-                        || $currentContract->revision !== (int) $revision
-                    ) {
-                        throw new \DomainException('Task Contract revision changed during routing.');
+                if ($advice->providerError === null) {
+                    // A remote suggestion cannot outlive the approved Contract or
+                    // the exact canonical candidate definitions it was computed for.
+                    if ($taskId !== null) {
+                        $currentContract = (new TaskContractStore($this->rootPath))->find($taskId);
+                        if (
+                            $currentContract === null
+                            || $currentContract->status !== TaskContract::APPROVED
+                            || $currentContract->revision !== (int) $revision
+                        ) {
+                            throw new \DomainException('Task Contract revision changed during routing.');
+                        }
+                    }
+                    try {
+                        $currentCandidates = $this->managedCandidates($options['candidate'] ?? []);
+                    } catch (InvalidArgumentException $exception) {
+                        throw new \DomainException('Canonical candidate set changed during routing.', 0, $exception);
+                    }
+                    if ($currentCandidates !== $candidateDescriptions) {
+                        throw new \DomainException('Canonical candidate set changed during routing.');
                     }
                 }
-                try {
-                    $currentCandidates = $this->managedCandidates($options['candidate'] ?? []);
-                } catch (InvalidArgumentException $exception) {
-                    throw new \DomainException('Canonical candidate set changed during routing.', 0, $exception);
-                }
-                if ($currentCandidates !== $candidateDescriptions) {
-                    throw new \DomainException('Canonical candidate set changed during routing.');
-                }
 
-                $receipt['disposition'] = ($choice->candidateId === null ? DecisionDisposition::Abstain : DecisionDisposition::Suggest)->value;
-                $receipt['observed_candidate_id'] = $choice->candidateId;
-                $receipt['answer_probability'] = $choice->answerProbability;
-                if ($mode === 'assist' && $choice->candidateId !== null) {
+                $receipt['disposition'] = $advice->providerDisposition->value;
+                $receipt['observed_candidate_id'] = $advice->providerObservedChoice;
+                $receipt['answer_probability'] = $advice->providerProbability;
+                $receipt['provider_error'] = match ($advice->providerError) {
+                    'provider_unavailable' => 'transport_or_http',
+                    default => $advice->providerError,
+                };
+                if ($mode === 'assist' && $advice->source === 'decision_model') {
                     $receipt['routing_hint'] = [
-                        'candidate_id' => $choice->candidateId,
-                        'answer_probability' => $choice->answerProbability,
+                        'candidate_id' => $advice->suggestedChoice,
+                        'answer_probability' => $advice->providerProbability,
                         'authority' => 'advisory',
                         'host_retains_final_selection' => true,
                     ];
@@ -200,12 +205,6 @@ final readonly class DecisionRouteCommand
             } catch (\DomainException) {
                 $receipt['disposition'] = DecisionDisposition::InvalidResponse->value;
                 $receipt['provider_error'] = 'stale_decision_context';
-            } catch (UnexpectedValueException) {
-                $receipt['disposition'] = DecisionDisposition::InvalidResponse->value;
-                $receipt['provider_error'] = 'response_schema';
-            } catch (\RuntimeException) {
-                $receipt['disposition'] = DecisionDisposition::ProviderUnavailable->value;
-                $receipt['provider_error'] = 'transport_or_http';
             }
             $receipt['provider_latency_ms'] = round((hrtime(true) - $start) / 1_000_000, 3);
             self::printReceipt($receipt);
