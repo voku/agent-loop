@@ -104,6 +104,10 @@ final readonly class SystemOneChoiceHttpClient implements DecisionModel
                 'max_redirects' => 0,
             ],
         ]);
+        // Measure the entire network operation, not individual socket waits.
+        // A peer sending periodic bytes must not keep a workflow open forever.
+        $startedAtNs = hrtime(true);
+        $deadlineNs = $startedAtNs + ($this->timeoutMs * 1_000_000);
         $http_response_header = [];
         $stream = @fopen($this->endpoint, 'rb', false, $context);
         if ($stream === false) {
@@ -111,14 +115,58 @@ final readonly class SystemOneChoiceHttpClient implements DecisionModel
         }
 
         try {
-            // Enforce the body limit DURING retrieval, not after downloading
-            // an arbitrarily large provider response into process memory.
-            $body = @stream_get_contents($stream, 32769);
+            if (!stream_set_blocking($stream, false)) {
+                throw new RuntimeException('decision model provider cannot enable bounded nonblocking reads.');
+            }
+            $body = '';
+            while (!feof($stream)) {
+                $remainingNs = $deadlineNs - hrtime(true);
+                if ($remainingNs <= 0) {
+                    throw new RuntimeException('decision model provider timed out.');
+                }
+
+                // stream_select waits only until the TOTAL deadline, even
+                // when an HTTP peer trickles bytes frequently enough to keep
+                // resetting conventional per-read socket timeouts.
+                $remainingUs = max(1, (int) ceil($remainingNs / 1000));
+                $read = [$stream];
+                $write = [];
+                $except = [];
+                $ready = @stream_select(
+                    $read,
+                    $write,
+                    $except,
+                    intdiv($remainingUs, 1_000_000),
+                    $remainingUs % 1_000_000,
+                );
+                if ($ready === false) {
+                    throw new RuntimeException('decision model provider transport readiness failed.');
+                }
+                if ($ready === 0) {
+                    throw new RuntimeException('decision model provider timed out.');
+                }
+
+                $remainingBytes = 32769 - strlen($body);
+                if ($remainingBytes <= 0) {
+                    throw new UnexpectedValueException('decision model provider response exceeded size limit.');
+                }
+                $chunk = @fread($stream, min(8192, $remainingBytes));
+                if (!is_string($chunk)) {
+                    throw new RuntimeException('decision model provider transport unavailable.');
+                }
+                $body .= $chunk;
+
+                if (strlen($body) > 32768) {
+                    throw new UnexpectedValueException('decision model provider response exceeded size limit.');
+                }
+                if (hrtime(true) >= $deadlineNs) {
+                    throw new RuntimeException('decision model provider timed out.');
+                }
+                // A nonblocking read can legitimately yield no data. Retry
+                // through stream_select instead of spinning or misclassifying it.
+            }
         } finally {
             fclose($stream);
-        }
-        if (!is_string($body)) {
-            throw new RuntimeException('decision model provider transport unavailable.');
         }
         $statusLine = $http_response_header[0] ?? '';
         if (preg_match('/^HTTP\/\S+\s+([0-9]{3})/', $statusLine, $matches) !== 1) {
@@ -128,10 +176,6 @@ final readonly class SystemOneChoiceHttpClient implements DecisionModel
         if ($status !== 200) {
             throw new RuntimeException('decision model provider returned a non-success HTTP status.');
         }
-        if (strlen($body) > 32768) {
-            throw new UnexpectedValueException('decision model provider response exceeded size limit.');
-        }
-
         try {
             $responseDocument = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
@@ -141,7 +185,11 @@ final readonly class SystemOneChoiceHttpClient implements DecisionModel
             throw new UnexpectedValueException('decision model provider response is not an object.');
         }
 
-        $answer = $responseDocument['answers']['decision'] ?? null;
+        $answers = $responseDocument['answers'] ?? null;
+        if (!is_array($answers)) {
+            throw new UnexpectedValueException('decision model provider missing answers object.');
+        }
+        $answer = $answers['decision'] ?? null;
         if (!is_array($answer) || ($answer['type'] ?? null) !== 'choice') {
             throw new UnexpectedValueException('decision model provider missing bounded choice.');
         }
@@ -154,18 +202,22 @@ final readonly class SystemOneChoiceHttpClient implements DecisionModel
         if (count($probabilities) !== count($allowed)) {
             throw new UnexpectedValueException('decision model provider returned stale candidate probabilities.');
         }
+        $selectedProbability = null;
         foreach ($allowed as $id => $description) {
             $probability = $probabilities[$id] ?? null;
-            if (
-                (!is_float($probability) && !is_int($probability))
-                || !is_finite((float) $probability)
-                || $probability < 0
-                || $probability > 1
-            ) {
+            if (!is_float($probability) && !is_int($probability)) {
+                throw new UnexpectedValueException('decision model provider returned a nonnumeric probability.');
+            }
+            if (!is_finite((float) $probability) || $probability < 0 || $probability > 1) {
                 throw new UnexpectedValueException('decision model provider returned invalid candidate probability.');
             }
+            if ($id === $choice) {
+                $selectedProbability = (float) $probability;
+            }
         }
-        $selectedProbability = (float) $probabilities[$choice];
+        if ($selectedProbability === null) {
+            throw new UnexpectedValueException('decision model provider selection missing a probability.');
+        }
         // Provider answer confidence and option probability are distinct
         // signals. Validate both independently; never equate them.
         $reported = $answer['confidence'] ?? null;
