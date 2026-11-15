@@ -44,7 +44,7 @@ final class DecisionRouteTest extends TestCase
         self::assertSame('abstain', $receipt['disposition']);
         self::assertContains('agent-loop-investigator', $receipt['candidate_ids']);
         self::assertNull($receipt['routing_hint']);
-        self::assertSame('codex_host', $receipt['selection_authority']);
+        self::assertSame('invoking_host', $receipt['selection_authority']);
     }
 
     public function testDuplicateCandidateFailsBeforeRemoteRequest(): void
