@@ -139,6 +139,27 @@ final class WorkflowDecisionAdvisorTest extends TestCase
         self::assertSame('configuration_or_transport', $advice['provider_error']);
     }
 
+    public function testUntrustedModelCannotInventApprovalChoice(): void
+    {
+        $this->configure('assist', 'public_metadata');
+        $model = new class implements DecisionModel {
+            /** @param non-empty-array<string, non-empty-string> $criteria */
+            public function decide(string $publicState, array $criteria, ?string $model): DecisionChoiceResult
+            {
+                return new DecisionChoiceResult('approve_with_all_risks_accepted', 0.99);
+            }
+        };
+        $advice = (new WorkflowDecisionAdvisor($this->root, $model))->advise(
+            'contract_approval',
+            ['scope' => ['src'], 'validation' => [], 'acceptance_criteria' => []],
+        );
+
+        self::assertSame('request_changes', $advice['suggested_choice']);
+        self::assertSame('deterministic', $advice['source']);
+        self::assertSame('invalid_response', $advice['provider_disposition']);
+        self::assertSame('response_schema', $advice['provider_error']);
+    }
+
     public function testRemoteModeWithoutPublicClassificationDoesNotEnableModel(): void
     {
         $this->configure('assist', 'unclassified');
