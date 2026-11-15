@@ -105,7 +105,18 @@ final readonly class SystemOneChoiceHttpClient implements DecisionModel
             ],
         ]);
         $http_response_header = [];
-        $body = @file_get_contents($this->endpoint, false, $context);
+        $stream = @fopen($this->endpoint, 'rb', false, $context);
+        if ($stream === false) {
+            throw new RuntimeException('decision model provider transport unavailable.');
+        }
+
+        try {
+            // Enforce the body limit DURING retrieval, not after downloading
+            // an arbitrarily large provider response into process memory.
+            $body = @stream_get_contents($stream, 32769);
+        } finally {
+            fclose($stream);
+        }
         if (!is_string($body)) {
             throw new RuntimeException('decision model provider transport unavailable.');
         }
