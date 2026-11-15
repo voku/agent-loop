@@ -8,6 +8,12 @@ on:
       - 'src/Cli/**'
       - 'src/Dispatcher.php'
       - 'src/Init/SubagentDefinition.php'
+      - 'src/Init/InitConfigLoader.php'
+      - 'src/Workflow/WorkflowDecisionAdvisor.php'
+      - 'src/Workflow/WorkflowHumanDecisionProjector.php'
+      - 'src/Workflow/WorkflowHumanDecisionTextRenderer.php'
+      - 'src/Workflow/HostFrontDoorApplication.php'
+      - 'src/Workflow/HostFrontDoorCommand.php'
       - 'tests/Decision/**'
       - 'tools/Dogfood/Routing/decision-model-localhost.php'
       - 'resources/skills/agent-loop-workflow/SKILL.md'
@@ -42,7 +48,7 @@ jobs:
           php -l src/Decision/DecisionRouteCommand.php
           php -l src/Decision/SystemOneChoiceHttpClient.php
           php -l tools/Dogfood/Routing/decision-model-localhost.php
-          vendor/bin/phpunit tests/Decision/DecisionRouteTest.php
+          vendor/bin/phpunit tests/Decision/DecisionRouteTest.php tests/Decision/WorkflowDecisionAdvisorTest.php
           composer phpstan
       - name: Exercise real CLI against deterministic HTTP endpoint
         shell: bash
