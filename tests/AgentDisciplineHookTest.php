@@ -68,6 +68,8 @@ final class AgentDisciplineHookTest extends TestCase
         try {
             $output = $this->hook()->contextOutput('SessionStart', $this->json(['hook_event_name' => 'SessionStart', 'session_id' => 'host-a']));
             self::assertStringContainsString('Session default: autonomous', $output['hookSpecificOutput']['additionalContext']);
+            self::assertStringContainsString('AGENT_LOOP_HOST_SESSION_ID=host-a agent-loop workflow context <task-id> --format=json', $output['hookSpecificOutput']['additionalContext']);
+            self::assertStringContainsString('a task ID is required', $output['hookSpecificOutput']['additionalContext']);
             self::assertStringContainsString('workflow interaction <host-session-id> <collaborative|autonomous> [task-id]', $output['hookSpecificOutput']['additionalContext']);
             self::assertStringContainsString('workflow interaction <host-session-id> inherit <task-id>', $output['hookSpecificOutput']['additionalContext']);
             self::assertStringContainsString('Neither changes authority or gates', $output['hookSpecificOutput']['additionalContext']);
