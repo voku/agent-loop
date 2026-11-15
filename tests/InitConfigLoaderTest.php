@@ -36,6 +36,29 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testAbsoluteConfigPathsWorkForWindowsAndUnixProjectRoots(): void
+    {
+        // Verify the path passed to is_file(), without depending on a Windows
+        // filesystem being available on the Linux CI runners.
+        $resolve = new \ReflectionMethod(InitConfigLoader::class, 'resolvePath');
+        self::assertSame(
+            'C:/work/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('C:/work/project'), 'C:/work/project/.agent-loop/init.json'),
+        );
+        self::assertSame(
+            '//server/share/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('//server/share/project'), '//server/share/project/.agent-loop/init.json'),
+        );
+        self::assertSame(
+            '/srv/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('/srv/project'), '/srv/project/.agent-loop/init.json'),
+        );
+        self::assertSame(
+            '/srv/project/.agent-loop/init.json',
+            $resolve->invoke(new InitConfigLoader('/srv/project'), '.agent-loop/init.json'),
+        );
+    }
+
     public function testProvidedBoundedContentIsUsedWithoutSecondFilesystemRead(): void
     {
         $root = $this->tempDir();
