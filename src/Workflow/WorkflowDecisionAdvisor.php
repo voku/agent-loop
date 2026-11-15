@@ -75,12 +75,37 @@ final readonly class WorkflowDecisionAdvisor
             }
             $token = null;
             $tokenEnvironment = $settings['token_env'];
-            if ($tokenEnvironment !== null) {
-                $read = getenv($tokenEnvironment);
-                if (!is_string($read) || $read === '') {
-                    throw new \InvalidArgumentException('Configured decision token is unavailable.');
+
+            if ($this->model === null) {
+                // init.json is repository-controlled and therefore not a trusted
+                // operator authorization source. Require an exact, out-of-band
+                // process-environment grant BEFORE reading a credential or
+                // constructing the network provider. Explicitly injected models
+                // remain the trusted calling host's responsibility.
+                $authorizedEndpoint = getenv('AGENT_LOOP_DECISION_APPROVED_ENDPOINT');
+                $authorizedTokenEnvironment = getenv('AGENT_LOOP_DECISION_APPROVED_TOKEN_ENV');
+                if (
+                    !is_string($authorizedEndpoint)
+                    || $authorizedEndpoint === ''
+                    || !hash_equals($authorizedEndpoint, $endpoint)
+                    || ($tokenEnvironment !== null && (
+                        !is_string($authorizedTokenEnvironment)
+                        || !hash_equals($authorizedTokenEnvironment, $tokenEnvironment)
+                    ))
+                ) {
+                    $recommendation['provider_disposition'] = 'not_enabled';
+                    $recommendation['provider_error'] = 'operator_authorization_required';
+
+                    return $recommendation;
                 }
-                $token = $read;
+
+                if ($tokenEnvironment !== null) {
+                    $read = getenv($tokenEnvironment);
+                    if (!is_string($read) || $read === '') {
+                        throw new \InvalidArgumentException('Configured decision token is unavailable.');
+                    }
+                    $token = $read;
+                }
             }
 
             $model = $this->model ?? new SystemOneChoiceHttpClient(
