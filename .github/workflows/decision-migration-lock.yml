@@ -1,0 +1,44 @@
+name: Generate experimental migration lockfile evidence
+
+on:
+  pull_request:
+    paths:
+      - 'composer.json'
+      - '.github/workflows/decision-migration-lock.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  generate-lock:
+    if: github.event.pull_request.head.repo.full_name == 'voku/agent-loop' && github.event.pull_request.head.ref == 'feat/agent-decision-composer-migration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Resolve only pinned portable dependency without installing or executing scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          composer update voku/agent-decision --with-all-dependencies --no-install --no-scripts --no-plugins --no-interaction --no-progress
+          composer validate --strict
+          jq -e '.packages[] | select(.name == "voku/agent-decision" and .source.reference == "d71be7c3787547c5870abfae399d3faab1a90451")' composer.lock >/dev/null
+      - name: Emit public lockfile for verified commit through read-only workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          echo AGENT_DECISION_LOCK_B64_BEGIN
+          base64 -w 120 composer.lock
+          echo AGENT_DECISION_LOCK_B64_END
