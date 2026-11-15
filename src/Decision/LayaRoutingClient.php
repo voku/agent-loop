@@ -122,15 +122,15 @@ final readonly class LayaRoutingClient
         }
 
         try {
-            $payload = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
+            $responseDocument = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw new UnexpectedValueException('Laya provider returned invalid JSON.', 0, $exception);
         }
-        if (!is_array($payload)) {
+        if (!is_array($responseDocument)) {
             throw new UnexpectedValueException('Laya provider response is not an object.');
         }
 
-        $answer = $payload['answers']['specialist'] ?? null;
+        $answer = $responseDocument['answers']['specialist'] ?? null;
         if (!is_array($answer) || ($answer['type'] ?? null) !== 'choice') {
             throw new UnexpectedValueException('Laya provider missing specialist choice.');
         }
