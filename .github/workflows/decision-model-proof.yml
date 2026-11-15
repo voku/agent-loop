@@ -169,11 +169,15 @@ jobs:
           kill "$server_pid" 2>/dev/null || true
           wait "$server_pid" 2>/dev/null || true
           trap - EXIT
-          jq -s -e 'length >= 7 and all(.method == "POST" and .path == "/v1/systemone"
-            and (.content_type | startswith("application/json"))
-            and (.candidate_ids | index("none") != null)
-            and (.candidate_ids | index("agent-loop-investigator") != null)
-            and (.state_sha256 | length == 64))' build/decision-model-routing-proof/wire-*.json >/dev/null
+          jq -s -e '
+            length >= 8
+            and all(.method == "POST" and .path == "/v1/systemone"
+              and (.content_type | startswith("application/json"))
+              and (.candidate_ids | index("none") != null)
+              and (.state_sha256 | length == 64))
+            and any(.candidate_ids | index("agent-loop-investigator") != null)
+            and any(.candidate_ids | index("request_changes") != null)
+          ' build/decision-model-routing-proof/wire-*.json >/dev/null
           jq -s -e 'any(.authorization_present == true) and any(.authorization_present == false)' \
             build/decision-model-routing-proof/wire-*.json >/dev/null
           if grep -R -E -q 'ephemeral-fixture-token-only|PROMPT_INJECTION|ignore candidate IDs' build/decision-model-routing-proof; then
