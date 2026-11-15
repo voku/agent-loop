@@ -118,8 +118,13 @@ jobs:
             > "${evidence}/calibration.txt"
 
           # RED on the vulnerable source and GREEN on the independent known
-          # repair are both mandatory. This calibrates tests, not LLM quality.
-          if [ "${baseline_status}" -eq 0 ] || [ "${repaired_status}" -ne 0 ]; then
+          # repair are both mandatory. A crash/setup failure is NOT a red oracle:
+          # require PHPUnit to name the selected failing test and an assertion.
+          if [ "${baseline_status}" -eq 0 ] || [ "${repaired_status}" -ne 0 ] || \
+            ! grep -Fq "${TEST_FILTER}" "${evidence}/baseline-oracle.log" || \
+            ! grep -Fq 'Failed asserting' "${evidence}/baseline-oracle.log" || \
+            ! grep -Fq 'FAILURES!' "${evidence}/baseline-oracle.log" || \
+            ! grep -Fq 'OK (' "${evidence}/repaired-oracle.log"; then
             cat "${evidence}/calibration.txt"
             cat "${evidence}/baseline-oracle.log"
             cat "${evidence}/repaired-oracle.log"
