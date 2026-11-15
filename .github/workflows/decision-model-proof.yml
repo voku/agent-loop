@@ -103,7 +103,7 @@ jobs:
             and .routing_hint == null' build/decision-model-routing-proof/oversized.json >/dev/null
           php -r '
             require "vendor/autoload.php";
-            $client = new \voku\AgentLoop\Decision\SystemOneChoiceHttpClient($argv[1], 1000, true);
+            $client = new \voku\AgentDecision\Provider\SystemOneChoiceHttpClient($argv[1], 1000, true);
             try {
                 $client->decide("OVERSIZED exact exception check", ["agent-loop-investigator" => "Choose specialist"], null);
                 exit(1);
@@ -198,7 +198,7 @@ jobs:
           sleep 1.6
           php -r '
             require "vendor/autoload.php";
-            $client = new \voku\AgentLoop\Decision\SystemOneChoiceHttpClient($argv[1], 350, true);
+            $client = new \voku\AgentDecision\Provider\SystemOneChoiceHttpClient($argv[1], 350, true);
             $started = microtime(true);
             try {
                 $client->decide("SLOW_TRICKLE public fixture", ["agent-loop-investigator" => "Investigate"], null);
