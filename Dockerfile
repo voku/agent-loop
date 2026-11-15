@@ -12,7 +12,7 @@ RUN apt-get update \
         libsqlite3-dev \
         ripgrep \
         unzip \
-    && docker-php-ext-install intl mbstring pdo_sqlite \
+    && docker-php-ext-install intl mbstring pcntl pdo_sqlite \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
