@@ -74,6 +74,25 @@ final class InteractionPreferenceTest extends TestCase
             rmdir($directory);
         }
     }
+    public function testCommandRejectsOptionLookingTaskIdentity(): void
+    {
+        $directory = sys_get_temp_dir() . '/interaction-invalid-' . bin2hex(random_bytes(8));
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        try {
+            ob_start();
+            self::assertSame(0, (new WorkflowInteractionCommand())->run(['host', 'autonomous']));
+            ob_end_clean();
+            self::assertSame(1, (new WorkflowInteractionCommand())->run(['host', 'collaborative', '--format=json']));
+            self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->find('host')?->modeFor('task-a'));
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            foreach (glob($directory . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            rmdir($directory);
+        }
+    }
+
     public function testSymlinkedSessionDoesNotFallBackToHostDefault(): void
     {
         $directory = sys_get_temp_dir() . '/interaction-link-' . bin2hex(random_bytes(8));

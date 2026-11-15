@@ -25,6 +25,9 @@ final readonly class WorkflowInteractionCommand
             if (count($args) > 3 || trim($session) === '' || ($task !== null && trim($task) === '')) {
                 throw new RuntimeException('Usage: workflow interaction <host-session-id> <collaborative|autonomous> [task-id].');
             }
+            if ($task !== null && $mode !== '--reuse') {
+                $task = (new WorkflowTaskId($task))->value;
+            }
             if ($mode === 'inherit' && $task === null) {
                 throw new RuntimeException('A task identity is required to clear an override.');
             }

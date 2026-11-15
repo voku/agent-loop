@@ -65,6 +65,18 @@ final class WorkflowContextCommandTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
+    public function testContextAcceptsEqualsAndSeparateOptionValues(): void
+    {
+        foreach ([['ABC-123', '--format=json'], ['ABC-123', '--format', 'json']] as $arguments) {
+            ob_start();
+            $exit = (new WorkflowContextCommand($this->root))->run($arguments);
+            $output = (string) ob_get_clean();
+            self::assertSame(0, $exit);
+            $context = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('ABC-123', $context['task_id']);
+        }
+    }
+
     public function testContextCombinesExistingArtifactsWithoutMutation(): void
     {
         $before = hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json');

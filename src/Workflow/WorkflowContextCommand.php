@@ -122,13 +122,20 @@ final readonly class WorkflowContextCommand
         $maxBytes = self::DEFAULT_MAX_BYTES;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
-            if (!in_array($token, ['--format', '--max-lines', '--max-bytes'], true)) {
+            $parts = explode('=', $token, 2);
+            $option = $parts[0];
+            if (!in_array($option, ['--format', '--max-lines', '--max-bytes'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
-            if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
-                throw new InvalidArgumentException($token . ' requires a value.');
+            if (count($parts) === 2) {
+                $value = trim($parts[1]);
+            } else {
+                if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
+                    throw new InvalidArgumentException($option . ' requires a value.');
+                }
+                $value = trim($tokens[++$index]);
             }
-            $value = trim($tokens[++$index]);
+            $token = $option;
             if ($value === '') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }

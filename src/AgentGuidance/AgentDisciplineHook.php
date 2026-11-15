@@ -200,7 +200,8 @@ final readonly class AgentDisciplineHook
         if (!is_string($sessionId) || trim($sessionId) === '' || strlen($sessionId) > 128 || preg_match('/\A[A-Za-z0-9._-]+\z/', $sessionId) !== 1) {
             return '';
         }
-        $hint = "## Host interaction\nHost session identity: `" . $sessionId . "`. Set AGENT_LOOP_HOST_SESSION_ID to this value when invoking task context.\n";
+        $hint = "## Host interaction\nHost session identity: `" . $sessionId . "`. Set AGENT_LOOP_HOST_SESSION_ID to this value when invoking task context.\n"
+            . "Set a preference with `agent-loop workflow interaction <host-session-id> <collaborative|autonomous> [task-id]`; clear a task override with `agent-loop workflow interaction <host-session-id> inherit <task-id>`.\n";
         $directory = getenv('AGENT_LOOP_INTERACTION_DIR');
         if (!is_string($directory) || $directory === '') {
             return $hint . "No preference directory is configured. Reuse the developer's stated preference.\n\n";
