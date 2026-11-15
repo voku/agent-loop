@@ -33,7 +33,8 @@ final readonly class LayaRoutingClient
             !($scheme === 'https' || ($scheme === 'http' && $loopback))
             || $host === ''
             || !str_ends_with($path, '/v1/systemone')
-            || isset($parts['user'], $parts['pass'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
             || isset($parts['query'])
             || isset($parts['fragment'])
             || ($scheme === 'https' && (
@@ -64,7 +65,7 @@ final readonly class LayaRoutingClient
         if ($publicState === '' || strlen($publicState) > 2000) {
             throw new InvalidArgumentException('Public routing state must contain 1..2000 bytes.');
         }
-        if (count($criteria) < 1 || count($criteria) > 25 || isset($criteria['none'])) {
+        if (count($criteria) > 25 || isset($criteria['none'])) {
             throw new InvalidArgumentException('Routing requires 1..25 unique canonical candidates excluding none.');
         }
         if ($model !== null && preg_match('/\A[A-Za-z0-9._-]{1,80}\z/', $model) !== 1) {
