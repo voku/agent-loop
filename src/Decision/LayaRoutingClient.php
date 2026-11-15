@@ -157,7 +157,7 @@ final readonly class LayaRoutingClient
         $selectedProbability = (float) $probabilities[$choice];
         // Provider answer confidence and option probability are distinct
         // signals. Validate both independently; never equate them.
-        $reported = $answer['answer_confidence'] ?? null;
+        $reported = $answer['confidence'] ?? null;
         if (
             $reported !== null
             && ((!is_float($reported) && !is_int($reported))
