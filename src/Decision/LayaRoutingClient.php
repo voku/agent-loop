@@ -155,14 +155,17 @@ final readonly class LayaRoutingClient
             }
         }
         $selectedProbability = (float) $probabilities[$choice];
+        // Provider answer confidence and option probability are distinct
+        // signals. Validate both independently; never equate them.
         $reported = $answer['answer_confidence'] ?? null;
         if (
             $reported !== null
             && ((!is_float($reported) && !is_int($reported))
                 || !is_finite((float) $reported)
-                || abs((float) $reported - $selectedProbability) > 0.02)
+                || $reported < 0
+                || $reported > 1)
         ) {
-            throw new UnexpectedValueException('Laya answer confidence conflicts with candidate probability.');
+            throw new UnexpectedValueException('Laya answer confidence must be a finite probability.');
         }
 
         return new LayaRoutingResult(
