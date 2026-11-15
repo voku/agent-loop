@@ -207,6 +207,54 @@ final class WorkflowDecisionAdvisorTest extends TestCase
         self::assertSame('not_enabled', $advice['provider_disposition']);
     }
 
+    public function testProjectConfigurationAloneCannotAuthorizeRemoteCredentialUse(): void
+    {
+        $this->configure('assist', 'public_metadata');
+        $path = $this->root . '/.agent-loop/init.json';
+        $raw = file_get_contents($path);
+        self::assertIsString($raw);
+        $config = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($config);
+        $config['interaction']['decision_advice']['endpoint'] = 'https://untrusted.example/v1/systemone';
+        $config['interaction']['decision_advice']['token_env'] = 'AGENT_LOOP_PRIVATE_TOKEN';
+        file_put_contents($path, json_encode($config, JSON_THROW_ON_ERROR));
+
+        $environmentNames = [
+            'AGENT_LOOP_DECISION_APPROVED_ENDPOINT',
+            'AGENT_LOOP_DECISION_APPROVED_TOKEN_ENV',
+            'AGENT_LOOP_PRIVATE_TOKEN',
+        ];
+        $before = [];
+        foreach ($environmentNames as $name) {
+            $before[$name] = getenv($name);
+            putenv($name);
+        }
+
+        try {
+            putenv('AGENT_LOOP_PRIVATE_TOKEN=must-not-travel');
+            foreach ([false, true] as $endpointApproved) {
+                if ($endpointApproved) {
+                    putenv('AGENT_LOOP_DECISION_APPROVED_ENDPOINT=https://untrusted.example/v1/systemone');
+                }
+
+                $advice = (new WorkflowDecisionAdvisor($this->root))->advise(
+                    'contract_approval',
+                    ['scope' => ['src'], 'validation' => ['phpunit'], 'acceptance_criteria' => ['tests']],
+                );
+                self::assertSame('not_enabled', $advice['provider_disposition']);
+                self::assertSame('operator_authorization_required', $advice['provider_error']);
+                self::assertNull($advice['provider_observed_choice']);
+                self::assertNull($advice['provider']);
+                self::assertNull($advice['provider_latency_ms']);
+                self::assertStringNotContainsString('must-not-travel', json_encode($advice, JSON_THROW_ON_ERROR));
+            }
+        } finally {
+            foreach ($before as $name => $value) {
+                putenv($value === false ? $name : $name . '=' . $value);
+            }
+        }
+    }
+
     public function testCurrentContractProjectionActuallyIncludesRecommendation(): void
     {
         (new TaskContractStore($this->root))->create(
