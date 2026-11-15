@@ -67,6 +67,10 @@ jobs:
           jq -e '.disposition == "suggest" and .observed_candidate_id == "agent-loop-investigator"
             and .routing_hint == null' build/laya-routing-proof/shadow.json >/dev/null
 
+          "${common[@]}" '--public-state=CONFIDENCE differs from choice probability' > build/laya-routing-proof/independent-confidence.json
+          jq -e '.disposition == "suggest" and .answer_probability == 0.8
+            and .routing_hint.candidate_id == "agent-loop-investigator"' build/laya-routing-proof/independent-confidence.json >/dev/null
+
           "${common[@]}" '--public-state=ABSTAIN no clear specialist' > build/laya-routing-proof/abstain.json
           jq -e '.disposition == "abstain" and .routing_hint == null' build/laya-routing-proof/abstain.json >/dev/null
           "${common[@]}" '--public-state=INVALID unknown choice' > build/laya-routing-proof/invalid.json
@@ -101,7 +105,7 @@ jobs:
           jq -n --arg sha "$(git rev-parse HEAD)" \
             '{schema_version:"1.0", source_sha:$sha, provider:"localhost-fake", real_laya_executed:false,
               checks:["assist","shadow","abstain","invalid_response","stale_candidates","http_503",
-                "timeout","prompt_injection_boundary","off","auth_presence_only","sanitized_receipts"]}' \
+                "timeout","independent_confidence","prompt_injection_boundary","off","auth_presence_only","sanitized_receipts"]}' \
             > build/laya-routing-proof/summary.json
       - name: Upload sanitized exact-head routing evidence
         if: always()
