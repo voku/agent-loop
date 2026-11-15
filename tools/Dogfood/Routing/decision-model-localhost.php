@@ -15,20 +15,20 @@ $raw = file_get_contents('php://input');
 $request = is_string($raw) ? json_decode($raw, true) : null;
 $headers = function_exists('getallheaders') ? getallheaders() : [];
 $auth = isset($headers['Authorization']);
-$criteria = $request['questions']['specialist']['criteria'] ?? null;
+$criteria = $request['questions']['decision']['criteria'] ?? null;
 $state = $request['state'] ?? null;
 if (
     ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST'
     || !is_array($criteria)
     || !is_string($state)
-    || ($request['questions']['specialist']['type'] ?? null) !== 'choice'
+    || ($request['questions']['decision']['type'] ?? null) !== 'choice'
     || !isset($criteria['none'])
 ) {
     http_response_code(400);
     exit;
 }
 
-$root = getenv('LAYA_FAKE_EVIDENCE');
+$root = getenv('DECISION_MODEL_FAKE_EVIDENCE');
 if (is_string($root) && $root !== '' && is_dir($root)) {
     $record = [
         'method' => $_SERVER['REQUEST_METHOD'],
@@ -50,19 +50,19 @@ if (str_starts_with($state, 'TIMEOUT')) {
 }
 header('Content-Type: application/json');
 if (str_starts_with($state, 'INVALID')) {
-    echo '{"answers":{"specialist":{"type":"choice","choice":"invented-specialist","probabilities":{}}}}';
+    echo '{"answers":{"decision":{"type":"choice","choice":"invented-specialist","probabilities":{}}}}';
     exit;
 }
 if (str_starts_with($state, 'STALE')) {
-    echo '{"answers":{"specialist":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"none":0.1}}}}';
+    echo '{"answers":{"decision":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"none":0.1}}}}';
     exit;
 }
 if (str_starts_with($state, 'NON_FINITE_NAN')) {
-    echo '{"answers":{"specialist":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"agent-loop-investigator":NaN}}}}';
+    echo '{"answers":{"decision":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"agent-loop-investigator":NaN}}}}';
     exit;
 }
 if (str_starts_with($state, 'NON_FINITE_INFINITY')) {
-    echo '{"answers":{"specialist":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"agent-loop-investigator":Infinity}}}}';
+    echo '{"answers":{"decision":{"type":"choice","choice":"agent-loop-investigator","probabilities":{"agent-loop-investigator":Infinity}}}}';
     exit;
 }
 if (str_starts_with($state, 'OUT_OF_RANGE')) {
@@ -70,7 +70,7 @@ if (str_starts_with($state, 'OUT_OF_RANGE')) {
     $invalid['agent-loop-investigator'] = 1.2;
     echo json_encode([
         'answers' => [
-            'specialist' => [
+            'decision' => [
                 'type' => 'choice',
                 'choice' => 'agent-loop-investigator',
                 'probabilities' => $invalid,
@@ -80,7 +80,7 @@ if (str_starts_with($state, 'OUT_OF_RANGE')) {
     ], JSON_THROW_ON_ERROR);
     exit;
 }
-$choice = str_starts_with($state, 'ABSTAIN') ? 'none' : 'agent-loop-investigator';
+$choice = str_starts_with($state, 'ABSTAIN') ? 'none' : (isset($criteria['request_changes']) ? 'request_changes' : 'agent-loop-investigator');
 if (!array_key_exists($choice, $criteria)) {
     http_response_code(400);
     exit;
@@ -93,7 +93,7 @@ foreach ($criteria as $id => $description) {
 echo json_encode([
     'model' => 'fake-decision-model-localhost',
     'answers' => [
-        'specialist' => [
+        'decision' => [
             'type' => 'choice',
             'choice' => $choice,
             'probabilities' => $probabilities,
