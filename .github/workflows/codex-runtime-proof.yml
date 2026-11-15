@@ -1692,7 +1692,28 @@ jobs:
 
           export ROUTING_FIXTURE_ID="${fixture_id}"
           export ROUTING_TASK_PROMPT="${task_prompt}"
-          export ROUTING_BASE_SHA="${base_sha}"
+          export ROUTING_BASE_SHA="$base_sha"
+
+          # Use the new real CLI -> localhost Laya HTTP path, then feed only
+          # its bounded advisory output into the already existing Codex proof.
+          laya_port="$(php -r '$s=stream_socket_server("tcp://127.0.0.1:0", $e, $m); if (!$s) { exit(1); } echo (int) substr(strrchr(stream_socket_get_name($s, false), ":"), 1); fclose($s);')"
+          php -S "127.0.0.1:$laya_port" tools/Dogfood/Routing/laya-localhost.php > /dev/null 2>&1 &
+          laya_pid=$!
+          trap 'kill "$laya_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if php -r '$c=@fsockopen("127.0.0.1", (int)$argv[1], $e, $s, 0.1); if ($c) { fclose($c); exit(0); } exit(1);' "$laya_port"; then break; fi
+            sleep 0.1
+          done
+          php bin/agent-loop decision route --mode=assist --data-classification=public \
+            --public-state="$task_prompt" \
+            "--endpoint=http://127.0.0.1:$laya_port/v1/systemone" --allow-loopback \
+            --format=json > "$EVIDENCE_ROOT/routing-0a-cli-advice.json"
+          jq -e '.disposition == "suggest" and .routing_hint.candidate_id == "agent-loop-investigator"
+            and .routing_hint.authority == "advisory" and .lifecycle_mutation == false' \
+            "$EVIDENCE_ROOT/routing-0a-cli-advice.json" >/dev/null
+          kill "$laya_pid" 2>/dev/null || true
+          wait "$laya_pid" 2>/dev/null || true
+          trap - EXIT
 
           php <<'PHP'
           <?php
@@ -1709,12 +1730,22 @@ jobs:
           }
 
           $baseline = RoutingExperimentFixture::baseline($root, $fixtureId, $taskPrompt);
+          $advice = json_decode(
+              (string) file_get_contents($evidence . '/routing-0a-cli-advice.json'),
+              true,
+              512,
+              JSON_THROW_ON_ERROR,
+          );
+          $hint = $advice['routing_hint'] ?? null;
+          if (!is_array($hint) || !is_string($hint['candidate_id'] ?? null) || !is_numeric($hint['answer_probability'] ?? null)) {
+              throw new RuntimeException('CLI Laya advice did not produce a bounded hint.');
+          }
           $hinted = RoutingExperimentFixture::hinted(
               $root,
               $fixtureId,
               $taskPrompt,
-              'agent-loop-investigator',
-              0.82,
+              $hint['candidate_id'],
+              (float) $hint['answer_probability'],
           );
 
           file_put_contents($evidence . '/routing-0a-candidate-ids.json', json_encode(
