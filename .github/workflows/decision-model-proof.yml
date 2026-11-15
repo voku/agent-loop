@@ -90,9 +90,6 @@ jobs:
             and .routing_hint.candidate_id == "agent-loop-investigator"' build/decision-model-routing-proof/injection.json >/dev/null
           php bin/agent-loop decision route --format=json > build/decision-model-routing-proof/off.json
           jq -e '.mode == "off" and .disposition == "not_enabled" and .provider_latency_ms == null' build/decision-model-routing-proof/off.json >/dev/null
-          "${common[@]}" '--public-state=TIMEOUT upstream' --timeout-ms=100 > build/decision-model-routing-proof/timeout.json
-          jq -e '.disposition == "provider_unavailable" and .routing_hint == null' build/decision-model-routing-proof/timeout.json >/dev/null
-
           # Actual host-neutral CLI human approval question with optional model advice.
           # The task's private-looking strings must NOT cross the model HTTP boundary.
           fixture_root="$(mktemp -d)"
@@ -134,7 +131,7 @@ jobs:
             gate_exit:$exit,
             status:(.status // null),
             next_action_kind:(.next_action_kind // null),
-            mutation_ready:(.mutation_ready // null),
+            mutation_ready:.mutation_ready,
             decision_type:(.human_decision.type // null),
             recommendation_disposition:(.human_decision.recommendation.disposition // null),
             recommendation_source:(.human_decision.recommendation.source // null),
@@ -163,6 +160,11 @@ jobs:
             echo "Private contract data leaked into model receipt" >&2
             exit 1
           fi
+
+          # The localhost server is single-threaded. Run the intentional
+          # timeout last so it cannot starve a subsequent approval request.
+          "${common[@]}" '--public-state=TIMEOUT upstream' --timeout-ms=100 > build/decision-model-routing-proof/timeout.json
+          jq -e '.disposition == "provider_unavailable" and .routing_hint == null' build/decision-model-routing-proof/timeout.json >/dev/null
 
           kill "$server_pid" 2>/dev/null || true
           wait "$server_pid" 2>/dev/null || true
