@@ -11,6 +11,7 @@ use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /**
  * CLI-facing presentation layer around HostFrontDoorCommand.
@@ -67,6 +68,9 @@ final readonly class HostFrontDoorApplication
                     $config['prompting']['language'],
                     $htmlLanguageMatches,
                 );
+                if (!$showDecisionPresentation && $taskId !== null) {
+                    $this->printAdvisoryBesideHtml($taskId);
+                }
             } else {
                 $this->printControlPlanePresentation($htmlPresentation);
             }
@@ -285,6 +289,33 @@ final readonly class HostFrontDoorApplication
     /**
      * @param array{status: string, url: string|null, detail: string|null, start_command?: non-empty-list<string>|null}|null $presentation
      */
+    private function printAdvisoryBesideHtml(string $taskId): void
+    {
+        try {
+            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
+            $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+            if ($policy->nextActionKind !== RunPolicyEvaluation::KIND_DECISION_REQUIRED) {
+                return;
+            }
+            $decision = (new WorkflowHumanDecisionProjector($this->rootPath))->project(
+                $taskId,
+                $policy->nextAction,
+                $policy->nextActionKind,
+                $policy->blockers,
+            );
+            $recommendation = $decision['recommendation'] ?? null;
+            if (!is_array($recommendation)) {
+                return;
+            }
+            $choice = $recommendation['suggested_choice'] ?? null;
+            echo "\nAdvisory recommendation: " . (is_string($choice) ? $choice : 'abstain') . "\n";
+            echo "Reason: " . (string) ($recommendation['reason'] ?? 'Review the exact subject.') . "\n";
+            echo "The decision still requires explicit human approval.\n";
+        } catch (Throwable) {
+            echo "\n[WARN] Decision advice unavailable; inspect the exact human gate in agent-ui.\n";
+        }
+    }
+
     private function printHtmlDecisionPresentation(
         ?array $presentation,
         string $language,
