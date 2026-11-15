@@ -59,6 +59,7 @@ final class TaskContractStore
             $acceptanceCriteria,
             $acceptanceObservations,
         ): TaskContract {
+            $plannedBy = WorkflowActorAttribution::normalize($plannedBy, 'plan a Task Contract');
             if ($this->find($taskId) !== null) {
                 throw new RuntimeException('Task ' . $taskId . ' already has a Contract. Use revise instead.');
             }
@@ -129,6 +130,7 @@ final class TaskContractStore
             $acceptanceCriteria,
             $acceptanceObservations,
         ): TaskContract {
+            $plannedBy = WorkflowActorAttribution::normalize($plannedBy, 'revise a Task Contract');
             $previous = $this->load($taskId);
             $this->archive($previous);
             $now = $this->now();
@@ -434,14 +436,9 @@ final class TaskContractStore
         array $acceptanceObservations,
     ): TaskContract {
         $goal = trim($goal);
-        $plannedBy = trim($plannedBy);
         if ($goal === '') {
             throw new RuntimeException('A Contract requires a non-empty --goal.');
         }
-        if ($plannedBy === '') {
-            throw new RuntimeException('A Contract requires a non-empty --by actor.');
-        }
-
         $scope = $this->normalizedLines($scope);
         $nonGoals = $this->normalizedLines($nonGoals);
         $validation = $this->normalizedLines($validation);

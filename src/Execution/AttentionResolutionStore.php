@@ -10,6 +10,7 @@ use JsonException;
 use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Workflow\WorkflowActorAttribution;
 
 /** @internal Owner-side persistence used by the human workflow Attention transition. */
 final readonly class AttentionResolutionStore
@@ -25,6 +26,7 @@ final readonly class AttentionResolutionStore
         string $actor,
         ?string $response = null,
     ): AttentionResolution {
+        $actor = WorkflowActorAttribution::normalize($actor, 'resolve execution Attention');
         if ($attention->taskId !== $plan->taskId || $attention->runId !== $plan->runId || $attention->stageId === null) {
             throw new RuntimeException('ATTENTION_MISMATCH: Attention does not belong to the current governed execution.');
         }
@@ -160,6 +162,11 @@ final readonly class AttentionResolutionStore
             throw new RuntimeException('ATTENTION_RESOLUTION_STALE: invalid Attention response.');
         }
 
+        $actor = WorkflowActorAttribution::normalize(
+            ExecutionArtifactValue::string($data['actor'] ?? null, $path . '#actor'),
+            'resolve execution Attention',
+        );
+
         return new AttentionResolution(
             ExecutionArtifactValue::string($data['attention_id'] ?? null, $path . '#attention_id'),
             ExecutionArtifactValue::string($data['task_id'] ?? null, $path . '#task_id'),
@@ -168,7 +175,7 @@ final readonly class AttentionResolutionStore
             ExecutionArtifactValue::sha256($data['execution_plan_digest'] ?? null, $path . '#execution_plan_digest'),
             ExecutionArtifactValue::string($data['stage_id'] ?? null, $path . '#stage_id'),
             $attempt,
-            ExecutionArtifactValue::string($data['actor'] ?? null, $path . '#actor'),
+            $actor,
             ExecutionArtifactValue::string($data['resolved_at'] ?? null, $path . '#resolved_at'),
             $response,
         );

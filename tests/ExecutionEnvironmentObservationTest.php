@@ -58,6 +58,20 @@ final class ExecutionEnvironmentObservationTest extends TestCase
         self::assertStringNotContainsString('# Current bounded execution environment', $bundle->prompt);
     }
 
+    public function testExecutionProfileSelectionRejectsReservedActorBeforeWriting(): void
+    {
+        $this->prepareSurgicalRun();
+        $store = new ExecutionProfileSelectionStore($this->root);
+
+        try {
+            $store->select('ABC-123', ExecutionProfileName::SURGICAL, ' standing:spoof ');
+            self::fail('Reserved standing actor was accepted.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('standing:', $exception->getMessage());
+        }
+        self::assertSame('lars', $store->find('ABC-123')?->selectedBy, 'Rejected selection must preserve the existing artifact.');
+    }
+
     public function testCurrentBoundedObservationFinalizesAgentPromptWithoutEnvironmentDump(): void
     {
         $this->prepareSurgicalRun();

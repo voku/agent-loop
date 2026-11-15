@@ -9,6 +9,7 @@ use DateTimeInterface;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Workflow\WorkflowActorAttribution;
 
 /**
  * Durable record that a governed Run was deliberately given up instead of completed.
@@ -33,9 +34,10 @@ final class RunRetirementStore
         if (!in_array($status, self::STATUSES, true)) {
             throw new RuntimeException('Retirement status must be superseded or abandoned.');
         }
-        if (trim($reason) === '' || trim($by) === '') {
+        if (trim($reason) === '') {
             throw new RuntimeException('A retirement needs a reason and the actor who decided it.');
         }
+        $by = WorkflowActorAttribution::normalize($by, 'record a Run retirement');
         $existing = $this->find($run->taskId);
         if ($existing !== null && $existing->runId === $run->runId) {
             throw new RuntimeException('Governed Run is already retired as ' . $existing->status . '.');
@@ -50,7 +52,7 @@ final class RunRetirementStore
             $run->contractRevision,
             $status,
             trim($reason),
-            trim($by),
+            $by,
             (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
         );
         $path = $this->path($run->taskId);

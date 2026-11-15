@@ -14,6 +14,7 @@ use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowActorAttribution;
 
 final readonly class ExecutionProfileSelectionStore
 {
@@ -23,10 +24,7 @@ final readonly class ExecutionProfileSelectionStore
 
     public function select(string $taskId, ExecutionProfileName $profile, string $actor): ExecutionProfileSelection
     {
-        $actor = trim($actor);
-        if ($actor === '') {
-            throw new RuntimeException('Execution profile selection requires a non-empty actor.');
-        }
+        $actor = WorkflowActorAttribution::normalize($actor, 'select an execution profile');
 
         $contract = (new TaskContractStore($this->rootPath))->load($taskId);
         if ($contract->status !== TaskContract::APPROVED) {
