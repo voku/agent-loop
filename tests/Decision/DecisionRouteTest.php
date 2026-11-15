@@ -61,6 +61,45 @@ final class DecisionRouteTest extends TestCase
         $this->assertFails(['--mode=rules', '--candidate=not-real']);
     }
 
+    public function testPrivateProjectSubagentCannotBecomeRemoteCandidate(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-private-candidate-' . bin2hex(random_bytes(6));
+        $directory = $root . '/resources/subagents';
+        self::assertTrue(mkdir($directory, 0o700, true));
+        $path = $directory . '/internal-employee-specialist.md';
+        file_put_contents(
+            $path,
+            "---\nname: internal-employee-specialist\ndescription: Never transmit this private workplace role.\n---\nPrivate instruction.\n",
+        );
+
+        try {
+            ob_start();
+            $exit = (new DecisionRouteCommand($root))->run([
+                'route',
+                '--mode=rules',
+                '--candidate=internal-employee-specialist',
+            ]);
+            $output = (string) ob_get_clean();
+            self::assertSame(1, $exit);
+            self::assertSame('', $output);
+
+            ob_start();
+            $exit = (new DecisionRouteCommand($root))->run([
+                'route',
+                '--mode=rules',
+            ]);
+            $output = (string) ob_get_clean();
+            self::assertSame(0, $exit);
+            self::assertStringNotContainsString('internal-employee-specialist', $output);
+            self::assertStringNotContainsString('Never transmit', $output);
+        } finally {
+            unlink($path);
+            rmdir($directory);
+            rmdir(dirname($directory));
+            rmdir($root);
+        }
+    }
+
     public function testRemoteRoutingRejectsUnclassifiedInput(): void
     {
         $this->assertFails([
