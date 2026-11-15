@@ -124,6 +124,7 @@ jobs:
           mkdir -p "$fixture_root/.agent-loop"
           export DECISION_FIXTURE_ROOT="$fixture_root"
           export DECISION_FAKE_ENDPOINT="http://127.0.0.1:$port/v1/systemone"
+          export AGENT_LOOP_DECISION_APPROVED_ENDPOINT="$DECISION_FAKE_ENDPOINT"
           php <<'PHP'
           <?php
           require getenv('GITHUB_WORKSPACE') . '/vendor/autoload.php';
