@@ -11,8 +11,6 @@ use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
-use voku\AgentLoop\Run\RunPolicyEvaluator;
-use voku\AgentLoop\Run\RunManifestProjector;
 
 /**
  * CLI-facing presentation layer around HostFrontDoorCommand.
@@ -70,7 +68,7 @@ final readonly class HostFrontDoorApplication
                     $htmlLanguageMatches,
                 );
                 if (!$showDecisionPresentation) {
-                    $this->printAdvisoryBesideHtml($taskId);
+                    echo (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderHtmlDecisionAdvice($taskId);
                 }
             } else {
                 $this->printControlPlanePresentation($htmlPresentation);
@@ -284,33 +282,6 @@ final readonly class HostFrontDoorApplication
         echo "\n";
         if ($status === 'unreachable' && is_array($presentation['start_command'] ?? null)) {
             echo 'Start agent-ui manually: ' . implode(' ', array_map(escapeshellarg(...), $presentation['start_command'])) . "\n";
-        }
-    }
-
-    private function printAdvisoryBesideHtml(string $taskId): void
-    {
-        try {
-            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
-            $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
-            if ($policy->nextActionKind !== RunPolicyEvaluation::KIND_DECISION_REQUIRED) {
-                return;
-            }
-            $decision = (new WorkflowHumanDecisionProjector($this->rootPath))->project(
-                $taskId,
-                $policy->nextAction,
-                $policy->nextActionKind,
-                $policy->blockers,
-            );
-            $recommendation = $decision['recommendation'] ?? null;
-            if (!is_array($recommendation)) {
-                return;
-            }
-            $choice = $recommendation['suggested_choice'] ?? null;
-            echo "\nAdvisory recommendation: " . (is_string($choice) ? $choice : 'abstain') . "\n";
-            echo "Reason: " . (string) ($recommendation['reason'] ?? 'Review the exact subject.') . "\n";
-            echo "The decision still requires explicit human approval.\n";
-        } catch (Throwable) {
-            echo "\n[WARN] Decision advice unavailable; inspect the exact human gate in agent-ui.\n";
         }
     }
 
