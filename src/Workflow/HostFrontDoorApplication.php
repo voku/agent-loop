@@ -69,7 +69,7 @@ final readonly class HostFrontDoorApplication
                     $config['prompting']['language'],
                     $htmlLanguageMatches,
                 );
-                if (!$showDecisionPresentation && $taskId !== null) {
+                if (!$showDecisionPresentation) {
                     $this->printAdvisoryBesideHtml($taskId);
                 }
             } else {
