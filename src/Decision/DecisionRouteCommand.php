@@ -150,6 +150,28 @@ final readonly class DecisionRouteCommand
             $start = hrtime(true);
             try {
                 $choice = $client->decide($state, $candidateDescriptions, $model);
+
+                // A remote suggestion cannot outlive the approved Contract or
+                // the exact canonical candidate definitions it was computed for.
+                if ($taskId !== null) {
+                    $currentContract = (new TaskContractStore($this->rootPath))->find($taskId);
+                    if (
+                        $currentContract === null
+                        || $currentContract->status !== TaskContract::APPROVED
+                        || $currentContract->revision !== (int) $revision
+                    ) {
+                        throw new \DomainException('Task Contract revision changed during routing.');
+                    }
+                }
+                try {
+                    $currentCandidates = $this->managedCandidates($options['candidate'] ?? []);
+                } catch (InvalidArgumentException $exception) {
+                    throw new \DomainException('Canonical candidate set changed during routing.', 0, $exception);
+                }
+                if ($currentCandidates !== $candidateDescriptions) {
+                    throw new \DomainException('Canonical candidate set changed during routing.');
+                }
+
                 $receipt['disposition'] = ($choice->candidateId === null ? DecisionDisposition::Abstain : DecisionDisposition::Suggest)->value;
                 $receipt['observed_candidate_id'] = $choice->candidateId;
                 $receipt['answer_probability'] = $choice->answerProbability;
@@ -161,6 +183,9 @@ final readonly class DecisionRouteCommand
                         'host_retains_final_selection' => true,
                     ];
                 }
+            } catch (\DomainException) {
+                $receipt['disposition'] = DecisionDisposition::InvalidResponse->value;
+                $receipt['provider_error'] = 'stale_decision_context';
             } catch (UnexpectedValueException) {
                 $receipt['disposition'] = DecisionDisposition::InvalidResponse->value;
                 $receipt['provider_error'] = 'response_schema';
