@@ -93,6 +93,64 @@ jobs:
           "${common[@]}" '--public-state=TIMEOUT upstream' --timeout-ms=100 > build/decision-model-routing-proof/timeout.json
           jq -e '.disposition == "provider_unavailable" and .routing_hint == null' build/decision-model-routing-proof/timeout.json >/dev/null
 
+          # Actual direct-Codex CLI human approval question with optional model advice.
+          # The task's private-looking strings must NOT cross the model HTTP boundary.
+          fixture_root="$(mktemp -d)"
+          mkdir -p "$fixture_root/.agent-loop"
+          export DECISION_FIXTURE_ROOT="$fixture_root"
+          export DECISION_FAKE_ENDPOINT="http://127.0.0.1:$port/v1/systemone"
+          php <<'PHP'
+          <?php
+          require getenv('GITHUB_WORKSPACE') . '/vendor/autoload.php';
+          $root = getenv('DECISION_FIXTURE_ROOT');
+          file_put_contents($root . '/.agent-loop/init.json', json_encode([
+              'interaction' => ['decision_advice' => [
+                  'mode' => 'assist',
+                  'provider' => 'system_one',
+                  'endpoint' => getenv('DECISION_FAKE_ENDPOINT'),
+                  'allow_loopback' => true,
+                  'data_classification' => 'public_metadata',
+                  'timeout_ms' => 1000,
+              ]],
+          ], JSON_THROW_ON_ERROR));
+          (new \voku\AgentLoop\Workflow\TaskContractStore($root))->create(
+              taskId: 'PUBLIC-APPROVAL-PROOF',
+              goal: 'SECRET_PRIVATE_GOAL_SHOULD_NOT_TRAVEL',
+              scope: ['private/SECRET_PRIVATE_PATH.php'],
+              nonGoals: ['no automatic approval'],
+              validation: ['vendor/bin/phpunit'],
+              plannedBy: 'codex',
+              acceptanceCriteria: ['Tests are asserted by the human'],
+          );
+          PHP
+          set +e
+          (cd "$fixture_root" && php "$GITHUB_WORKSPACE/bin/agent-loop" enter PUBLIC-APPROVAL-PROOF --format=json) \
+            > "$fixture_root/full-private-enter.json"
+          gate_exit=$?
+          set -e
+          test "$gate_exit" -eq 1
+          jq -e '.next_action_kind == "decision_required"
+            and .mutation_ready == false
+            and .human_decision.authority == "human_required"
+            and .human_decision.type == "contract_approval"
+            and .human_decision.recommendation.source == "decision_model"
+            and .human_decision.recommendation.suggested_choice == "request_changes"
+            and .human_decision.recommendation.human_decision_required == true
+            and .human_decision.recommendation.provider == "system_one"' \
+            "$fixture_root/full-private-enter.json" >/dev/null
+          jq '{schema_version:"1.0", human_decision:{
+            type:.human_decision.type, authority:.human_decision.authority,
+            recommendation:.human_decision.recommendation
+          }, next_action_kind, mutation_ready}' \
+            "$fixture_root/full-private-enter.json" \
+            > build/decision-model-routing-proof/human-approval-advice.json
+          rm -rf "$fixture_root"
+          if grep -R -E -q 'SECRET_PRIVATE_|PRIVATE_GOAL_SHOULD_NOT_TRAVEL' \
+              build/decision-model-routing-proof/; then
+            echo "Private contract data leaked into model receipt" >&2
+            exit 1
+          fi
+
           kill "$server_pid" 2>/dev/null || true
           wait "$server_pid" 2>/dev/null || true
           trap - EXIT
@@ -110,7 +168,7 @@ jobs:
           jq -n --arg sha "$(git rev-parse HEAD)" \
             '{schema_version:"1.0", source_sha:$sha, provider:"localhost-fake", real_decision_model_executed:false,
               checks:["assist","shadow","abstain","invalid_response","stale_candidates","nan","infinity","out_of_range","http_503",
-                "timeout","independent_confidence","prompt_injection_boundary","off","auth_presence_only","sanitized_receipts"]}' \
+                "timeout","independent_confidence","prompt_injection_boundary","off","human_approval_advice","auth_presence_only","sanitized_receipts"]}' \
             > build/decision-model-routing-proof/summary.json
       - name: Upload sanitized exact-head routing evidence
         if: always()
