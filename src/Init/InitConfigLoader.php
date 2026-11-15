@@ -30,6 +30,16 @@ final readonly class InitConfigLoader
      *     interaction: array{
      *         human_explanations: 'ask'|'always'|'never',
      *         decision_presentation: 'cli'|'html',
+     *         decision_advice: array{
+     *             mode: 'off'|'rules'|'shadow'|'assist',
+     *             provider: 'system_one',
+     *             endpoint: string|null,
+     *             model: string|null,
+     *             token_env: string|null,
+     *             data_classification: 'unclassified'|'public_metadata',
+     *             timeout_ms: int<100, 10000>,
+     *             allow_loopback: bool
+     *         },
      *         control_plane: array{enabled: bool, host: string, port: int}
      *     },
      *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}},
@@ -56,6 +66,16 @@ final readonly class InitConfigLoader
             'interaction' => [
                 'human_explanations' => HumanExplanationPolicy::ASK->value,
                 'decision_presentation' => 'cli',
+                'decision_advice' => [
+                    'mode' => 'off',
+                    'provider' => 'system_one',
+                    'endpoint' => null,
+                    'model' => null,
+                    'token_env' => null,
+                    'data_classification' => 'unclassified',
+                    'timeout_ms' => 1000,
+                    'allow_loopback' => false,
+                ],
                 'control_plane' => [
                     'enabled' => false,
                     'host' => '127.0.0.1',
@@ -271,6 +291,54 @@ final readonly class InitConfigLoader
                     $result['warnings'][] = '[WARN] init config: interaction.decision_presentation must be cli or html';
                 } else {
                     $result['interaction']['decision_presentation'] = $presentation;
+                }
+            }
+
+            if (property_exists($interactionShape, 'decision_advice')) {
+                $advisorShape = $interactionShape->decision_advice;
+                $advisor = $interaction['decision_advice'] ?? null;
+                if (!$advisorShape instanceof stdClass || !is_array($advisor)) {
+                    $result['warnings'][] = '[WARN] init config: interaction.decision_advice must be an object';
+                } else {
+                    $allowedModes = ['off', 'rules', 'shadow', 'assist'];
+                    $configuredMode = $advisor['mode'] ?? 'off';
+                    $provider = $advisor['provider'] ?? 'system_one';
+                    $classification = $advisor['data_classification'] ?? 'unclassified';
+                    $endpoint = $advisor['endpoint'] ?? null;
+                    $model = $advisor['model'] ?? null;
+                    $tokenEnvironment = $advisor['token_env'] ?? null;
+                    $timeout = $advisor['timeout_ms'] ?? 1000;
+                    $allowLoopback = $advisor['allow_loopback'] ?? false;
+                    $valid = is_string($configuredMode) && in_array($configuredMode, $allowedModes, true)
+                        && $provider === 'system_one'
+                        && in_array($classification, ['unclassified', 'public_metadata'], true)
+                        && ($endpoint === null || (is_string($endpoint) && $endpoint !== ''))
+                        && ($model === null || (is_string($model) && preg_match('/\\A[A-Za-z0-9._-]{1,80}\\z/', $model) === 1))
+                        && ($tokenEnvironment === null || (is_string($tokenEnvironment) && preg_match('/\\A[A-Z_][A-Z0-9_]*\\z/', $tokenEnvironment) === 1))
+                        && is_int($timeout) && $timeout >= 100 && $timeout <= 10000
+                        && is_bool($allowLoopback);
+                    if (
+                        $valid
+                        && in_array($configuredMode, ['assist', 'shadow'], true)
+                        && ($classification !== 'public_metadata' || $endpoint === null)
+                    ) {
+                        $valid = false;
+                    }
+
+                    if (!$valid) {
+                        $result['warnings'][] = '[WARN] init config: interaction.decision_advice is invalid or remote inference lacks an explicitly classified public endpoint';
+                    } else {
+                        $result['interaction']['decision_advice'] = [
+                            'mode' => $configuredMode,
+                            'provider' => 'system_one',
+                            'endpoint' => $endpoint,
+                            'model' => $model,
+                            'token_env' => $tokenEnvironment,
+                            'data_classification' => $classification,
+                            'timeout_ms' => $timeout,
+                            'allow_loopback' => $allowLoopback,
+                        ];
+                    }
                 }
             }
 
