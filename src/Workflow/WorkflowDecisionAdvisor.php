@@ -94,6 +94,18 @@ final readonly class WorkflowDecisionAdvisor
                 $choices,
                 $settings['model'],
             );
+            if (
+                ($decision->candidateId !== null && !array_key_exists($decision->candidateId, $choices))
+                || ($decision->candidateId === null && $decision->answerProbability !== null)
+                || ($decision->candidateId !== null && $decision->answerProbability === null)
+                || ($decision->answerProbability !== null && (
+                    !is_finite($decision->answerProbability)
+                    || $decision->answerProbability < 0.0
+                    || $decision->answerProbability > 1.0
+                ))
+            ) {
+                throw new \UnexpectedValueException('Decision model returned an invalid bounded recommendation.');
+            }
             $recommendation['provider_disposition'] = $decision->candidateId === null ? 'abstain' : 'suggest';
             $recommendation['provider_observed_choice'] = $decision->candidateId;
             $recommendation['provider_probability'] = $decision->answerProbability;
