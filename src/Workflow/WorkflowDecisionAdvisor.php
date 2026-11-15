@@ -106,6 +106,17 @@ final readonly class WorkflowDecisionAdvisor
             ) {
                 throw new \UnexpectedValueException('Decision model returned an invalid bounded recommendation.');
             }
+            // Public structural metadata does not contain the full Contract, review,
+            // residual risk or named human's acceptance. Never let a model infer
+            // a positive authority-bearing action from counts alone.
+            if ($decision->candidateId !== null && self::requiresHumanEvidence($decision->candidateId)) {
+                $recommendation['provider_disposition'] = 'abstain';
+                $recommendation['provider_error'] = 'insufficient_decision_evidence';
+                $recommendation['provider_observed_choice'] = null;
+                $recommendation['provider_probability'] = null;
+
+                return $recommendation;
+            }
             $recommendation['provider_disposition'] = $decision->candidateId === null ? 'abstain' : 'suggest';
             $recommendation['provider_observed_choice'] = $decision->candidateId;
             $recommendation['provider_probability'] = $decision->answerProbability;
@@ -127,6 +138,19 @@ final readonly class WorkflowDecisionAdvisor
         $recommendation['provider_latency_ms'] = round((hrtime(true) - $start) / 1_000_000, 3);
 
         return $recommendation;
+    }
+
+    private static function requiresHumanEvidence(string $choice): bool
+    {
+        return in_array($choice, [
+            'approve',
+            'acknowledge_review',
+            'findings_recorded',
+            'no_durable_learning',
+            'follow_up_required',
+            'accept_risk',
+            'supersede_contract',
+        ], true);
     }
 
     /**
