@@ -480,10 +480,6 @@ final readonly class InitConfigLoader
 
     private function resolvePath(string $path): string
     {
-        if (str_starts_with($path, '/')) {
-            return $path;
-        }
-
-        return rtrim($this->rootPath, '/') . '/' . ltrim($path, '/');
+        return PathResolver::join($this->rootPath, $path);
     }
 }
