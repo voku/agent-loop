@@ -46,7 +46,7 @@ verify human approval. Provider failure falls back to deterministic advice.
 After `enter`, only when specialist selection could materially change the first investigation, a developer may explicitly request read-only advice:
 
 ```bash
-vendor/bin/agent-loop decision route --mode=assist --task-id=<task-id> --contract-revision=<approved-revision> --data-classification=public --public-state="<public-only short task summary>" --endpoint="https://<explicit trusted host>/v1/systemone" --token-env=LAYA_API_KEY --format=json
+vendor/bin/agent-loop decision route --mode=assist --task-id=<task-id> --contract-revision=<approved-revision> --data-classification=public --public-state="<public-only short task summary>" --endpoint="https://<explicit trusted host>/v1/systemone" --token-env=DECISION_MODEL_TOKEN --format=json
 ```
 
 `off` is the default and makes no network request. `rules` leaves existing Codex routing unchanged; `shadow` records an observed decision model choice without surfacing it as a hint. Use only public task text, never automatically forward Contract, Session or Recall contents. A non-null `routing_hint` in `assist` is optional advisory input to Codex, not a command to call the specialist. Codex retains final selection and must obey the unchanged `enter` result. If the provider abstains or fails, continue without a hint. Never interpret a routing receipt as approval, mutation authority, or lifecycle state.
