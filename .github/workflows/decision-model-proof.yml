@@ -46,7 +46,7 @@ jobs:
       - name: Static PHP and focused PHPUnit
         run: |
           php -l src/Decision/DecisionRouteCommand.php
-          php -l src/Decision/SystemOneChoiceHttpClient.php
+          php -l vendor/voku/agent-decision/src/Provider/SystemOneChoiceHttpClient.php
           php -l tools/Dogfood/Routing/decision-model-localhost.php
           vendor/bin/phpunit tests/Decision/DecisionRouteTest.php tests/Decision/WorkflowDecisionAdvisorTest.php
           composer phpstan
