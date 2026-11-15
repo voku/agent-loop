@@ -12,7 +12,7 @@ use UnexpectedValueException;
  * Bounded System One choice-protocol HTTP adapter.
  * No global configuration, implicit credentials, redirects or lifecycle authority.
  */
-final readonly class SystemOneChoiceHttpClient
+final readonly class SystemOneChoiceHttpClient implements DecisionModel
 {
     public function __construct(
         private string $endpoint,
