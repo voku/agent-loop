@@ -14,7 +14,7 @@ if (parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) !== '/v1/systemone') 
 $raw = file_get_contents('php://input');
 $request = is_string($raw) ? json_decode($raw, true) : null;
 $headers = function_exists('getallheaders') ? getallheaders() : [];
-$auth = is_array($headers) && isset($headers['Authorization']);
+$auth = isset($headers['Authorization']);
 $criteria = $request['questions']['specialist']['criteria'] ?? null;
 $state = $request['state'] ?? null;
 if (
