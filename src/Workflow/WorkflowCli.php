@@ -23,6 +23,7 @@ final readonly class WorkflowCli
             'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($rest),
             'plan' => self::isHelpRequest($rest) ? $this->printHelp() : (new WorkflowPlanCommand($this->rootPath))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath))->run($rest),
+            'autonomy' => (new WorkflowAutonomyCommand($this->rootPath))->run($rest),
             'reject' => (new WorkflowRejectCommand($this->rootPath))->run($rest),
             'execution-profile' => (new WorkflowExecutionProfileCommand($this->rootPath))->run($rest),
             'attention' => (new WorkflowAttentionCommand($this->rootPath))->run($rest),
@@ -51,6 +52,9 @@ Usage:
   agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] [--acceptance-observation <json> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>] [--supersede]
   agent-loop workflow plan <task-id> --by <actor> --supersede --add-scope <path> [--add-scope <path> ...] [--format=json]
   agent-loop workflow approve <task-id> --revision <current-revision> --by <actor> [--head <reviewed-commit>]
+  agent-loop workflow autonomy <task-id> issue --by <actor> --until <date-time>
+  agent-loop workflow autonomy <task-id> status
+  agent-loop workflow autonomy <task-id> revoke --by <actor>
   agent-loop workflow reject <task-id> --revision <current-revision> --by <actor> --reason <text> [--head <reviewed-commit>]
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]
   agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor> [--response <text>]
@@ -72,6 +76,7 @@ Usage:
 Commands:
   plan               Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
   approve            Approve the exact Contract revision only; deterministic Run/Session/Recall preparation belongs to `agent-loop enter`.
+  autonomy           Opt in to bounded local continuation for one exact approved Contract; does not grant approval, Learning, merge, or deploy authority.
   execution-profile  Select an execution topology before Run creation; standard independent review is the default, manual is opt-in.
   attention          Resolve pending human-owned execution Attention through an explicit actor-owned workflow transition; runner-facing APIs cannot manufacture this authority.
   contract           Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.

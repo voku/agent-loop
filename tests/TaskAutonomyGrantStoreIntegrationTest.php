@@ -11,6 +11,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Workflow\TaskAutonomyGrant;
+use voku\AgentLoop\Workflow\TaskAutonomyGrantStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 
 final class TaskAutonomyGrantStoreIntegrationTest extends TestCase
@@ -74,5 +75,49 @@ final class TaskAutonomyGrantStoreIntegrationTest extends TestCase
 
         self::assertFalse($grant->isEligibleFor($approved, 'learn', $now));
         self::assertFalse($grant->isEligibleFor($approved, 'acknowledge_review', $now));
+    }
+
+    public function testPersistedGrantIsRecheckedAgainstContractAndRevocation(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $created = $contracts->create(
+            'WORK-2',
+            'Implement and validate an approved change.',
+            ['src'],
+            ['merge', 'deploy'],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
+        $contracts->approve('WORK-2', 'project-owner', $created->revision);
+        $now = new DateTimeImmutable('now');
+        $store = new TaskAutonomyGrantStore($this->root);
+        $issued = $store->issue('WORK-2', 'project-owner', $now, $now->modify('+30 minutes'));
+
+        self::assertSame($issued->contractDigest, $store->find('WORK-2')?->contractDigest);
+        self::assertTrue($store->currentEligibility('WORK-2', 'review', $now));
+        self::assertFalse($store->currentEligibility('WORK-2', 'learn', $now));
+
+        $revoked = $store->revoke('WORK-2', 'project-owner', $now->modify('+1 minute'));
+        self::assertSame('project-owner', $revoked->revokedBy);
+        $persistedRevocation = $store->find('WORK-2');
+        self::assertSame('project-owner', $persistedRevocation->revokedBy);
+        self::assertFalse($store->currentEligibility('WORK-2', 'review', $now->modify('+2 minutes')));
+
+        $store->issue('WORK-2', 'project-owner', $now->modify('+2 minutes'), $now->modify('+20 minutes'));
+        self::assertCount(1, glob($this->root . '/.agent-loop/runs/WORK-2/task-autonomy-grants/archive/*.json') ?: []);
+    }
+
+    public function testGrantCannotBeIssuedWithoutCurrentContractApproval(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('WORK-3', 'Implement an approved change.', ['src'], [], ['vendor/bin/phpunit'], 'planner');
+
+        $this->expectException(RuntimeException::class);
+        (new TaskAutonomyGrantStore($this->root))->issue(
+            'WORK-3',
+            'project-owner',
+            new DateTimeImmutable('now'),
+            new DateTimeImmutable('+30 minutes'),
+        );
     }
 }

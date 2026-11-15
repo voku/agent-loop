@@ -28,6 +28,7 @@ final readonly class TaskAutonomyGrant
         public DateTimeImmutable $issuedAt,
         public DateTimeImmutable $expiresAt,
         public ?DateTimeImmutable $revokedAt = null,
+        public ?string $revokedBy = null,
     ) {
         new WorkflowTaskId($taskId);
         if ($contractRevision < 1 || preg_match('/\Asha256:[a-f0-9]{64}\z/D', $contractDigest) !== 1) {
@@ -44,6 +45,9 @@ final readonly class TaskAutonomyGrant
 
         if ($revokedAt !== null && $revokedAt < $issuedAt) {
             throw new InvalidArgumentException('Task autonomy revocation cannot predate issuance.');
+        }
+        if ($revokedBy !== null && (trim($revokedBy) === '' || str_starts_with(trim($revokedBy), 'standing:'))) {
+            throw new InvalidArgumentException('Task autonomy revocation requires a named, non-reserved actor.');
         }
     }
 
@@ -68,10 +72,10 @@ final readonly class TaskAutonomyGrant
     }
 
     /**
-     * Returns a locally revoked snapshot. Real revocation requires the future
-     * trusted owner store; an old object must never be treated as authority.
+     * Returns a locally revoked snapshot. Persisted owner state, not an old
+     * object, is the authority checked by TaskAutonomyGrantStore.
      */
-    public function revoke(DateTimeImmutable $now): self
+    public function revoke(DateTimeImmutable $now, ?string $by = null): self
     {
         if ($now < $this->issuedAt) {
             throw new InvalidArgumentException('Task autonomy cannot be revoked before issuance.');
@@ -85,6 +89,7 @@ final readonly class TaskAutonomyGrant
             $this->issuedAt,
             $this->expiresAt,
             $this->revokedAt ?? $now,
+            $this->revokedBy ?? $by,
         );
     }
 

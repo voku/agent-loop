@@ -230,6 +230,25 @@ names a human authority boundary.
 available for navigation, diagnostics, specialist work, CI, and recovery. They
 are not mandatory phases simply because the CLI exposes them.
 
+## Optional task-scoped continuation
+
+For a trusted local host, an operator may opt one approved task into bounded
+continuation. The grant expires within 24 hours and becomes stale when the
+Contract changes:
+
+```bash
+./docker/agent-loop workflow autonomy PROJECT-1 issue \
+  --by "$(git config user.name)" \
+  --until "2026-11-15T23:00:00Z"
+./docker/agent-loop workflow autonomy PROJECT-1 status --format=json
+./docker/agent-loop workflow autonomy PROJECT-1 revoke --by "$(git config user.name)"
+```
+
+`--by` records local attribution; it is not cryptographic identity proof. This
+grant supports ordinary in-scope continuation only. Contract approval, human
+Attention, independent review, Learning, merge, and deployment keep their own
+authority gates. See [task autonomy](workflow/task-autonomy.md).
+
 The ordinary host contract is intentionally small:
 
 ```text

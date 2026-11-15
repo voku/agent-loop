@@ -209,6 +209,20 @@ final readonly class WorkflowContextCommand
                 'Contract: revision ' . $contract['revision'] . ', '
                 . ($contract['approval']['by'] === null ? 'not approved' : 'approved by ' . $contract['approval']['by']),
             );
+            $grant = (new TaskAutonomyGrantStore($this->rootPath))->find($taskId);
+            if ($grant !== null) {
+                $active = (new TaskAutonomyGrantStore($this->rootPath))->currentEligibility(
+                    $taskId,
+                    'validate',
+                    new \DateTimeImmutable('now'),
+                );
+                $budget->add(
+                    'policy',
+                    'Task autonomy: ' . ($active ? 'active' : 'inactive')
+                    . ' through ' . $grant->expiresAt->format(DATE_ATOM)
+                    . '; task and exact Contract binding are rechecked by the owner. This permits bounded in-scope continuation only; human decisions, independent review, Learning, merge and deploy gates remain required.',
+                );
+            }
             $budget->section('Goal');
             $budget->add('contract', '  ' . $contract['goal']);
             $budget->section('Approved scope');
