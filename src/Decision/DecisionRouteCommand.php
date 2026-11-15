@@ -152,6 +152,18 @@ final readonly class DecisionRouteCommand
             $start = hrtime(true);
             try {
                 $choice = $client->decide($state, $candidateDescriptions, $model);
+                if (
+                    ($choice->candidateId !== null && !array_key_exists($choice->candidateId, $candidateDescriptions))
+                    || ($choice->candidateId === null && $choice->answerProbability !== null)
+                    || ($choice->candidateId !== null && $choice->answerProbability === null)
+                    || ($choice->answerProbability !== null && (
+                        !is_finite($choice->answerProbability)
+                        || $choice->answerProbability < 0.0
+                        || $choice->answerProbability > 1.0
+                    ))
+                ) {
+                    throw new UnexpectedValueException('Decision model supplied an invalid bounded specialist choice.');
+                }
 
                 // A remote suggestion cannot outlive the approved Contract or
                 // the exact canonical candidate definitions it was computed for.
