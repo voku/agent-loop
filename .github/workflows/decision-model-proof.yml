@@ -193,6 +193,26 @@ jobs:
           "${common[@]}" '--public-state=TIMEOUT upstream' --timeout-ms=100 > build/decision-model-routing-proof/timeout.json
           jq -e '.disposition == "provider_unavailable" and .routing_hint == null' build/decision-model-routing-proof/timeout.json >/dev/null
 
+          # Allow the single-threaded timeout fixture to finish, then prove
+          # intermittent bytes cannot extend the total response deadline.
+          sleep 1.6
+          php -r '
+            require "vendor/autoload.php";
+            $client = new \voku\AgentLoop\Decision\SystemOneChoiceHttpClient($argv[1], 350, true);
+            $started = microtime(true);
+            try {
+                $client->decide("SLOW_TRICKLE public fixture", ["agent-loop-investigator" => "Investigate"], null);
+                exit(1);
+            } catch (\RuntimeException $exception) {
+                if ($exception->getMessage() !== "decision model provider timed out.") {
+                    exit(2);
+                }
+            }
+            if (microtime(true) - $started > 1.2) {
+                exit(3);
+            }
+          ' "$DECISION_FAKE_ENDPOINT"
+
           kill "$server_pid" 2>/dev/null || true
           wait "$server_pid" 2>/dev/null || true
           trap - EXIT
@@ -214,7 +234,7 @@ jobs:
           jq -n --arg sha "$(git rev-parse HEAD)" \
             '{schema_version:"1.0", source_sha:$sha, provider:"localhost-fake", real_decision_model_executed:false,
               checks:["assist","shadow","abstain","invalid_response","stale_candidates","nan","infinity","out_of_range","http_503",
-                "timeout","oversized_bounded_response","independent_confidence","prompt_injection_boundary","off","human_approval_advice","auth_presence_only","sanitized_receipts"]}' \
+                "timeout","slow_drip_deadline","oversized_bounded_response","independent_confidence","prompt_injection_boundary","off","human_approval_advice","auth_presence_only","sanitized_receipts"]}' \
             > build/decision-model-routing-proof/summary.json
       - name: Upload sanitized exact-head routing evidence
         if: always()
