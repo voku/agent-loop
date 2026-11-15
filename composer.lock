@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "00599f230e028feeedf1f83b177232a3",
+    "content-hash": "4ca68600816dc355ecd6183869d679ef",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -922,6 +922,55 @@
                 }
             ],
             "time": "2024-09-09T11:45:10+00:00"
+        },
+        {
+            "name": "voku/agent-decision",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/voku/agent-decision.git",
+                "reference": "d71be7c3787547c5870abfae399d3faab1a90451"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/voku/agent-decision/zipball/d71be7c3787547c5870abfae399d3faab1a90451",
+                "reference": "d71be7c3787547c5870abfae399d3faab1a90451",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.95",
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^12.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "voku\\AgentDecision\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Provider-neutral bounded decision advice with explicit human authority and privacy boundaries",
+            "homepage": "https://github.com/voku/agent-decision",
+            "keywords": [
+                "advisory",
+                "agents",
+                "decisions",
+                "php",
+                "provider-neutral"
+            ],
+            "support": {
+                "issues": "https://github.com/voku/agent-decision/issues",
+                "source": "https://github.com/voku/agent-decision/tree/main"
+            },
+            "time": "2026-11-15T08:40:26+00:00",
+            "published-time": "2026-11-15T09:23:42+00:00"
         },
         {
             "name": "voku/agent-edit",
@@ -6290,7 +6339,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "voku/agent-decision": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
