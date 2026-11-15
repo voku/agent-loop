@@ -74,7 +74,7 @@ echo json_encode([
             'type' => 'choice',
             'choice' => $choice,
             'probabilities' => $probabilities,
-            'answer_confidence' => str_starts_with($state, 'CONFIDENCE') ? 0.1 : 0.8,
+            'confidence' => str_starts_with($state, 'CONFIDENCE') ? 0.1 : 0.8,
         ],
     ],
 ], JSON_THROW_ON_ERROR);
