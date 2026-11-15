@@ -10,6 +10,7 @@ use JsonException;
 use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\TaskContract;
+use voku\AgentLoop\Workflow\WorkflowActorAttribution;
 use voku\AgentSession\Session;
 
 final class RunVerificationReceiptStore
@@ -29,6 +30,15 @@ final class RunVerificationReceiptStore
         string $verdict,
         array $obligations,
     ): RunVerificationReceipt {
+        foreach ($obligations as &$obligation) {
+            if ($obligation['recorded_by'] !== null) {
+                $obligation['recorded_by'] = WorkflowActorAttribution::normalize(
+                    $obligation['recorded_by'],
+                    'record verification evidence',
+                );
+            }
+        }
+        unset($obligation);
         if (!in_array($verdict, ['satisfied', 'unsatisfied', 'accepted_risk'], true)) {
             throw new RuntimeException('Verification receipt verdict must be satisfied, unsatisfied, or accepted_risk.');
         }
@@ -37,6 +47,9 @@ final class RunVerificationReceiptStore
         }
         if ($contract->taskId !== $run->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Verification receipt task lineage does not match governed Run.');
+        }
+        if ((new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            throw new RuntimeException('Verification receipt refused: governed Run is retired.');
         }
         if ($contract->revision !== $run->contractRevision) {
             throw new RuntimeException('Verification receipt Contract revision does not match governed Run.');
@@ -194,7 +207,7 @@ final class RunVerificationReceiptStore
                 'status' => $status,
                 'exit_code' => $exitCode,
                 'executed_at' => $this->nullableString($obligation['executed_at'] ?? null, $path . '#obligation.executed_at'),
-                'recorded_by' => $this->nullableString($obligation['recorded_by'] ?? null, $path . '#obligation.recorded_by'),
+                'recorded_by' => $this->nullableActor($obligation['recorded_by'] ?? null, $path . '#obligation.recorded_by'),
                 'duration_ms' => $duration,
             ];
         }
@@ -263,5 +276,12 @@ final class RunVerificationReceiptStore
         }
 
         return trim($value);
+    }
+
+    private function nullableActor(mixed $value, string $path): ?string
+    {
+        $actor = $this->nullableString($value, $path);
+
+        return $actor === null ? null : WorkflowActorAttribution::normalize($actor, 'read verification evidence');
     }
 }

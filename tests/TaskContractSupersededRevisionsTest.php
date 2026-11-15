@@ -104,6 +104,30 @@ final class TaskContractSupersededRevisionsTest extends TestCase
         $contracts->supersededRevisions('HIST-4');
     }
 
+    public function testContractPlanningAndRevisionRejectReservedActorBeforeAnyArtifactChange(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+
+        try {
+            $contracts->create('HIST-5', 'Goal.', ['src/A.php'], [], ['composer ci'], ' standing:spoof ');
+            self::fail('Reserved standing actor was accepted during Contract creation.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('standing:', $exception->getMessage());
+        }
+        self::assertFileDoesNotExist($contracts->path('HIST-5'));
+
+        $contracts->create('HIST-5', 'Goal.', ['src/A.php'], [], ['composer ci'], 'operator-1');
+        $before = file_get_contents($contracts->path('HIST-5'));
+        try {
+            $contracts->revise('HIST-5', 'Changed goal.', ['src/A.php'], [], ['composer ci'], ' standing:spoof ');
+            self::fail('Reserved standing actor was accepted during Contract revision.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('standing:', $exception->getMessage());
+        }
+        self::assertSame($before, file_get_contents($contracts->path('HIST-5')));
+        self::assertSame([], $contracts->supersededRevisions('HIST-5'));
+    }
+
     private function removeDirectory(string $directory): void
     {
         if (!is_dir($directory)) {
