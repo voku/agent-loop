@@ -20,6 +20,16 @@ Obey `next_action_kind` / `next_action` from that result. `AGENTS.md` already de
 
 A task router may choose a specialist skill, never a lifecycle phase. Only the current result routes task start/progress, Recall or repair, Learning, review, and close.
 
+### Optional Codex specialist hint
+
+After `enter`, only when specialist selection could materially change the first investigation, a developer may explicitly request read-only advice:
+
+```bash
+vendor/bin/agent-loop decision route --mode=assist --task-id=<task-id> --contract-revision=<approved-revision> --data-classification=public --public-state="<public-only short task summary>" --endpoint="https://<explicit trusted host>/v1/systemone" --token-env=LAYA_API_KEY --format=json
+```
+
+`off` is the default and makes no network request. `rules` leaves existing Codex routing unchanged; `shadow` records an observed Laya choice without surfacing it as a hint. Use only public task text, never automatically forward Contract, Session or Recall contents. A non-null `routing_hint` in `assist` is optional advisory input to Codex, not a command to call the specialist. Codex retains final selection and must obey the unchanged `enter` result. If the provider abstains or fails, continue without a hint. Never interpret a routing receipt as approval, mutation authority, or lifecycle state.
+
 ## End-to-End Implementation Front Door
 
 When this skill is invoked for an end-to-end implementation request, keep the request ergonomic without creating a second workflow:
