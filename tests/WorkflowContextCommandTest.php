@@ -13,6 +13,7 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
+use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentSession\SessionStore;
@@ -75,6 +76,18 @@ final class WorkflowContextCommandTest extends TestCase
             $context = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
             self::assertSame('ABC-123', $context['task_id']);
         }
+    }
+
+    public function testWorkflowCliRoutesDocumentedJsonContextInvocation(): void
+    {
+        ob_start();
+        $exit = (new WorkflowCli($this->root))->run(['context', 'ABC-123', '--format=json']);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exit);
+        $context = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('ABC-123', $context['task_id']);
+        self::assertSame('2.0', $context['schema_version']);
     }
 
     public function testContextCombinesExistingArtifactsWithoutMutation(): void
