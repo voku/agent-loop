@@ -14,6 +14,7 @@ This is the current ownership map for first-party agent behavior. Historical mig
 | PHP static-analysis, testing, security, performance, type, architecture, and runtime-diagnostic guidance | `voku/agent-skills` | Select/project the relevant retained skill; generic framework/language knowledge stays with repository evidence and current semantic-owner documentation |
 | Engineering review lenses | `voku/agent-skills/code-review-*` | Provide exact scope/evidence, select one dominant lens, persist the lens-local result, allow at most one evidence-backed handoff |
 | Workflow phases, approval, review gate, learning decision, verify, close | `voku/agent-loop` | Canonical owner |
+| Decision recommendations for routing and human-authority questions | `voku/agent-loop` | Project a bounded, optional advisory `DecisionModel` result in the existing host-independent CLI/JSON contract. Model output never changes lifecycle legality or human approval; host adapters only present choices and gather explicit human decisions |
 | Process/evidence blind-spot review | `voku/agent-loop` | Deterministic lifecycle check, separate from engineering review |
 | Task assumptions, decisions, checkpoints, validation evidence | `voku/agent-session` | Orchestrate through typed package APIs |
 | Bounded symbol/caller/context navigation | `voku/agent-map` | Select real source; generated map remains navigation only |
@@ -24,6 +25,12 @@ This is the current ownership map for first-party agent behavior. Historical mig
 | Host authority policy projection | `voku/agent-loop` | Project only policy that the host can represent honestly; keep trust, Auto Mode, and other user/runtime decisions outside repository ownership |
 | Workflow/bootstrap hooks | `voku/agent-loop` | Project workflow/navigation/evidence discipline through explicit host adapters; do not smuggle engineering skills into every session |
 | Host capability/discovery reporting | `voku/agent-loop` | Report adapter capability through `HostCapabilityMatrix` and converge current repository integration through `init host-status`; never claim runtime consumption from file presence |
+
+## Host-neutral decision advice
+
+A coding host may use `enter`, `finish`, or `decision route` directly, or consume the same JSON through its own adapter. The `human_decision.recommendation` projection is owned once by `agent-loop`, not by Codex, Claude, OpenCode, agent-ui, or any other host. An adapter is responsible for **displaying** the subject, recommendation, and available choices, and for collecting the human's actual response. It cannot auto-approve based on a suggested choice.
+
+The optional decision model speaks a bounded choice protocol and receives only explicitly classified public metadata. `off` uses no provider; `shadow` records a recommendation without replacing local advice; `assist` displays a bounded suggestion. Existing host policy continues to govern specialist invocation and mutation permissions. Codex runtime proof is one supported consumer experiment, not a required execution environment or universal host-capability claim.
 
 ## Engineering-skill boundary
 
