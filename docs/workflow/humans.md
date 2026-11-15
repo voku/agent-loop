@@ -37,7 +37,7 @@ Claims such as CI being green, a pull request being merged, or a release being s
 
 ## Advisory decision recommendations
 
-The human-decision projection includes a typed `recommendation` for every
+The host-neutral human-decision JSON projection includes a typed `recommendation` for every
 `decision_required` outcome, including Contract approval, review
 acknowledgement, Learning disposition, risk acceptance, supersession, and
 otherwise unknown human authority gates. A recommendation may abstain.
