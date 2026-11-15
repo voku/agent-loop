@@ -245,6 +245,7 @@ final readonly class WorkflowHumanDecisionProjector
             'task_id' => $taskId,
             'action' => $nextAction,
             'subject' => $subject,
+            'recommendation' => (new WorkflowDecisionAdvisor($this->rootPath))->advise($type, $subject),
         ];
     }
 }
