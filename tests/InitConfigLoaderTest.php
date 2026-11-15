@@ -74,6 +74,22 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testUnixLeadingBackslashesAreLiteralRelativeConfigFilename(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('UNC-style leading backslashes are absolute on Windows.');
+        }
+
+        $root = $this->tempDir();
+        // Two leading backslashes are a valid Unix filename, not a UNC path.
+        $name = '\\\\server\\share.json';
+        file_put_contents($root . '/' . $name, '{"prompting":{"language":"de"}}');
+
+        $config = (new InitConfigLoader($root))->load($name);
+        self::assertSame('de', $config['prompting']['language']);
+        self::assertSame([], $config['warnings']);
+    }
+
     public function testProvidedBoundedContentIsUsedWithoutSecondFilesystemRead(): void
     {
         $root = $this->tempDir();
