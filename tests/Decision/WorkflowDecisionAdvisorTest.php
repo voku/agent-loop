@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests\Decision;
 
 use PHPUnit\Framework\TestCase;
-use voku\AgentLoop\Decision\DecisionChoiceResult;
-use voku\AgentLoop\Decision\DecisionModel;
+use voku\AgentDecision\DecisionChoiceResult;
+use voku\AgentDecision\DecisionModel;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowDecisionAdvisor;
 use voku\AgentLoop\Workflow\WorkflowHumanDecisionProjector;
