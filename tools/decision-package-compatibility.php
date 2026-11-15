@@ -9,8 +9,6 @@ use voku\AgentDecision\DecisionDisposition as PortableDisposition;
 use voku\AgentDecision\DecisionMode;
 use voku\AgentDecision\DecisionModel as PortableModel;
 use voku\AgentDecision\DecisionRequest;
-use voku\AgentLoop\Decision\DecisionChoiceResult as LoopChoiceResult;
-use voku\AgentLoop\Decision\DecisionModel as LoopModel;
 use voku\AgentLoop\Decision\DecisionRouteCommand;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -93,23 +91,9 @@ if (
     throw new RuntimeException('Portable provider recommended a protected positive decision.');
 }
 
-// Exercise the existing agent-loop public CLI through a narrow cross-namespace
-// adapter. No runtime Composer dependency is added before a reviewed release.
-$adapter = new class($portable) implements LoopModel {
-    public function __construct(private readonly PortableModel $portable)
-    {
-    }
-
-    public function decide(string $publicState, array $criteria, ?string $model): LoopChoiceResult
-    {
-        $choice = $this->portable->decide($publicState, $criteria, $model);
-
-        return new LoopChoiceResult($choice->candidateId, $choice->answerProbability);
-    }
-};
-
+// The agent-loop front door now consumes the package contract directly.
 ob_start();
-$exitCode = (new DecisionRouteCommand(dirname(__DIR__), $adapter))->run([
+$exitCode = (new DecisionRouteCommand(dirname(__DIR__), $portable))->run([
     'route',
     '--mode=assist',
     '--candidate=agent-loop-investigator',
@@ -128,7 +112,7 @@ if (
     || ($receipt['routing_hint']['host_retains_final_selection'] ?? null) !== true
     || ($receipt['lifecycle_mutation'] ?? null) !== false
 ) {
-    throw new RuntimeException('Actual package result is not compatible with agent-loop CLI routing.');
+    throw new RuntimeException('Direct package contract is not compatible with agent-loop CLI routing.');
 }
 
-echo "PASS: pinned Composer package installed and bridged to actual agent-loop CLI; offline, shadow, assist, protected choices and authority verified\n";
+echo "PASS: pinned Composer package installed and used directly by actual agent-loop CLI; offline, shadow, assist, protected choices and authority verified\n";
