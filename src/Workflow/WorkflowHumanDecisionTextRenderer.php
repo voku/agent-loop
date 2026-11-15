@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\PathResolver;
 
 /**
  * Human-readable CLI view of a typed Contract approval projection.
@@ -66,6 +67,17 @@ final readonly class WorkflowHumanDecisionTextRenderer
             ? '  Ablehnen: Die Ablehnung mit Begründung festhalten. Vor weiterer Arbeit ist eine neue Contract-Revision erforderlich.'
             : '  Reject: Record a rejection and reason. A new Contract revision is required before work can proceed.';
         $lines[] = '    agent-loop workflow reject ' . $contract->taskId . ' --revision ' . $contract->revision . ' --by <actor> --reason <reason>';
+
+        $subject = $decision->subject(PathResolver::relativeTo($this->rootPath, $decision->contract->path));
+        $advice = (new WorkflowDecisionAdvisor($this->rootPath))->advise('contract_approval', $subject);
+        $lines[] = '';
+        $lines[] = $german ? 'Unverbindliche Entscheidungsempfehlung:' : 'Advisory decision recommendation:';
+        $choice = $advice['suggested_choice'];
+        $lines[] = ($german ? '  Vorschlag: ' : '  Suggestion: ') . ($choice === null ? 'abstain' : $choice);
+        $lines[] = '  ' . $advice['reason'];
+        $lines[] = $german
+            ? '  Die Entscheidung und Freigabe verbleiben ausschließlich beim Menschen.'
+            : '  The human retains sole decision and approval authority.';
 
         return implode("\n", $lines) . "\n";
     }
