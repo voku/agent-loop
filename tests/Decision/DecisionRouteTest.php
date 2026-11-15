@@ -6,7 +6,7 @@ namespace voku\AgentLoop\Tests\Decision;
 
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Decision\DecisionRouteCommand;
-use voku\AgentLoop\Decision\LayaRoutingClient;
+use voku\AgentLoop\Decision\SystemOneChoiceHttpClient;
 use InvalidArgumentException;
 
 final class DecisionRouteTest extends TestCase
@@ -131,13 +131,13 @@ final class DecisionRouteTest extends TestCase
             'https://example.org/v1/systemone?secret=abc',
         ] as $endpoint) {
             try {
-                new LayaRoutingClient($endpoint, 1000);
+                new SystemOneChoiceHttpClient($endpoint, 1000);
                 self::fail('Untrusted endpoint accepted: ' . $endpoint);
             } catch (InvalidArgumentException) {
                 // The trust boundary rejected the unapproved endpoint.
             }
         }
-        self::assertInstanceOf(LayaRoutingClient::class, new LayaRoutingClient('http://127.0.0.1:8172/v1/systemone', 1000, true));
+        self::assertInstanceOf(SystemOneChoiceHttpClient::class, new SystemOneChoiceHttpClient('http://127.0.0.1:8172/v1/systemone', 1000, true));
     }
 
     /** @param list<string> $args */

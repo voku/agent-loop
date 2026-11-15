@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Deterministic local Laya wire fake for executable CLI/HTTP proof only.
+ * Deterministic local decision model wire fake for executable CLI/HTTP proof only.
  * Never stores state, auth values, or unfiltered response bodies.
  */
 if (parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) !== '/v1/systemone') {
@@ -91,7 +91,7 @@ foreach ($criteria as $id => $description) {
     $probabilities[$id] = $id === $choice ? 0.8 : $other;
 }
 echo json_encode([
-    'model' => 'fake-laya-localhost',
+    'model' => 'fake-decision-model-localhost',
     'answers' => [
         'specialist' => [
             'type' => 'choice',

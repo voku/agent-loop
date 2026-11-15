@@ -78,7 +78,7 @@ final readonly class DecisionRouteCommand
                 'task_id' => $taskId,
                 'contract_revision' => $revision === null ? null : (int) $revision,
                 'mode' => $mode,
-                'provider' => $mode === 'shadow' || $mode === 'assist' ? 'laya' : null,
+                'provider' => $mode === 'shadow' || $mode === 'assist' ? 'system_one' : null,
                 'disposition' => DecisionDisposition::NotEnabled->value,
                 'candidate_ids' => $candidateIds,
                 'observed_candidate_id' => null,
@@ -125,12 +125,12 @@ final readonly class DecisionRouteCommand
                 }
                 $read = getenv($tokenEnvironment);
                 if (!is_string($read) || $read === '') {
-                    throw new InvalidArgumentException('Explicit Laya credential environment variable is missing.');
+                    throw new InvalidArgumentException('Explicit decision model credential environment variable is missing.');
                 }
                 $token = $read;
             }
 
-            $client = new LayaRoutingClient(
+            $client = new SystemOneChoiceHttpClient(
                 $endpoint,
                 (int) $timeoutRaw,
                 isset($options['allow-loopback']),
@@ -288,7 +288,7 @@ final readonly class DecisionRouteCommand
                 || $sourcePath === false
                 || !str_starts_with($sourcePath, $prefix)
             ) {
-                // Private/project-managed definitions are never serialized for Laya.
+                // Private/project-managed definitions are never serialized for decision model.
                 continue;
             }
             $description = $source->definition()->description();

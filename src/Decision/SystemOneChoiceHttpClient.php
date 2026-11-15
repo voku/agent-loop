@@ -9,10 +9,10 @@ use RuntimeException;
 use UnexpectedValueException;
 
 /**
- * Bounded Jev-compatible Laya System One HTTP client.
+ * Bounded System One choice-protocol HTTP adapter.
  * No global configuration, implicit credentials, redirects or lifecycle authority.
  */
-final readonly class LayaRoutingClient
+final readonly class SystemOneChoiceHttpClient
 {
     public function __construct(
         private string $endpoint,
@@ -22,7 +22,7 @@ final readonly class LayaRoutingClient
     ) {
         $parts = parse_url($endpoint);
         if (!is_array($parts) || !filter_var($endpoint, FILTER_VALIDATE_URL)) {
-            throw new InvalidArgumentException('Laya endpoint must be an absolute URL.');
+            throw new InvalidArgumentException('decision model endpoint must be an absolute URL.');
         }
 
         $scheme = $parts['scheme'] ?? '';
@@ -44,13 +44,13 @@ final readonly class LayaRoutingClient
             ))
             || ($scheme === 'http' && !$loopback)
         ) {
-            throw new InvalidArgumentException('Laya endpoint requires an HTTPS host and /v1/systemone; only explicit 127.0.0.1 HTTP test endpoints are allowed.');
+            throw new InvalidArgumentException('decision model endpoint requires an HTTPS host and /v1/systemone; only explicit 127.0.0.1 HTTP test endpoints are allowed.');
         }
         if ($timeoutMs < 100 || $timeoutMs > 10000) {
-            throw new InvalidArgumentException('Laya timeout must be 100..10000 milliseconds.');
+            throw new InvalidArgumentException('decision model timeout must be 100..10000 milliseconds.');
         }
         if ($bearerToken !== null && ($bearerToken === '' || preg_match('/[\r\n]/', $bearerToken) === 1)) {
-            throw new InvalidArgumentException('Invalid Laya bearer token.');
+            throw new InvalidArgumentException('Invalid decision model bearer token.');
         }
     }
 
@@ -60,7 +60,7 @@ final readonly class LayaRoutingClient
      * @throws RuntimeException when the transport or provider is unavailable
      * @throws UnexpectedValueException when the provider returns an invalid decision
      */
-    public function decide(string $publicState, array $criteria, ?string $model): LayaRoutingResult
+    public function decide(string $publicState, array $criteria, ?string $model): DecisionChoiceResult
     {
         if ($publicState === '' || strlen($publicState) > 2000) {
             throw new InvalidArgumentException('Public routing state must contain 1..2000 bytes.');
@@ -69,7 +69,7 @@ final readonly class LayaRoutingClient
             throw new InvalidArgumentException('Routing requires 1..25 unique canonical candidates excluding none.');
         }
         if ($model !== null && preg_match('/\A[A-Za-z0-9._-]{1,80}\z/', $model) !== 1) {
-            throw new InvalidArgumentException('Invalid Laya model identifier.');
+            throw new InvalidArgumentException('Invalid decision model model identifier.');
         }
 
         $allowed = $criteria;
@@ -107,41 +107,41 @@ final readonly class LayaRoutingClient
         $http_response_header = [];
         $body = @file_get_contents($this->endpoint, false, $context);
         if (!is_string($body)) {
-            throw new RuntimeException('Laya provider transport unavailable.');
+            throw new RuntimeException('decision model provider transport unavailable.');
         }
         $statusLine = $http_response_header[0] ?? '';
         if (preg_match('/^HTTP\/\S+\s+([0-9]{3})/', $statusLine, $matches) !== 1) {
-            throw new RuntimeException('Laya provider HTTP status unavailable.');
+            throw new RuntimeException('decision model provider HTTP status unavailable.');
         }
         $status = (int) $matches[1];
         if ($status !== 200) {
-            throw new RuntimeException('Laya provider returned a non-success HTTP status.');
+            throw new RuntimeException('decision model provider returned a non-success HTTP status.');
         }
         if (strlen($body) > 32768) {
-            throw new UnexpectedValueException('Laya provider response exceeded size limit.');
+            throw new UnexpectedValueException('decision model provider response exceeded size limit.');
         }
 
         try {
             $responseDocument = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
-            throw new UnexpectedValueException('Laya provider returned invalid JSON.', 0, $exception);
+            throw new UnexpectedValueException('decision model provider returned invalid JSON.', 0, $exception);
         }
         if (!is_array($responseDocument)) {
-            throw new UnexpectedValueException('Laya provider response is not an object.');
+            throw new UnexpectedValueException('decision model provider response is not an object.');
         }
 
         $answer = $responseDocument['answers']['specialist'] ?? null;
         if (!is_array($answer) || ($answer['type'] ?? null) !== 'choice') {
-            throw new UnexpectedValueException('Laya provider missing specialist choice.');
+            throw new UnexpectedValueException('decision model provider missing specialist choice.');
         }
         $choice = $answer['choice'] ?? null;
         $probabilities = $answer['probabilities'] ?? null;
         if (!is_string($choice) || !array_key_exists($choice, $allowed) || !is_array($probabilities)) {
-            throw new UnexpectedValueException('Laya provider returned an unknown candidate or invalid probabilities.');
+            throw new UnexpectedValueException('decision model provider returned an unknown candidate or invalid probabilities.');
         }
 
         if (count($probabilities) !== count($allowed)) {
-            throw new UnexpectedValueException('Laya provider returned stale candidate probabilities.');
+            throw new UnexpectedValueException('decision model provider returned stale candidate probabilities.');
         }
         foreach ($allowed as $id => $description) {
             $probability = $probabilities[$id] ?? null;
@@ -151,7 +151,7 @@ final readonly class LayaRoutingClient
                 || $probability < 0
                 || $probability > 1
             ) {
-                throw new UnexpectedValueException('Laya provider returned invalid candidate probability.');
+                throw new UnexpectedValueException('decision model provider returned invalid candidate probability.');
             }
         }
         $selectedProbability = (float) $probabilities[$choice];
@@ -165,10 +165,10 @@ final readonly class LayaRoutingClient
                 || $reported < 0
                 || $reported > 1)
         ) {
-            throw new UnexpectedValueException('Laya answer confidence must be a finite probability.');
+            throw new UnexpectedValueException('decision model answer confidence must be a finite probability.');
         }
 
-        return new LayaRoutingResult(
+        return new DecisionChoiceResult(
             $choice === 'none' ? null : $choice,
             $choice === 'none' ? null : $selectedProbability,
         );
