@@ -252,7 +252,7 @@ jobs:
     timeout-minutes: 15
     env:
       LOOP_EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      AGENT_DECISION_EXACT_SHA: d71be7c3787547c5870abfae399d3faab1a90451
+      AGENT_DECISION_EXACT_SHA: d45933b969fd646e180b3ddd3f6e83981c10725b
     steps:
       - uses: actions/checkout@v7
         with:
