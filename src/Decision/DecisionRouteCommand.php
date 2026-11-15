@@ -141,6 +141,9 @@ final readonly class DecisionRouteCommand
                 'contract_revision' => $revision,
             ];
             $receipt['request_sha256'] = 'sha256:' . hash('sha256', json_encode($fingerprintInput, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+            if ($candidateDescriptions === []) {
+                throw new InvalidArgumentException('No eligible routing candidates.');
+            }
             $start = hrtime(true);
             try {
                 $choice = $client->decide($state, $candidateDescriptions, $model);
@@ -238,6 +241,9 @@ final readonly class DecisionRouteCommand
                 continue;
             }
             $description = $source->definition()->description();
+            if ($description === '') {
+                throw new InvalidArgumentException('Managed subagent description is empty.');
+            }
             $descriptions[$id] = $description;
         }
         if ($requested !== [] && count($descriptions) !== count($requested)) {
@@ -251,7 +257,7 @@ final readonly class DecisionRouteCommand
         return $descriptions;
     }
 
-    /** @param array<string, bool|float|int|string|array<string, mixed>|null> $receipt */
+    /** @param array<string, bool|float|int|string|array<int|string, bool|float|int|string|null>|null> $receipt */
     private static function printReceipt(array $receipt): void
     {
         echo json_encode($receipt, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
