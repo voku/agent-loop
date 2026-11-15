@@ -114,6 +114,8 @@ final readonly class WorkflowDecisionAdvisor
                 $recommendation['provider_error'] = 'insufficient_decision_evidence';
                 $recommendation['provider_observed_choice'] = null;
                 $recommendation['provider_probability'] = null;
+                $recommendation['provider'] = 'system_one';
+                $recommendation['provider_latency_ms'] = round((hrtime(true) - $start) / 1_000_000, 3);
 
                 return $recommendation;
             }
