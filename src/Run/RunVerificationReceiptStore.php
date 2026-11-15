@@ -48,6 +48,9 @@ final class RunVerificationReceiptStore
         if ($contract->taskId !== $run->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Verification receipt task lineage does not match governed Run.');
         }
+        if ((new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            throw new RuntimeException('Verification receipt refused: governed Run is retired.');
+        }
         if ($contract->revision !== $run->contractRevision) {
             throw new RuntimeException('Verification receipt Contract revision does not match governed Run.');
         }

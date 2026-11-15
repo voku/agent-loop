@@ -78,15 +78,26 @@ final class RunRetirementTest extends TestCase
         self::assertSame('incomplete', $beforeSuccessor->state, 'Approved successor must be preparable through enter.');
         self::assertSame('retired', $beforeSuccessor->references['retirement']['state'], 'Previous Run remains retired.');
 
-        (new GovernedRunStore($this->root))->prepare(
+        $successorRun = (new GovernedRunStore($this->root))->prepare(
             $revised,
             $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars'),
             $this->root . '/.agent-loop/learning',
         );
 
-        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        $successorManifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertNotSame('retired', $successorManifest->state);
 
-        self::assertNotSame('retired', $manifest->state);
+        (new RunRetirementStore($this->root))->record($successorRun, 'abandoned', 'Second attempt stopped.', 'lars');
+        $archivedRunId = trim((string) preg_replace('/[^A-Za-z0-9._-]+/', '-', $run->runId), '-');
+        $archivedRetirementPath = (new \voku\AgentLoop\ProjectLayout($this->root))->runHistoryRoot('ABC-123')
+            . '/' . $archivedRunId . '/retirement.json';
+        self::assertFileExists($archivedRetirementPath, 'Superseding the current Run must preserve its retirement history.');
+        $archivedRetirement = json_decode((string) file_get_contents($archivedRetirementPath), true, 8, JSON_THROW_ON_ERROR);
+        self::assertSame($run->runId, $archivedRetirement['run_id'] ?? null);
+        self::assertSame($successorRun->runId, (new RunRetirementStore($this->root))->find('ABC-123')?->runId);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertSame('retired', $manifest->state);
     }
 
     public function testRetirementRejectsCloseAndExecutionWithoutWritingCompletionEvidence(): void
@@ -114,6 +125,33 @@ final class RunRetirementTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('retired');
         (new ExecutionGateway($this->root))->prepareStage('ABC-123', 'build');
+    }
+
+    public function testRetirementRejectsLateVerificationReceiptBeforeWriting(): void
+    {
+        $run = $this->preparedRun();
+        (new RunRetirementStore($this->root))->record($run, 'abandoned', 'No acceptable outcome.', 'lars');
+        $contract = (new TaskContractStore($this->root))->load('ABC-123');
+        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', $run->sessionId);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Verification receipt refused: governed Run is retired.');
+
+        (new RunVerificationReceiptStore($this->root))->record(
+            $run,
+            $contract,
+            $session,
+            'sha256:' . str_repeat('a', 64),
+            'satisfied',
+            [[
+                'command' => 'vendor/bin/phpunit',
+                'status' => 'passed',
+                'exit_code' => 0,
+                'executed_at' => '2026-11-15T00:00:00+00:00',
+                'recorded_by' => 'lars',
+                'duration_ms' => 1,
+            ]],
+        );
     }
 
     public function testRetirementNeedsAReasonAndAnActor(): void
