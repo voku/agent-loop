@@ -64,7 +64,6 @@ final class InteractionPreferenceTest extends TestCase
             ob_end_clean();
             self::assertSame('autonomous', (new InteractionPreferenceStore($directory))->find('new-host')?->modeFor('1052'));
             $found = (new InteractionPreferenceStore($directory))->find('host');
-            self::assertNotNull($found);
             self::assertSame('collaborative', $found->modeFor('1052'));
             self::assertSame('autonomous', $found->modeFor('TASK-2'));
         } finally {
