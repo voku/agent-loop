@@ -11,6 +11,7 @@ use voku\AgentLoop\Init\AgentAssetSourcePaths;
 use voku\AgentLoop\Init\ManagedSubagentSourceResolver;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowTaskId;
@@ -243,9 +244,26 @@ final readonly class DecisionRouteCommand
         if (count($requested) !== count(array_unique($requested))) {
             throw new InvalidArgumentException('Duplicate candidate IDs are not allowed.');
         }
+        // Only package-owned public definitions may cross the remote data boundary.
+        // Project-managed and extra-root subagents can be private, even when their
+        // identifiers are otherwise valid and usable by the local Codex host.
+        $packageRoot = realpath(PackageResources::subagentsRoot());
+        if ($packageRoot === false) {
+            throw new InvalidArgumentException('Public package subagent source root is unavailable.');
+        }
+        $prefix = rtrim($packageRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $descriptions = [];
         foreach ($sources as $id => $source) {
             if ($requested !== [] && !in_array($id, $requested, true)) {
+                continue;
+            }
+            $sourcePath = realpath($source->path);
+            if (
+                $source->assetSource->owner !== 'voku/agent-loop'
+                || $sourcePath === false
+                || !str_starts_with($sourcePath, $prefix)
+            ) {
+                // Private/project-managed definitions are never serialized for Laya.
                 continue;
             }
             $description = $source->definition()->description();
