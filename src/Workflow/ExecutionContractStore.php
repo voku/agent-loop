@@ -142,6 +142,7 @@ final readonly class ExecutionContractStore
 
     public function writeReady(string $taskId, string $actor, string $content): string
     {
+        $actor = $this->actor($actor);
         $binding = $this->requireResolvedL2Binding($taskId);
         $document = new ExecutionContractDocument($content);
         $directory = $this->contractDirectory($taskId);
@@ -160,7 +161,7 @@ final readonly class ExecutionContractStore
             'prompt_ids' => $binding['prompt_ids'],
             'status' => ExecutionContractStatus::READY->value,
             'content_sha256' => $document->sha256(),
-            'created_by' => $this->actor($actor),
+            'created_by' => $actor,
             'created_at' => $this->now(),
         ]));
 
@@ -177,6 +178,7 @@ final readonly class ExecutionContractStore
         ?string $affectedConstraint,
         string $minimumContractChange,
     ): string {
+        $actor = $this->actor($actor);
         if ($status === ExecutionContractStatus::READY) {
             throw new RuntimeException('writeStopped requires blocked or rejected status.');
         }
@@ -209,7 +211,7 @@ final readonly class ExecutionContractStore
             'evidence' => $evidence,
             'affected_constraint' => $this->nullableTrim($affectedConstraint),
             'minimum_contract_change' => $minimumContractChange,
-            'created_by' => $this->actor($actor),
+            'created_by' => $actor,
             'created_at' => $this->now(),
         ]));
 
@@ -446,12 +448,7 @@ final readonly class ExecutionContractStore
 
     private function actor(string $actor): string
     {
-        $actor = trim($actor);
-        if ($actor === '') {
-            throw new RuntimeException('Execution contract requires a non-empty actor.');
-        }
-
-        return $actor;
+        return WorkflowActorAttribution::normalize($actor, 'write an execution contract');
     }
 
     private function nullableTrim(?string $value): ?string
