@@ -96,6 +96,8 @@ jobs:
           # Actual direct-Codex CLI human approval question with optional model advice.
           # The task's private-looking strings must NOT cross the model HTTP boundary.
           fixture_root="$(mktemp -d)"
+          git -C "$fixture_root" init -q --initial-branch=main
+          git -C "$fixture_root" -c user.name=fixture -c user.email=fixture@example.invalid             commit --allow-empty --quiet -m 'Public decision test base'
           mkdir -p "$fixture_root/.agent-loop"
           export DECISION_FIXTURE_ROOT="$fixture_root"
           export DECISION_FAKE_ENDPOINT="http://127.0.0.1:$port/v1/systemone"
@@ -128,6 +130,17 @@ jobs:
             > "$fixture_root/full-private-enter.json"
           gate_exit=$?
           set -e
+          jq --argjson exit "$gate_exit" '{
+            gate_exit:$exit,
+            status:(.status // null),
+            next_action_kind:(.next_action_kind // null),
+            mutation_ready:(.mutation_ready // null),
+            decision_type:(.human_decision.type // null),
+            recommendation_disposition:(.human_decision.recommendation.disposition // null),
+            recommendation_source:(.human_decision.recommendation.source // null),
+            provider_disposition:(.human_decision.recommendation.provider_disposition // null),
+            keys:(keys)
+          }' "$fixture_root/full-private-enter.json"             > build/decision-model-routing-proof/human-approval-diagnostic.json
           test "$gate_exit" -eq 1
           jq -e '.next_action_kind == "decision_required"
             and .mutation_ready == false
