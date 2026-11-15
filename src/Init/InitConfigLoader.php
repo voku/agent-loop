@@ -484,7 +484,13 @@ final readonly class InitConfigLoader
         // backslashes, which are valid characters in Unix filenames.
         if (
             PathResolver::isAbsolute($path)
-            && (DIRECTORY_SEPARATOR === '\\' || !str_starts_with($path, '\\\\'))
+            && (
+                DIRECTORY_SEPARATOR === '\\'
+                || (
+                    !str_starts_with($path, '\\\\')
+                    && preg_match('/^[a-zA-Z]:[\\\\\\/]/', $path) !== 1
+                )
+            )
         ) {
             return $path;
         }
