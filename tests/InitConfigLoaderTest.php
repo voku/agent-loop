@@ -59,6 +59,21 @@ final class InitConfigLoaderTest extends TestCase
         );
     }
 
+    public function testUnixLiteralBackslashInConfigFilenameIsNotRewritten(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('Literal backslash filename is a Unix filesystem behavior.');
+        }
+
+        $root = $this->tempDir();
+        $name = 'config\\local.json';
+        file_put_contents($root . '/' . $name, '{"prompting":{"language":"de"}}');
+
+        $config = (new InitConfigLoader($root))->load($name);
+        self::assertSame('de', $config['prompting']['language']);
+        self::assertSame([], $config['warnings']);
+    }
+
     public function testProvidedBoundedContentIsUsedWithoutSecondFilesystemRead(): void
     {
         $root = $this->tempDir();
