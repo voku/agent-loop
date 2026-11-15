@@ -12,6 +12,7 @@ use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentLoop\Run\RunManifestProjector;
 
 /**
  * CLI-facing presentation layer around HostFrontDoorCommand.
