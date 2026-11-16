@@ -25,6 +25,9 @@ final readonly class WorkflowInteractionCommand
             if (count($args) > 3 || trim($session) === '' || ($task !== null && trim($task) === '')) {
                 throw new RuntimeException('Usage: workflow interaction <host-session-id> <collaborative|autonomous> [task-id].');
             }
+            if (strlen($session) > 128 || preg_match('/\\A[A-Za-z0-9._-]+\\z/', $session) !== 1) {
+                throw new RuntimeException('Host session identity must match [A-Za-z0-9._-]+ and be at most 128 bytes.');
+            }
             if ($task !== null && $mode !== '--reuse') {
                 $task = (new WorkflowTaskId($task))->value;
             }
