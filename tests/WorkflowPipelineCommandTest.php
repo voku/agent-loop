@@ -75,6 +75,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame("in_progress", $status["status"]);
         self::assertSame("investigate", $status["current_stage"]);
         self::assertSame("investigator", $status["role"]);
+        self::assertNull($status["context_guidance"]);
         self::assertFalse($status["may_mutate"]);
         self::assertSame(1, $status["attempt"]);
         self::assertFalse($status["complete"]);
@@ -190,6 +191,36 @@ final class WorkflowPipelineCommandTest extends TestCase
             $originalState->recoveryHistory,
         );
         self::assertNotFalse(file_put_contents($stateStore->path($taskId), json_encode($state->toArray(), JSON_THROW_ON_ERROR)));
+    }
+
+    public function testReviewGuidanceAndCandidateFileVisibilityInSharedCheckout(): void
+    {
+        $this->prepareSurgicalRun("PIPE-VISIBILITY", files: ["src"]);
+        $command = new WorkflowPipelineCommand($this->root);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=completed"])["exit"]);
+
+        file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { }\n");
+        file_put_contents($this->root . "/src/Existing.php", "<?php\nfinal class Existing { }\n");
+        file_put_contents($this->root . "/docs/CHANGELOG.md", "outside scope\n");
+        $result = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=completed", "--context-id=builder", "--format=json"]);
+        self::assertSame(0, $result["exit"]);
+        $transition = json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(["src/Existing.php", "src/Foo.php"], $transition["candidate_changed_files"]);
+        self::assertStringContainsString("pre-existing scoped changes", $transition["candidate_scope_notice"]);
+
+        $status = $this->captureRun($command, ["status", "PIPE-VISIBILITY", "--format=json"]);
+        $projection = json_decode($status["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame("fresh_required", $projection["context_policy"]);
+        self::assertStringContainsString("separate host context", $projection["context_guidance"]);
+        self::assertStringContainsString("agent-loop does not start one", $projection["context_guidance"]);
+        $textStatus = $this->captureRun($command, ["status", "PIPE-VISIBILITY"]);
+        self::assertStringContainsString("Context guidance: Run this stage in a separate host context", $textStatus["stdout"]);
+        $reused = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=pass", "--context-id=builder", "--format=json"]);
+        self::assertNotSame(0, $reused["exit"]);
+        $rejection = json_decode($reused["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertStringContainsString("CONTEXT_REUSE_FORBIDDEN", $rejection["message"]);
+        $unchanged = $this->captureRun($command, ["status", "PIPE-VISIBILITY", "--format=json"]);
+        self::assertSame("review", json_decode($unchanged["stdout"], true, 512, JSON_THROW_ON_ERROR)["current_stage"]);
     }
 
     public function testPipelineProgressionWithReviewFeedbackLoop(): void
