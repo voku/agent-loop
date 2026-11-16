@@ -93,6 +93,33 @@ final class InteractionPreferenceTest extends TestCase
         }
     }
 
+    public function testCommandRejectsHostSessionIdentitiesNotSupportedBySessionStart(): void
+    {
+        $directory = sys_get_temp_dir() . '/interaction-invalid-host-' . bin2hex(random_bytes(8));
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        try {
+            $store = new InteractionPreferenceStore($directory);
+            foreach (['host:abc', 'host/abc', str_repeat('a', 129)] as $invalidSessionId) {
+                self::assertSame(1, (new WorkflowInteractionCommand())->run([$invalidSessionId, 'autonomous']));
+                self::assertNull($store->find($invalidSessionId));
+            }
+            self::assertDirectoryDoesNotExist($directory, 'Invalid host identities must not create preference storage.');
+
+            ob_start();
+            self::assertSame(0, (new WorkflowInteractionCommand())->run(['host.valid-123', 'collaborative']));
+            ob_end_clean();
+            self::assertSame('collaborative', $store->find('host.valid-123')?->defaultMode);
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            foreach (glob($directory . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            if (is_dir($directory)) {
+                rmdir($directory);
+            }
+        }
+    }
+
     public function testSymlinkedSessionDoesNotFallBackToHostDefault(): void
     {
         $directory = sys_get_temp_dir() . '/interaction-link-' . bin2hex(random_bytes(8));
