@@ -1,6 +1,8 @@
 ---
 name: agent-guidance-maintenance
 description: Maintain package-owned and host-owned agent skills, hooks, docs, sync targets, dogfood evidence, provenance capability mapping, and migration-safe validation.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Guidance Maintenance

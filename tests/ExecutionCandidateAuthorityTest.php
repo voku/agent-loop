@@ -44,6 +44,38 @@ final class ExecutionCandidateAuthorityTest extends TestCase
         $this->rm($this->root);
     }
 
+    public function testEmptyRecoveryHistoryDoesNotEmitPhp85Deprecations(): void
+    {
+        $plan = $this->plan(true);
+        $state = $this->state($plan, 1, $this->baseCommit);
+        self::assertSame([], $state->recoveryHistory);
+
+        $deprecations = [];
+        set_error_handler(
+            static function (int $severity, string $message) use (&$deprecations): bool {
+                if ($severity !== E_DEPRECATED) {
+                    return false;
+                }
+                $deprecations[] = $message;
+
+                return true;
+            },
+            E_DEPRECATED,
+        );
+        try {
+            (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+                $plan,
+                $state,
+                $plan->stage('build'),
+                $this->stageResult($plan, $state, $this->baseCommit),
+            );
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], $deprecations);
+    }
+
     public function testChangedCandidateRequiresCurrentOwnerCandidateEvidence(): void
     {
         $plan = $this->plan(true);

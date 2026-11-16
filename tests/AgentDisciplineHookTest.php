@@ -15,6 +15,7 @@ use voku\AgentLearning\LearningNoteContent;
 use voku\AgentLearning\LearningNoteDraft;
 use voku\AgentLearning\LearningNoteService;
 use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
+use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use PHPUnit\Framework\Attributes\Group;
 
 /** @internal */
@@ -57,6 +58,27 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
         self::assertStringNotContainsString('## Nine laws', $context);
         self::assertStringNotContainsString('### 1. Evidence and authority', $context);
+    }
+
+    public function testSessionStartProjectsPreferenceOnlyForMatchingIdentity(): void
+    {
+        $directory = sys_get_temp_dir() . '/interaction-hook-' . bin2hex(random_bytes(6));
+        (new InteractionPreferenceStore($directory))->update('host-a', 'autonomous', null);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        try {
+            $output = $this->hook()->contextOutput('SessionStart', $this->json(['hook_event_name' => 'SessionStart', 'session_id' => 'host-a']));
+            self::assertStringContainsString('Session default: autonomous', $output['hookSpecificOutput']['additionalContext']);
+            self::assertStringContainsString('AGENT_LOOP_HOST_SESSION_ID=host-a agent-loop workflow context <task-id> --format=json', $output['hookSpecificOutput']['additionalContext']);
+            self::assertStringContainsString('a task ID is required', $output['hookSpecificOutput']['additionalContext']);
+            self::assertStringContainsString('workflow interaction <host-session-id> <collaborative|autonomous> [task-id]', $output['hookSpecificOutput']['additionalContext']);
+            self::assertStringContainsString('workflow interaction <host-session-id> inherit <task-id>', $output['hookSpecificOutput']['additionalContext']);
+            self::assertStringContainsString('Neither changes authority or gates', $output['hookSpecificOutput']['additionalContext']);
+            $other = $this->hook()->contextOutput('SessionStart', $this->json(['hook_event_name' => 'SessionStart', 'session_id' => 'host-b']));
+            self::assertStringNotContainsString('Session default: autonomous', $other['hookSpecificOutput']['additionalContext']);
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            $this->removeTree($directory);
+        }
     }
 
     public function testSubagentStartUsesTheSameDiscipline(): void

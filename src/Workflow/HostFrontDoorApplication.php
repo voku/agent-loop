@@ -67,6 +67,9 @@ final readonly class HostFrontDoorApplication
                     $config['prompting']['language'],
                     $htmlLanguageMatches,
                 );
+                if (!$showDecisionPresentation) {
+                    echo (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderHtmlDecisionAdvice($taskId);
+                }
             } else {
                 $this->printControlPlanePresentation($htmlPresentation);
             }

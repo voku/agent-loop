@@ -1,6 +1,8 @@
 ---
 name: agent-loop-simplify-review
 description: Run a read-only diff review through the canonical code-review-simplicity engineering lens, adding only agent-loop evidence and package-boundary context.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Simplify Review

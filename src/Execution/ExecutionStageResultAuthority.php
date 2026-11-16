@@ -324,7 +324,8 @@ final readonly class ExecutionStageResultAuthority
         ?StageOutcome $outcome = null,
     ): void {
         $this->assertRecoveredCandidateWithinScope($plan, $state, $stage, $candidateRevision);
-        $lastRecovery = $state->recoveryHistory[array_key_last($state->recoveryHistory)] ?? null;
+        $lastRecoveryKey = array_key_last($state->recoveryHistory);
+        $lastRecovery = $lastRecoveryKey === null ? null : $state->recoveryHistory[$lastRecoveryKey];
         if (is_array($lastRecovery)
             && $stage->id === 'build'
             && $state->candidateRevision === $lastRecovery['previous_candidate_revision']

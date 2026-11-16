@@ -492,6 +492,41 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame('Keep the public API.', $nextBundle->attentionResolution?->response);
     }
 
+    public function testAttentionResolutionStoreRejectsReservedActorBeforeWriting(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+        $bundle = $gateway->prepareStage('ABC-123', 'investigate');
+        $waiting = $gateway->submitStageResult(new StageResult(
+            'submission:clarify-reserved-actor',
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            StageOutcome::NEEDS_CLARIFICATION,
+            $bundle->candidateRevision,
+            [],
+            [],
+            'Which compatibility boundary is authoritative?',
+        ));
+        self::assertNotNull($waiting->attention);
+        $plan = (new ExecutionPlanStore($this->root))->load('ABC-123');
+        $store = new AttentionResolutionStore($this->root);
+
+        try {
+            $store->record($plan, $waiting->attention, $waiting->currentAttempt, ' standing:spoof ');
+            self::fail('Reserved standing actor was accepted for Attention resolution.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('standing:', $exception->getMessage());
+        }
+        self::assertSame([], $store->listForTask('ABC-123'));
+
+        $resolution = $store->record($plan, $waiting->attention, $waiting->currentAttempt, ' operator-1 ');
+        self::assertSame('operator-1', $resolution->actor);
+    }
+
     public function testCliResolutionSuppliesResponseToResumedStageAndRejectsReplay(): void
     {
         $this->prepareSurgicalRun();

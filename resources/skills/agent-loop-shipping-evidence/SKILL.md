@@ -1,6 +1,8 @@
 ---
 name: agent-loop-shipping-evidence
 description: Prove merged, shipped, or released claims against an exact candidate SHA and exact integrated commit instead of branch names or historical PR state.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Shipping Evidence

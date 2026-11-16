@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\FutureWorkMode;
 use voku\AgentLoop\HumanExplanationPolicy;
 use voku\AgentLoop\Init\InitConfigLoader;
@@ -121,13 +122,20 @@ final readonly class WorkflowContextCommand
         $maxBytes = self::DEFAULT_MAX_BYTES;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
-            if (!in_array($token, ['--format', '--max-lines', '--max-bytes'], true)) {
+            $parts = explode('=', $token, 2);
+            $option = $parts[0];
+            if (!in_array($option, ['--format', '--max-lines', '--max-bytes'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
-            if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
-                throw new InvalidArgumentException($token . ' requires a value.');
+            if (count($parts) === 2) {
+                $value = trim($parts[1]);
+            } else {
+                if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
+                    throw new InvalidArgumentException($option . ' requires a value.');
+                }
+                $value = trim($tokens[++$index]);
             }
-            $value = trim($tokens[++$index]);
+            $token = $option;
             if ($value === '') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
@@ -197,6 +205,23 @@ final readonly class WorkflowContextCommand
         $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
         $budget->add('policy', 'Response language: ' . $prompting['language'] . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
         $budget->add('policy', 'Blind-spot presentation: ' . $prompting['blindspots']['tone'] . ' tone. Focus on the task or concern supplied by the user; do not invent personal motives or evidence.');
+
+        $interactionDirectory = getenv('AGENT_LOOP_INTERACTION_DIR');
+        $hostSession = getenv('AGENT_LOOP_HOST_SESSION_ID');
+        if (is_string($interactionDirectory) && $interactionDirectory !== '' && is_string($hostSession) && $hostSession !== '') {
+            try {
+                $preference = (new InteractionPreferenceStore($interactionDirectory))->find($hostSession);
+                if ($preference !== null) {
+                    $mode = $preference->modeFor($taskId);
+                    $guidance = $mode === 'autonomous'
+                        ? 'Continue authorized implementation, verification, independent review and in-scope repair without redundant permission requests.'
+                        : 'Discuss meaningful implementation choices and invite feedback; handle routine work without ceremonial confirmations.';
+                    $budget->add('policy', 'Interaction mode: ' . $mode . '. ' . $guidance . ' Behavioral guidance only; no authorization or gate changes.');
+                }
+            } catch (Throwable) {
+                $budget->add('policy', 'Interaction preference unavailable or invalid; no authority is inferred.');
+            }
+        }
 
         $this->addLifecycleAuthority($budget, $taskId);
 

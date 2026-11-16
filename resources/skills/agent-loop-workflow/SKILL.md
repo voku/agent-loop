@@ -1,6 +1,8 @@
 ---
 name: agent-loop-workflow
 description: Operate a governed agent-loop task end to end, including implementation requests, by routing through enter/finish and obeying the lifecycle kernel's structured next step instead of reproducing workflow policy in host prose.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Workflow
@@ -17,6 +19,43 @@ vendor/bin/agent-loop enter <task-id> --format=json
 Obey `next_action_kind` / `next_action` from that result. `AGENTS.md` already defines how to treat each kind, so this skill does not restate it: a third copy of a rule the router and the result both carry is a second source of truth that can drift from its authority.
 
 A task router may choose a specialist skill, never a lifecycle phase. Only the current result routes task start/progress, Recall or repair, Learning, review, and close.
+
+### Human-decision recommendations
+
+Every current `next_action_kind=decision_required` question now includes a separate
+`human_decision.recommendation`. Treat its `suggested_choice`, `reason`, and
+`evidence_keys` as **advice, never authorization**. Show the recommendation
+alongside the exact approval subject and supported choices; do not execute
+`approve`, `accept-risk`, review acknowledgement, supersession, or Learning
+on its behalf. An `abstain` means the available evidence cannot support a
+recommendation, not that the human gate can be skipped.
+
+Without explicitly configured inference, recommendations are conservative
+local rules. When a project explicitly sets
+`interaction.decision_advice.mode=assist` with
+`provider=system_one`, an endpoint, and
+`data_classification=public_metadata`, the optional model can advise at
+the existing human gate. `shadow` records its selected option without
+changing the visible recommendation; `off` makes no network request.
+The adapter receives **only counts and decision category**, never Contract
+goals, paths, tasks, reviews, or private text. It does not know enough to
+verify human approval. Provider failure falls back to deterministic advice.
+Repository `init.json` is **not trusted operator consent**. Automated human-gate
+provider calls additionally require the trusted launcher to set an exact
+`AGENT_LOOP_DECISION_APPROVED_ENDPOINT`, and, if a token environment variable
+is configured, an exact `AGENT_LOOP_DECISION_APPROVED_TOKEN_ENV`. Never
+supply grants through repository-controlled files or load credentials solely
+because `token_env` appears in a project configuration.
+
+### Optional host-neutral specialist hint
+
+After `enter`, only when specialist selection could materially change the first investigation, a developer may explicitly request read-only advice:
+
+```bash
+vendor/bin/agent-loop decision route --mode=assist --task-id=<task-id> --contract-revision=<approved-revision> --data-classification=public --public-state="<public-only short task summary>" --endpoint="https://<explicit trusted host>/v1/systemone" --token-env=DECISION_MODEL_TOKEN --format=json
+```
+
+`off` is the default and makes no network request. `rules` leaves existing host routing unchanged; `shadow` records an observed decision-model choice without surfacing it as a hint. Use only public task text, never automatically forward Contract, Session or Recall contents. A non-null `routing_hint` in `assist` is optional advisory input to the invoking host, not a command to call the specialist. The host retains final selection and must obey the unchanged `enter` result. If the provider abstains or fails, continue without a hint. Never interpret a routing receipt as approval, mutation authority, or lifecycle state.
 
 ## End-to-End Implementation Front Door
 

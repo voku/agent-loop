@@ -6,11 +6,14 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
+use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentSession\SessionStore;
@@ -63,6 +66,30 @@ final class WorkflowContextCommandTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
+    public function testContextAcceptsEqualsAndSeparateOptionValues(): void
+    {
+        foreach ([['ABC-123', '--format=json'], ['ABC-123', '--format', 'json']] as $arguments) {
+            ob_start();
+            $exit = (new WorkflowContextCommand($this->root))->run($arguments);
+            $output = (string) ob_get_clean();
+            self::assertSame(0, $exit);
+            $context = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('ABC-123', $context['task_id']);
+        }
+    }
+
+    public function testWorkflowCliRoutesDocumentedJsonContextInvocation(): void
+    {
+        ob_start();
+        $exit = (new WorkflowCli($this->root))->run(['context', 'ABC-123', '--format=json']);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exit);
+        $context = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('ABC-123', $context['task_id']);
+        self::assertSame('2.0', $context['schema_version']);
+    }
+
     public function testContextCombinesExistingArtifactsWithoutMutation(): void
     {
         $before = hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json');
@@ -85,6 +112,77 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertStringContainsString('G-001 (.agent-loop/recall/ABC-123/meta.json)', $output);
         self::assertStringContainsString('Demo\\Foo', $output);
         self::assertSame($before, hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json'));
+    }
+
+    public function testInteractionOverrideDoesNotChangeAuthorityOrReviewState(): void
+    {
+        $directory = $this->root . '/host-preferences';
+        $before = (new RunManifestProjector($this->root))->project('ABC-123');
+        $store = new InteractionPreferenceStore($directory);
+        $store->update('host-a', 'collaborative', null);
+        $store->update('host-a', 'autonomous', 'ABC-123');
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=host-a');
+        try {
+            $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            self::assertStringContainsString('Interaction mode: autonomous', implode("\n", $context['lines']));
+            self::assertStringContainsString('Continue authorized implementation, verification, independent review and in-scope repair', implode("\n", $context['lines']));
+            $store->update('host-a', 'collaborative', 'ABC-123');
+            $changed = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            self::assertStringContainsString('Discuss meaningful implementation choices', implode("\n", $changed['lines']));
+            self::assertSame('human_required', $context['interaction']['authority_bearing_decisions']);
+            self::assertEquals($before, (new RunManifestProjector($this->root))->project('ABC-123'));
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+        }
+    }
+
+    public function testAutonomousPreferenceDoesNotApproveAnUnapprovedContract(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('PENDING-1', 'Pending work', ['src/Foo.php'], [], ['true'], 'lars');
+        $projector = new RunManifestProjector($this->root);
+        $before = $projector->project('PENDING-1');
+        $directory = $this->root . '/host-preferences';
+        (new InteractionPreferenceStore($directory))->update('host-a', 'autonomous', null);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=host-a');
+        try {
+            $context = (new WorkflowContextCommand($this->root))->build('PENDING-1', 120, 12000);
+            self::assertStringContainsString('Interaction mode: autonomous', implode("\n", $context['lines']));
+            self::assertStringContainsString('not approved', implode("\n", $context['lines']));
+            $after = $projector->project('PENDING-1');
+            self::assertEquals($before, $after);
+            self::assertFalse((new RunPolicyEvaluator())->evaluateManifest($after)->mutationAllowed);
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+        }
+    }
+
+    public function testAutonomousPreferenceDoesNotBypassPendingReviewPolicy(): void
+    {
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        $references = $manifest->references;
+        $references['verification'] = ['state' => 'blocked', 'gate' => 'execution_review'];
+        $references['review'] = ['state' => 'unacknowledged'];
+        $policy = new RunPolicyEvaluator();
+        $before = $policy->evaluate('ABC-123', 'governed', $references, []);
+        $directory = $this->root . '/host-preferences';
+        (new InteractionPreferenceStore($directory))->update('host-a', 'autonomous', null);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=host-a');
+        try {
+            (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            $after = $policy->evaluate('ABC-123', 'governed', $references, []);
+            self::assertFalse($after->mutationAllowed);
+            self::assertSame($before->nextAction, $after->nextAction);
+            self::assertEquals($before, $after);
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+        }
     }
 
     public function testContextProjectsNeverPolicyWithoutChangingHumanAuthority(): void

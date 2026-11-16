@@ -1,6 +1,8 @@
 ---
 name: agent-loop-learning-boundary
 description: Handle reusable knowledge that surfaces during a task, record honest Recall outcomes, close the governed Run learning decision, and keep findings separate from reviewed durable guidance.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Learning Boundary

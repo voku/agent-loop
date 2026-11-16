@@ -1,6 +1,8 @@
 ---
 name: agent-loop-php-setup
 description: Configure Agent Loop for an existing PHP project using read-only project-tool evidence, an LLM-authored reviewable setup proposal, and existing safe install/validation commands. No separate model provider is required.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # PHP Project Setup for Agent Loop

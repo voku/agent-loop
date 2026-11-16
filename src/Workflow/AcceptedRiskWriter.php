@@ -49,6 +49,7 @@ final readonly class AcceptedRiskWriter
      */
     public function write(string $taskId, string $reason, string $acceptedBy, array $failures = []): string
     {
+        $acceptedBy = WorkflowActorAttribution::normalize($acceptedBy, 'accept workflow risk');
         $dir = $this->layout->risksRoot();
         if (!is_dir($dir) && !mkdir($dir, 0o775, true) && !is_dir($dir)) {
             throw new RuntimeException('Could not create accepted-risk directory: ' . $dir);

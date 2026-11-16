@@ -1,6 +1,8 @@
 ---
 name: agent-loop-surgical-edit
 description: Apply an already-localized 1-2 file PHP change with the smallest verified diff. Use agent-map evidence, load coding-simplicity for implementation choices when installed, prefer deterministic agent-loop edit when possible, and escalate instead of silently widening scope.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Surgical Edit

@@ -1,3 +1,51 @@
+## [0.20.96] - 2026-11-16
+
+### Added
+
+- Persist host session interaction preferences (`collaborative` / `autonomous`), task-specific overrides, reset and SessionStart binding with task-context guidance (#1052, #1054). These preferences control conversational behavior only; they do not grant mutation, approval, review, merge or deployment authority.
+- Add optional, provider-neutral advisory decision recommendations and a bounded local decision-route integration. Human decisions and Contract checks remain authoritative (#646, #1044).
+- Add reproducible PHP task-oracle calibration fixtures for native-versus-governed agent experiments; the fixtures do not prove real model behavior (#1031, #1046).
+
+### Fixed
+
+- Reject unprojectable host session identities before writing preferences, so SessionStart cannot silently disregard an apparently saved mode (#1054).
+- Avoid PHP 8.5 null array-offset deprecations when execution recovery history is empty (#1051, #1055).
+- Reject reserved `standing:` pseudo-actors at persisted attribution boundaries and refuse verification receipts for retired runs (#1047, #1048).
+- Include `pcntl` in the provided Agent Loop CLI Docker image, with a fork/wait smoke check (#1049).
+
+### Dependencies
+
+- Require the stable `voku/agent-decision` `^0.1.0` package for the optional decision adapter (#1044).
+
+### Verification
+
+- PHP 8.3/8.4/8.5 Composer CI, PHPStan, style and repository dogfood were successful for the merged changes; the integrated real Codex autonomous review/repair cycle remains unverified. This release intentionally does not include draft standing-grant PRs #1030 or #1050.
+
+## [0.20.95] - 2026-11-15
+
+### Changed
+
+- Reduce the always-on `agent-loop` workflow router in generated `AGENTS.md`, keeping CLI lifecycle routing, human-decision authority, evidence requirements and project-owned instructions intact (#1041).
+
+### Tests
+
+- Align the case-sensitive router projection assertion with the generated wording (#1041).
+- Validate canonical agent-loop skills with pinned NVIDIA SkillEvaluator 0.9.0 in CI.
+
+## [0.20.94] - 2026-11-13
+
+### Added
+
+- `agent-loop workflow retention report [--older-than-days=90] [--format=text|json]`: read-only inventory of current and superseded Run evidence. It changes no artifacts and reports every retention decision as blocked, so it never authorizes archival (#1029).
+
+### Removed
+
+- Duplicated always-on Codelight mnemonic from `AGENTS.md`; lifecycle and approval guidance is unchanged (#1032).
+
+### Dependencies
+
+- Require `voku/agent-recall-compiler` `^0.29.0`. Recall no longer computes implicit repository-wide `architecture_discovery` facts for tasks without explicit files/targets. That fact was never part of the `system.md` that Loop delivers, so governed runs lose no delivered context and skip the discovery cost (agent-recall-compiler#273, #1031). Candidate workflows pin the 0.29.0 release commit.
+
 ## [0.20.93] - 2026-11-11
 
 ### Added
