@@ -1,3 +1,14 @@
+## [0.20.97] - 2026-11-18
+
+### Added
+
+- Typed read-only `ExecutionGateway::observePendingAttention(string $taskId): ?AttentionRequest` for presentation consumers such as `voku/agent-ui`. It never prepares ExecutionPlan or ExecutionState and leaves existing execution files unchanged. Missing state, a retired Run, or state whose Contract revision is proven superseded yields no pending Attention; stale, corrupt or drifted existing state throws and must be shown as unavailable, never inferred absent. `projection()` and host mutation flow are unchanged (#1040).
+- Pipeline status marks stages that require a fresh review context (text and JSON), and mutating build submissions can list all changed files inside the approved scope, including pre-existing changes in a shared checkout; failure to inspect changed files now warns instead of blocking the submission (#1035, #1036).
+
+### Dependencies
+
+- Development tooling only: PHPStan 2.3.6 (#1053), PHP-CS-Fixer 3.95.32 (#1058), PHPUnit 12.5.44 (#1034) and the Composer 2.11.2 Docker base image (#1017). Runtime requirements are unchanged.
+
 ## [0.20.96] - 2026-11-16
 
 ### Added
