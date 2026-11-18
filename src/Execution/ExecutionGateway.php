@@ -46,9 +46,12 @@ final readonly class ExecutionGateway
     /**
      * Observe current Execution Attention without preparing a plan or state.
      *
-     * No state means no pending Attention. An existing state must be bound to
-     * the currently approved, non-retired Contract/Run/plan; stale or corrupt
-     * artifacts throw instead of silently becoming an empty observation.
+     * No state means no pending Attention. Known lifecycle states that cannot
+     * carry actionable Attention also observe null: a retired Run, and state
+     * left behind by a Contract revision that a newer revision superseded
+     * (candidate, rejected, or approved but not yet entered). Any other state
+     * must be bound to the currently approved Contract/Run/plan; drifted or
+     * corrupt artifacts throw instead of silently becoming an empty observation.
      *
      * This is the read-only API for dashboards. projection() is deliberately
      * not used here because it may persist missing Execution artifacts.
@@ -59,20 +62,35 @@ final readonly class ExecutionGateway
         // state exists. Check it before treating missing state as absence.
         $contract = (new TaskContractStore($this->rootPath))->find($taskId);
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
-        if ($contract === null || $contract->status !== TaskContract::APPROVED) {
-            if ($state !== null) {
-                throw new RuntimeException('Pending Attention state exists without a current approved Contract.');
-            }
-
-            return null;
-        }
         if ($state === null) {
             return null;
         }
+        if ($contract === null) {
+            throw new RuntimeException('Pending Attention state exists without a Contract.');
+        }
+
+        // The old Run directory is only archived when the next Run is created,
+        // so a newer revision legitimately coexists with superseded state.
+        // Only the Contract owner's archived history proves that supersession;
+        // a bare revision bump without it is drift and must fail closed.
+        if ($contract->status !== TaskContract::APPROVED) {
+            if ($this->isSupersededByContractHistory($state->contractRevision, $contract)) {
+                return null;
+            }
+
+            throw new RuntimeException('Pending Attention state exists without a current approved Contract.');
+        }
 
         $run = (new GovernedRunStore($this->rootPath))->findForContract($contract);
-        if ($run === null || (new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+        if ($run === null) {
+            if ($this->isSupersededByContractHistory($state->contractRevision, $contract)) {
+                return null;
+            }
+
             throw new RuntimeException('Pending Attention state is not bound to a current governed Run.');
+        }
+        if ((new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            return null;
         }
 
         $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
@@ -1086,5 +1104,19 @@ final readonly class ExecutionGateway
         }
 
         return str_replace('\\', '/', $root);
+    }
+
+    private function isSupersededByContractHistory(int $stateRevision, TaskContract $current): bool
+    {
+        if ($stateRevision >= $current->revision) {
+            return false;
+        }
+        foreach ((new TaskContractStore($this->rootPath))->supersededRevisions($current->taskId) as $archived) {
+            if ($archived->revision === $stateRevision) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
