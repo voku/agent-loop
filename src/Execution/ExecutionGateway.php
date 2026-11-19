@@ -44,6 +44,40 @@ final readonly class ExecutionGateway
     }
 
     /**
+     * Observe the current governed execution identity without preparing a
+     * plan or state.
+     *
+     * Null means there is no current execution to bind to: no approved
+     * Contract, no governed Run for it, a retired Run, or a Run whose plan has
+     * not been prepared yet. A persisted plan that is bound to anything other
+     * than the current approved Contract revision and Run is drift that
+     * projection() would also refuse, so it throws, as do corrupt artifacts.
+     * Callers must treat a throw as unavailable, never as "no execution".
+     */
+    public function observeCurrentExecutionBinding(string $taskId): ?ExecutionBinding
+    {
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        if ($contract === null || $contract->status !== TaskContract::APPROVED) {
+            return null;
+        }
+
+        $run = (new GovernedRunStore($this->rootPath))->findForContract($contract);
+        if ($run === null || (new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            return null;
+        }
+
+        $plan = (new ExecutionPlanStore($this->rootPath))->find($taskId);
+        if ($plan === null) {
+            return null;
+        }
+        if (!$this->planIsBoundTo($plan, $taskId, $run, $contract)) {
+            throw new RuntimeException('Execution plan is not bound to the current governed Run.');
+        }
+
+        return new ExecutionBinding($run->runId, $contract->revision, $plan->digest());
+    }
+
+    /**
      * Observe current Execution Attention without preparing a plan or state.
      *
      * No state means no pending Attention. Known lifecycle states that cannot
@@ -94,10 +128,7 @@ final readonly class ExecutionGateway
         }
 
         $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
-        if ($plan->taskId !== $taskId
-            || $plan->runId !== $run->runId
-            || $plan->contractRevision !== $contract->revision
-            || $plan->contractSource !== $run->contractSource
+        if (!$this->planIsBoundTo($plan, $taskId, $run, $contract)
             || $state->taskId !== $taskId
             || $state->runId !== $run->runId
             || $state->contractRevision !== $contract->revision
@@ -824,6 +855,14 @@ final readonly class ExecutionGateway
         }
 
         return 'sha256:' . hash_final($hash);
+    }
+
+    private function planIsBoundTo(ExecutionPlan $plan, string $taskId, GovernedRun $run, TaskContract $contract): bool
+    {
+        return $plan->taskId === $taskId
+            && $plan->runId === $run->runId
+            && $plan->contractRevision === $contract->revision
+            && $plan->contractSource === $run->contractSource;
     }
 
     /** @return array{TaskContract, GovernedRun, ExecutionPlan} */

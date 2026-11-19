@@ -207,6 +207,103 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         (new WorkflowContextCommand($this->root))->build(self::TASK, 12, 512);
     }
 
+    public function testExecutionBindingIsNullWithoutContract(): void
+    {
+        self::assertNull((new ExecutionGateway($this->root))->observeCurrentExecutionBinding(self::TASK));
+    }
+
+    public function testExecutionBindingDoesNotPrepareMissingPlanOrState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        if (is_file($statePath)) {
+            self::assertTrue(unlink($statePath));
+        }
+        if (is_file($planPath)) {
+            self::assertTrue(unlink($planPath));
+        }
+
+        self::assertNull((new ExecutionGateway($this->root))->observeCurrentExecutionBinding(self::TASK));
+        self::assertFileDoesNotExist($planPath);
+        self::assertFileDoesNotExist($statePath);
+    }
+
+    public function testExecutionBindingProjectsCurrentRunRevisionAndPlanDigestWithoutRewriting(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $planBefore = file_get_contents($planPath);
+        $stateBefore = file_get_contents($statePath);
+        $plan = (new ExecutionPlanStore($this->root))->load(self::TASK);
+        $contract = (new TaskContractStore($this->root))->load(self::TASK);
+        $run = (new GovernedRunStore($this->root))->findForContract($contract);
+        self::assertNotNull($run);
+
+        $binding = $gateway->observeCurrentExecutionBinding(self::TASK);
+
+        self::assertNotNull($binding);
+        self::assertSame($run->runId, $binding->runId);
+        self::assertSame($contract->revision, $binding->contractRevision);
+        self::assertSame($plan->digest(), $binding->executionPlanDigest);
+        self::assertSame($planBefore, file_get_contents($planPath));
+        self::assertSame($stateBefore, file_get_contents($statePath));
+    }
+
+    public function testExecutionBindingIsNullForRetiredRun(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        self::assertNotNull($gateway->observeCurrentExecutionBinding(self::TASK));
+        ob_start();
+        self::assertSame(0, (new WorkflowRetireCommand($this->root))->run([
+            self::TASK, '--status', 'abandoned', '--reason', 'Dropped by owner.', '--by', 'lars',
+        ]));
+        ob_end_clean();
+
+        self::assertNull($gateway->observeCurrentExecutionBinding(self::TASK));
+    }
+
+    public function testExecutionBindingIsNullWhileSupersedingRevisionIsUnapprovedOrNotEntered(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $this->supersedeContract();
+        self::assertNull($gateway->observeCurrentExecutionBinding(self::TASK), 'candidate revision');
+
+        ob_start();
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run([self::TASK, '--revision', '2', '--by', 'lars']));
+        ob_end_clean();
+        // The Run id of revision 1 is still in the manifest until the next
+        // prepare; it must not be reported as the current execution.
+        self::assertNull($gateway->observeCurrentExecutionBinding(self::TASK), 'approved but not entered');
+    }
+
+    public function testExecutionBindingDoesNotHideCorruptContractAsNoExecution(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        self::assertNotFalse(file_put_contents((new TaskContractStore($this->root))->path(self::TASK), '{broken JSON'));
+
+        $this->expectException(RuntimeException::class);
+        (new ExecutionGateway($this->root))->observeCurrentExecutionBinding(self::TASK);
+    }
+
+    public function testExecutionBindingRefusesTamperedPlan(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $this->rewriteJson((new ExecutionPlanStore($this->root))->path(self::TASK), 'run_id', 'run:other');
+
+        $this->expectException(RuntimeException::class);
+        $gateway->observeCurrentExecutionBinding(self::TASK);
+    }
+
     public function testReadOnlyAttentionDoesNotPrepareMissingPlanOrState(): void
     {
         $this->prepareSurgicalRun(l2: false);
@@ -554,6 +651,75 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         yield 'contract source' => ['contract_source', 'sha256:' . str_repeat('d', 64), 'Execution plan contract_source must be an object.'];
     }
 
+    public function testReadOnlyAttentionRefusesTamperedHistoryClaimingTheCurrentRevision(): void
+    {
+        // Pins the strict "older than current" guard: a state at the current
+        // revision is never proven superseded, even if history claims it.
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $this->supersedeContract();
+        $this->rewriteJson((new ExecutionStateStore($this->root))->path(self::TASK), 'contract_revision', 2);
+        $this->rewriteJson($this->archivedContractPath(1), 'revision', 2);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('without a current approved Contract');
+        $gateway->observePendingAttention(self::TASK);
+    }
+
+    public function testReadOnlyAttentionRequiresExactArchivedRevisionForSupersession(): void
+    {
+        // Pins the exact revision match: an archive of a different (older)
+        // revision does not prove that the state's revision was superseded.
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $this->supersedeContract();
+        $this->supersedeContract();
+        self::assertSame(3, (new TaskContractStore($this->root))->load(self::TASK)->revision, 'Precondition: two supersessions.');
+        $this->rewriteJson((new ExecutionStateStore($this->root))->path(self::TASK), 'contract_revision', 2);
+        self::assertTrue(unlink($this->archivedContractPath(2)));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('without a current approved Contract');
+        $gateway->observePendingAttention(self::TASK);
+    }
+
+    public function testRetiredRunIsNotValidatedFurtherByReadOnlyObservations(): void
+    {
+        // Decision (#1061): a retired Run can carry no actionable Attention and
+        // is not current execution, so its leftover plan is not inspected and
+        // corruption there is not surfaced as an unavailable observation.
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        ob_start();
+        self::assertSame(0, (new WorkflowRetireCommand($this->root))->run([
+            self::TASK, '--status', 'abandoned', '--reason', 'Dropped by owner.', '--by', 'lars',
+        ]));
+        ob_end_clean();
+        self::assertNotFalse(file_put_contents((new ExecutionPlanStore($this->root))->path(self::TASK), '{broken JSON'));
+
+        self::assertNull($gateway->observePendingAttention(self::TASK));
+        self::assertNull($gateway->observeCurrentExecutionBinding(self::TASK));
+    }
+
+    public function testReadOnlyAttentionFailsClosedOnUnreadableContractHistory(): void
+    {
+        // Decision (#1061): supersession is only proven by readable owner
+        // history. One corrupt archive makes the observation unavailable
+        // instead of guessing which revision it held.
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $this->supersedeContract();
+        self::assertNull($gateway->observePendingAttention(self::TASK), 'Precondition: readable history proves supersession.');
+        self::assertNotFalse(file_put_contents($this->archivedContractPath(1), '{broken JSON'));
+
+        $this->expectException(RuntimeException::class);
+        $gateway->observePendingAttention(self::TASK);
+    }
+
     public function testReadOnlyAttentionRejectsStateWithoutPlan(): void
     {
         $this->prepareSurgicalRun(l2: false);
@@ -579,6 +745,14 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
             '--supersede',
         ]));
         ob_end_clean();
+    }
+
+    private function archivedContractPath(int $revision): string
+    {
+        $path = (new \voku\AgentLoop\ProjectLayout($this->root))->contractHistoryFile(self::TASK, sprintf('contract.%03d.json', $revision));
+        self::assertFileExists($path);
+
+        return $path;
     }
 
     private function rewriteJson(string $path, string $field, int|string|null $value): void
