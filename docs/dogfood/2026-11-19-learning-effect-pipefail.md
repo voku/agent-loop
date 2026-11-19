@@ -74,26 +74,47 @@ python3 $kit/grade.py --out runs/al-C-1 --source ../agent-learning \
 
 ## Results
 
-| Case | A | B | C |
+### Run 1 (2026-11-19, in-session agents, one repetition per cell)
+
+Executed inside the Claude Code session, with no API key. Each run was a fresh agent started by the session (same model as the session) with no memory of the conversation. Every run got the identical instruction: work only in your workspace, no network, follow the repository's agent instructions, stop for human decisions, do not commit. As operator, I approved each governed Contract as submitted (one logged intervention per B/C′ run) and resumed the agent with an identical message. Per-run data: [`2026-11-19-learning-effect-pipefail.results.jsonl`](2026-11-19-learning-effect-pipefail.results.jsonl).
+
+| Case | A native | B governed, no precedent | C′ governed, precedent delivered |
 | --- | --- | --- | --- |
-| `agent-learning` | NOT_RUN | NOT_RUN | NOT_RUN |
-| `agent-recall-compiler` | NOT_RUN | NOT_RUN | NOT_RUN |
-| `agent-map` | NOT_RUN | NOT_RUN | NOT_RUN |
+| `agent-learning` | correct (oracle 3/3) | correct (3/3) | correct (3/3) |
+| `agent-recall-compiler` | correct (adapted 3/3; strict 0/3, helper script) | correct (3/3) | correct (3/3) |
+| `agent-map` | correct (adapted 3/3; strict 0/3, helper script) | correct (adapted 3/3) | correct, graded manually (see below) |
 
-No model run exists yet; every quality, token and behaviour comparison is UNKNOWN. Calibration success is not a learning-effect result.
+| Arm | Repeated mistake | Mean tokens | Mean tool calls | Mean minutes | Human interventions | Precedent |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| A | 0/3 | 85,525 | 13.7 | 1.9 | 0 | n/a |
+| B | 0/3 | 192,339 | 42.0 | 4.9 | 3 (one approval each) | absent (0/3 compiled) |
+| C′ | 0/3 | 185,622 | 38.0 | 4.7 | 3 (one approval each) | compiled 3/3, read 2/3 |
 
-### Execution blockers (2026-11-19, Claude Code cloud session)
+**What this shows:**
+- **Ceiling effect.** All 9 agents identified the `git show | grep -q` SIGPIPE/pipefail cause and fixed it by capturing the output before matching. None repeated the mistake. In every governed run the diagnosis came during planning, before Contract approval and so before Recall could show the precedent. With this model and task, the precedent cannot change the outcome, and the experiment cannot show a learning effect in either direction.
+- **C′ vs B: no measurable difference.** Tokens are −3%, tool calls −10%, time −4%; with n=1 per cell that is noise.
+- **Governance cost without a quality gain on this task.** B and C′ used about 2.2× the tokens, about 3× the tool calls and about 2.5× the time of A, and each needed a human approval. No governed run reached `finish`. Four were blocked by `composer ci` failing on the experiment's shared vendor directory (an environment confound, below). One stopped at the human review sign-off, and one at the independent correctness review.
+- **Cross-repository delivery is blocked by design (deterministic, no agent needed).** With the unmodified note, Recall selects `learning-note.2026-11-19.54b941` as relevant to `.github/workflows/release-tag.yml`, then fails closed: "Compilation blocked: LearningNote … references missing repository evidence" (`tests/ReleaseTagWorkflowTest.php` exists only in agent-loop). The whole governed run then stops at `enter`. C′ therefore uses the same note re-pinned to the workspace's own baseline `release-tag.yml`. That is an experimental deviation, not something the system does by itself. This is the mechanism behind the original cross-repository repeat: a lesson's provenance is repository-local, so it cannot reach a sibling repository.
+- **Delivered is not read.** In `agent-map` C′ the precedent was compiled into the context, but the agent never opened it.
 
-1. **No model credential.** The `claude` CLI 2.1.328 is installed, but the container has no API key or OAuth token for a nested headless session.
-2. **No Composer GitHub access.** `composer install` fails with `Could not authenticate against github.com` for dist and source downloads, so a workspace's PHPUnit and the governed arms' Loop install can't be built here. CI has access, and the calibration workflow exercises those steps there.
+**Grading notes.** The historical oracle runs the extracted inline workflow script inside its own temporary repository. Four agents moved the check into a helper script under `.github/scripts/`, which the oracle cannot see. For those, an adapted oracle rewrites the helper call to its absolute path (and a one-line `run:` into block form) and runs the identical test. In `agent-map` C′ the agent deliberately moved the target check before the working-tree check. It still tags the valid release and still refuses a target without the section, but with the target-specific message instead of the "CHANGELOG.md has no release section" message the historical test pins. Graded correct by hand. The own-test mutation check (revert the workflow only) is not meaningful when the fix lives in a new helper, so it is `n/a` there.
 
-What has been validated locally: arm preparation with Composer skipped (identical baseline SHA and task hash across arms; B and C differ by exactly the two precedent files; no remote or history in the workspace) and the grader on three simulated outcomes (untouched: incorrect, mistake present; historical repair: correct, no mistake, own test catches the reverted workflow 2/2; repair plus a stray file: one unnecessary edit).
+**Confounds and deviations, all recorded:**
+- **Separation.** Agents shared this machine with the repositories holding the historical fixes. The transcript audit found no read of another repository or another run's workspace and no network use. Seven runs wrote temporary files to the session scratchpad.
+- **Shared vendor directory.** One PHPUnit-capable vendor copy was linked into all workspaces, since Composer could not download here. Several agents ran `composer dump-autoload` on it mid-experiment, changing it for the runs still in progress, and it never matched agent-map's or agent-recall-compiler's own dependencies. That is why `composer ci` failed there and `finish` could not close.
+- **Loop install.** A local copy of the agent-loop runtime (vendored development files and git histories stripped, after they were found to contain the fixed workflows) was used through a `tools/agent-loop` wrapper. The seeded store dropped agent-loop's applied and approved proposals, which target agent-loop files and fail validation elsewhere. C′ also needed the note's source proposal `cbcf82`.
+- **Governance behaviour differed.** Two governed agents recorded their own passing `composer ci` evidence with `session validation record`, after Composer's root check made `finish` record a failure. One signed the blind-spot review report itself; another refused to sign the equivalent report for its own work.
+- **Model.** The agents are the same model as the operating session, and the task may be familiar from training.
 
-To run: use a machine with an authenticated `claude` CLI and normal Composer access, clone the three case repositories next to agent-loop, and follow the procedure.
+**Next useful experiment.** The precedent can only matter on a task the native agent gets wrong. Before spending more runs on this lesson, find a lesson where arm A fails. Otherwise this design measures only governance overhead.
+
+### Calibration
+
+CI calibration (all three cases) proves the oracle separates baseline from repair. Calibration success is not a learning-effect result.
 
 ## Limitations
 
 - One lesson, three closely related cases. The repairs are near-identical, so this measures one precedent's transfer, not learning in general.
 - The lesson may already be familiar to the model from training. A strong A arm is informative, not a failure of the setup.
 - B and C need the agent to actually enter Loop for Recall to run. Exposure is measured rather than assumed.
-- The oracle extracts the inline `run: |` script. A correct fix that moves the script elsewhere is `ungradeable` and graded manually.
+- The oracle extracts the inline `run: |` script. A correct fix that moves the script elsewhere is `ungradeable` and graded with the adapted oracle or by hand (see Run 1).

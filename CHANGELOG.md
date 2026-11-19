@@ -7,6 +7,7 @@
 
 ### Development
 
+- Run 1 of the pipefail learning-effect experiment (3 cases × A/B/C′, one repetition each, in-session agents; results in `docs/dogfood/2026-11-19-learning-effect-pipefail.md` and its `.results.jsonl` ledger). All 9 runs were correct and none repeated the mistake: a ceiling effect, with the cause diagnosed before Recall could deliver the precedent. Governed arms cost about 2.2× the tokens and 3× the tool calls of the native arm. Unmodified, the cross-repository LearningNote blocks Recall compilation, because its evidence exists only in agent-loop.
 - The learning-effect runner (`tools/learning-effect/run-arm.sh`) now runs every session under a versioned Bash sandbox (`sandbox-settings.json`): no outbound network for Bash and its children, fail closed when the sandbox is unavailable, no unsandboxed fallback. Before each arm, a probe session must fail to reach github.com, judged only from the Bash tool result; otherwise the arm is refused. The protocol now requires one disposable container per arm, because the Read tool can read the whole disk, including the case clones with the historical repairs.
 
 ## [0.20.99] - 2026-11-19
