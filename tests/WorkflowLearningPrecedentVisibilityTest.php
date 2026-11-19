@@ -49,11 +49,11 @@ final class WorkflowLearningPrecedentVisibilityTest extends TestCase
 
         $plan = $this->json($this->agentLoop(['workflow', 'plan', 'GATE-1', '--by', 'tester', '--file', 'src/CloseGate.php', '--goal', 'Fix the close gate.', '--validation', 'php -l src/CloseGate.php', '--format=json']));
         self::assertSame('decision_required', $plan['next_action_kind']);
-        $this->assertNamesPrecedent($plan['learning_precedents'] ?? null, 'candidate_contract');
+        $this->assertNamesPrecedent($plan, 'candidate_contract');
 
         $pending = $this->json($this->agentLoop(['enter', 'GATE-1', '--format=json'], expectSuccess: false));
         self::assertSame('decision_required', $pending['next_action_kind']);
-        $this->assertNamesPrecedent($pending['learning_precedents'] ?? null, 'candidate_contract');
+        $this->assertNamesPrecedent($pending, 'candidate_contract');
 
         $text = $this->agentLoop(['enter', 'GATE-1'], expectSuccess: false);
         self::assertStringContainsString('Learning precedent (candidate contract):', $text);
@@ -62,7 +62,7 @@ final class WorkflowLearningPrecedentVisibilityTest extends TestCase
         $this->agentLoop(['workflow', 'approve', 'GATE-1', '--revision', '1', '--by', 'tester']);
         $approved = $this->json($this->agentLoop(['enter', 'GATE-1', '--format=json']));
         self::assertSame('host_work', $approved['next_action_kind']);
-        $this->assertNamesPrecedent($approved['learning_precedents'] ?? null, 'compiled_recall');
+        $this->assertNamesPrecedent($approved, 'compiled_recall');
     }
 
     public function testUnrelatedScopeNamesNoPrecedent(): void
@@ -89,8 +89,10 @@ final class WorkflowLearningPrecedentVisibilityTest extends TestCase
         self::assertStringContainsString(self::NOTE_ID, $precedents['message']);
     }
 
-    private function assertNamesPrecedent(mixed $projection, string $source): void
+    /** @param array<string, mixed> $payload */
+    private function assertNamesPrecedent(array $payload, string $source): void
     {
+        $projection = $payload['learning_precedents'] ?? null;
         self::assertIsArray($projection);
         self::assertSame($source, $projection['source']);
         self::assertSame('selected', $projection['status']);
@@ -189,8 +191,10 @@ final class WorkflowLearningPrecedentVisibilityTest extends TestCase
             throw new RuntimeException('Unable to start agent-loop.');
         }
         fclose($pipes[0]);
-        $stdout = (string) stream_get_contents($pipes[1]);
-        $stderr = (string) stream_get_contents($pipes[2]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        self::assertIsString($stdout);
+        self::assertIsString($stderr);
         fclose($pipes[1]);
         fclose($pipes[2]);
         $exit = proc_close($process);

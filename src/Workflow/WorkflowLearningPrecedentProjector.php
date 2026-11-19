@@ -24,7 +24,7 @@ use voku\AgentRecallCompiler\RecallCompilationBlockedException;
  * historical precedent, not an instruction, and changes no lifecycle state.
  *
  * @phpstan-type PrecedentItem array{note_id: string, pattern_key: string|null, title: string|null, guidance: string|null, matching_task_files: list<string>}
- * @phpstan-type PrecedentProjection array{source: 'candidate_contract'|'compiled_recall', status: 'selected'|'blocked', use: 'historical_precedent_not_instruction', message: string, precedents: list<PrecedentItem>}
+ * @phpstan-type PrecedentProjection array{source: 'candidate_contract'|'compiled_recall', status: 'selected'|'blocked'|'unavailable', use: 'historical_precedent_not_instruction', message: string, precedents: list<PrecedentItem>}
  */
 final readonly class WorkflowLearningPrecedentProjector
 {
@@ -42,35 +42,37 @@ final readonly class WorkflowLearningPrecedentProjector
             return null;
         }
 
-        if ($contract->status === TaskContract::APPROVED) {
-            $compiled = $this->compiled($taskId);
-            if ($compiled !== null) {
-                return $compiled === [] ? null : $this->selected('compiled_recall', $compiled);
-            }
-        }
-
+        $source = $contract->status === TaskContract::APPROVED ? 'compiled_recall' : 'candidate_contract';
         try {
+            if ($source === 'compiled_recall') {
+                $output = (new CompiledRecallOutputReader())->readForTask((new ProjectLayout($this->rootPath))->recallRoot(), $taskId);
+                if ($output !== null) {
+                    $rendered = $output->renderedLearningPrecedents();
+
+                    return $rendered === [] ? null : $this->selected('compiled_recall', $rendered);
+                }
+                // Approved but not compiled yet: the preview still names the precedent.
+                $source = 'candidate_contract';
+            }
             $precedents = $this->preview->forCandidateScope(
                 (new ProjectLayout($this->rootPath))->learningRoot(),
                 $taskId,
-                array_values($contract->scope),
-                array_values($contract->tags),
+                $contract->scope,
+                $contract->tags,
             );
         } catch (RecallCompilationBlockedException $exception) {
-            return [
-                'source' => 'candidate_contract',
-                'status' => 'blocked',
-                'use' => 'historical_precedent_not_instruction',
-                'message' => $exception->getMessage() . ' Recall compilation for this scope will block until the note is republished or retired.',
-                'precedents' => [],
-            ];
-        } catch (RuntimeException) {
-            // A preview is advisory: an unreadable Learning root is reported by
-            // the owners that need it, not turned into a planning failure here.
-            return null;
+            return $this->withoutPrecedents(
+                $source,
+                'blocked',
+                $exception->getMessage() . ' Recall compilation for this scope will block until the note is republished or retired.',
+            );
+        } catch (RuntimeException $exception) {
+            // Advisory projection: report why precedents are unknown instead of
+            // implying there are none, and leave the failure to the owners.
+            return $this->withoutPrecedents($source, 'unavailable', 'Learning precedents could not be read: ' . $exception->getMessage());
         }
 
-        return $precedents === [] ? null : $this->selected('candidate_contract', $precedents);
+        return $precedents === [] ? null : $this->selected($source, $precedents);
     }
 
     /** @param PrecedentProjection $projection */
@@ -87,16 +89,20 @@ final readonly class WorkflowLearningPrecedentProjector
         return $text;
     }
 
-    /** @return list<RenderedLearningPrecedent>|null null when no compiled output exists for this task */
-    private function compiled(string $taskId): ?array
+    /**
+     * @param 'candidate_contract'|'compiled_recall' $source
+     * @param 'blocked'|'unavailable' $status
+     * @return PrecedentProjection
+     */
+    private function withoutPrecedents(string $source, string $status, string $message): array
     {
-        try {
-            $output = (new CompiledRecallOutputReader())->readForTask((new ProjectLayout($this->rootPath))->recallRoot(), $taskId);
-        } catch (RuntimeException) {
-            return null;
-        }
-
-        return $output?->renderedLearningPrecedents();
+        return [
+            'source' => $source,
+            'status' => $status,
+            'use' => 'historical_precedent_not_instruction',
+            'message' => $message,
+            'precedents' => [],
+        ];
     }
 
     /**
