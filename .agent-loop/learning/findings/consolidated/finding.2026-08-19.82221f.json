@@ -32,6 +32,8 @@
     "validated_conclusion": "F1 should make disagreement-driven routing convergent using the shape already established, not a new subsystem. #221 carried an owner-supplied repair as approval.repair_action, and #223 introduced kinds for steps that are not commands. A disagreement should likewise carry the owning package's repair when one exists, and where none exists the canonical step should be host_work or decision_required rather than a read-only command. Explicitly do not build a RecoveryManager, a repair framework, or a second state machine: this is one branch with two proven instances. Also do not generalise the census beyond its evidence - invalid execution-contract binding, unavailable selected capability and release-set mismatch were not measured, so no claim is made about them.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
-    "sensitivity": "public"
+    "status": "consolidated",
+    "sensitivity": "public",
+    "validated_by": "voku",
+    "validated_at": "2026-11-19T21:06:23+00:00"
 }

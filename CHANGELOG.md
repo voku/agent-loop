@@ -2,6 +2,12 @@
 
 ### Dependencies
 
+- Require `voku/agent-learning ^0.20.1`: the committed Proposal is now the canonical approval record, so `proposal-mark-applied` works from a fresh clone, where `history/` (gitignored here) is absent, and never manufactures an approval. Rejections keep the Proposal's own rationale as `proposal_reason`.
+
+### Learning
+
+- Complete applied-pending Proposal `2026-08-20.c2a001` with `proposal-mark-applied` against its 2026-11-19 revalidation evidence. Its release-set dogfood job and constraint files are unchanged since that evidence's commit, `6c16f68`. The applied record keeps the original approval (Lars, 2026-08-20) and records `voku` as the applier. Source findings `049f83` and `82221f` are consolidated.
+
 - Allow `voku/agent-map ^0.23.0` alongside `^0.22.3` (and lock 0.23.0 with `voku/agent-recall-compiler` 0.29.1 and `voku/agent-edit` 0.6.4, the first releases of those owners that accept it). agent-map 0.23.0 only adds pluggable template dialects, an experimental Smarty evidence API and Smarty/Blade template-reference fixes; Loop uses none of the changed scanner/template APIs directly, and the experimental Smarty API is not consumed.
 
 ### Development
