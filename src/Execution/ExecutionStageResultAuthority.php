@@ -161,6 +161,23 @@ final readonly class ExecutionStageResultAuthority
                 );
             }
         }
+
+        // A fresh stage must also be independent of every context that mutated
+        // the candidate, not only of its direct predecessor (e.g. a blind-spot
+        // review after a correctness review must not reuse the builder).
+        foreach ($state->history as $accepted) {
+            $prior = $accepted->result;
+            if ($prior->contextId === null || !hash_equals($prior->contextId, $result->contextId)) {
+                continue;
+            }
+            $priorStage = $plan->stage($prior->stageId);
+            if ($priorStage->kind === ExecutionStageKind::AGENT && $priorStage->mayMutate) {
+                throw new RuntimeException(
+                    'CONTEXT_REUSE_FORBIDDEN: fresh stage ' . $stage->id
+                    . ' reused mutating context ' . $prior->stageId . '.',
+                );
+            }
+        }
     }
 
     private function latestAcceptedResultForStage(ExecutionState $state, string $stageId): ?StageResult

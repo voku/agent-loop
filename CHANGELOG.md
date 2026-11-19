@@ -1,3 +1,10 @@
+## [Unreleased]
+
+### Fixed
+
+- Fast-path `finish` fails closed when the Git diff evidence is unavailable (no Contract base commit, base commit missing from the checkout, or Git unable to derive the diff). Previously the undeclared-file and 60-line ceilings were silently skipped and the micro-task still auto-acknowledged its review and auto-closed its Learning decision, so an out-of-scope change could close unchecked. It now refuses with `Fast-path auto-close requires diff evidence: <reason> Escalate to standard contract.`
+- A `fresh_required` execution stage now rejects the context of any accepted mutating stage, not only of its direct predecessor (`CONTEXT_REUSE_FORBIDDEN`). In the standard and hardened profiles a blind-spot or architecture review could previously reuse the builder's context because only the adjacent review was compared. Declared context ids remain declared separation, not proof of provider-level isolation.
+
 ## [0.20.99] - 2026-11-19
 
 ### Dependencies
