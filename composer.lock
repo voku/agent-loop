@@ -1078,7 +1078,8 @@
                 "issues": "https://github.com/voku/agent-graph/issues",
                 "source": "https://github.com/voku/agent-graph"
             },
-            "time": "2026-11-18T22:31:35+00:00"
+            "time": "2026-11-18T22:31:35+00:00",
+            "published-time": "2026-11-18T22:38:11+00:00"
         },
         {
             "name": "voku/agent-kanban",
@@ -1149,16 +1150,16 @@
         },
         {
             "name": "voku/agent-learning",
-            "version": "0.20.0",
+            "version": "0.20.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-learning.git",
-                "reference": "1ba13981ec35c0ce2941b4ffb94d7232fd8c5671"
+                "reference": "311c41314b789f5d36583cc1157664860c7f8289"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-learning/zipball/1ba13981ec35c0ce2941b4ffb94d7232fd8c5671",
-                "reference": "1ba13981ec35c0ce2941b4ffb94d7232fd8c5671",
+                "url": "https://api.github.com/repos/voku/agent-learning/zipball/311c41314b789f5d36583cc1157664860c7f8289",
+                "reference": "311c41314b789f5d36583cc1157664860c7f8289",
                 "shasum": ""
             },
             "require": {
@@ -1213,7 +1214,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-19T19:33:29+00:00"
+            "time": "2026-11-19T21:01:17+00:00",
+            "published-time": "2026-11-19T21:05:48+00:00"
         },
         {
             "name": "voku/agent-map",
@@ -6310,5 +6312,5 @@
     "platform-overrides": {
         "php": "8.3.0"
     },
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.11.0"
 }
