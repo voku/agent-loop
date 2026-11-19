@@ -27,6 +27,8 @@
     "validated_conclusion": "Correct a durable guidance entry toward the live executable command and bind the already-existing detector as an adopted static constraint; do not add another prose rule or duplicate analyzer.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
-    "sensitivity": "public"
+    "status": "consolidated",
+    "sensitivity": "public",
+    "validated_by": "voku",
+    "validated_at": "2026-11-19T19:49:44+00:00"
 }

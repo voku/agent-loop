@@ -5,11 +5,11 @@
     "source_findings": [
         "finding.2026-09-13.df7c73"
     ],
-    "reason": "The deterministic PHPStan gate failed on Linux because ProcessRunner chose the Windows Composer .bat wrapper before the executable binary. The owner-side fix is validated, and this is a repeatable host-boundary lesson that belongs in a LearningNote rather than a new active constraint.",
+    "reason": "Superseded by existing LearningNote learning-note.2026-11-19.91abcd, not invalid: the lesson stays valid and is enforced by tests/ProcessRunnerTest.php, but it is precedent rather than active Memory, as the proposal's own learning_decision ADD_LEARNING_NOTE says. Decision by voku, recorded by Claude Code on 2026-11-19.",
     "remaining_uncertainty": [
         "The source Finding also mentions linked-worktree hook behavior; that is a separate filesystem/configuration boundary and is intentionally not folded into this proposal."
     ],
-    "status": "candidate",
+    "status": "rejected",
     "proposed_by": "consolidation",
     "approved_by": null,
     "approved_at": null,

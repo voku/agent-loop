@@ -19,7 +19,7 @@
     "validated_conclusion": "Git hooks in a worktree need the hook environment without mutating shared core.hooksPath; AGENT_LOOP_BIN=bin/agent-loop runs the unmodified hooks correctly.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
+    "status": "consolidated",
     "sensitivity": "public",
     "classification": "ADD_LEARNING_NOTE",
     "pattern_key": "git.hooks.worktree.environment.is.local",
@@ -27,5 +27,7 @@
         "given": "a linked worktree sharing core.hooksPath with its main checkout while generated hook environment is ignored per checkout",
         "when": "the hook resolves its tool through a relative vendor/bin fallback or changes directory to the hook file's common checkout",
         "then": "the hook can run the wrong root or fail to find the executable, so it resolves the current Git root and uses a pinned repository-local CLI path"
-    }
+    },
+    "validated_by": "voku",
+    "validated_at": "2026-11-19T19:49:34+00:00"
 }
