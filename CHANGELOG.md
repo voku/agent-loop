@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.20.99] - 2026-11-19
 
 ### Dependencies
 
