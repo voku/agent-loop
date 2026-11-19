@@ -246,6 +246,10 @@ final readonly class HostFrontDoorCommand
         if ($discovery !== null) {
             $payload['references'] = ['discovery' => $discovery];
         }
+        $learningPrecedents = (new WorkflowLearningPrecedentProjector($this->rootPath))->project($taskId->value);
+        if ($learningPrecedents !== null) {
+            $payload['learning_precedents'] = $learningPrecedents;
+        }
         if ($hookResults !== []) {
             $payload['hooks'] = $hookResults;
         }
@@ -266,6 +270,9 @@ final readonly class HostFrontDoorCommand
             echo 'State: ' . $policy->state . "\n";
             echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
             $this->printHumanDecision($taskId->value, $policy, $showDecisionPresentation);
+            if ($learningPrecedents !== null) {
+                echo (new WorkflowLearningPrecedentProjector($this->rootPath))->renderText($learningPrecedents);
+            }
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
             if ($discovery !== null) {

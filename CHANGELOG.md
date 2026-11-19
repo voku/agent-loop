@@ -1,7 +1,12 @@
 ## [Unreleased]
 
+### Added
+
+- `workflow plan` and `enter` now name the LearningNotes Recall selects for the task (`learning_precedents` in JSON, a "Learning precedent" block in text). For a candidate Contract, Recall's new `LearningPrecedentPreview` runs over the candidate scope, so the planning agent and the approving human see the precedent before the design is approved. Once approved, `enter` lists the notes the compiled briefing renders. Missing note evidence shows as `status: blocked` already at planning, instead of first blocking at compilation. The projection is historical precedent, not an instruction, and changes no lifecycle state. In the round-2 learning-effect experiment, all three governed agents fixed their design before Recall compiled the matching note, and none of them opened it (#1091).
+
 ### Dependencies
 
+- Require `voku/agent-recall-compiler ^0.29.3` (was `^0.29.0`; locked 0.29.3, was 0.29.2) for `LearningPrecedentPreview` and `CompiledRecallOutput::renderedLearningPrecedents()`, which the precedent projection below uses. The candidate dogfood workflows that pin the Recall minimum now check out `0.29.3` (`d560adf`).
 - Require `voku/agent-edit ^0.8.0` (was `^0.6.1`; locked 0.8.0, was 0.6.4), `voku/agent-map ^0.22.3 || ^0.23.0 || ^0.24.0` (locked 0.24.0, was 0.23.0) and lock `voku/agent-recall-compiler` 0.29.2 (was 0.29.1; the declared `^0.29.0` minimum is unchanged, because the candidate dogfood workflows pin that minimum release). The agent-edit API Loop uses (`EditEngine::apply()`, `ApplyCommand`, `VerifyCommand`, `WorkingTreeSnapshot(ter)`) is unchanged; 0.7.0 only adds `EditEngine::recover()`.
   - **agent-edit 0.7.0:** a write-ahead publication journal makes an interrupted apply recoverable (`agent-edit recover`, failure code `recovery_required`).
   - **agent-edit 0.8.0:** adds `instructions --format=text` and an opt-in requirement for read-time source digests.

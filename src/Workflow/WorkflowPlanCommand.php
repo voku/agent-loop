@@ -144,6 +144,8 @@ final readonly class WorkflowPlanCommand
         }
 
         $warnings = self::chainedValidationWarnings($contract->validation);
+        $learningPrecedentProjector = new WorkflowLearningPrecedentProjector($this->rootPath);
+        $learningPrecedents = $learningPrecedentProjector->project($taskId->value);
         $nextAction = 'agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . ' --by <named-actor>';
         $projector = new WorkflowHumanDecisionProjector($this->rootPath);
         $decisionKind = \voku\AgentLoop\Run\RunPolicyEvaluation::KIND_DECISION_REQUIRED;
@@ -181,6 +183,7 @@ final readonly class WorkflowPlanCommand
                 'next_action' => $nextAction,
                 'next_action_kind' => $decisionKind,
                 'human_decision' => $decision,
+                ...($learningPrecedents === null ? [] : ['learning_precedents' => $learningPrecedents]),
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
             return 0;
@@ -202,6 +205,9 @@ final readonly class WorkflowPlanCommand
             return 1;
         }
         echo (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderContractApproval($presentation);
+        if ($learningPrecedents !== null) {
+            echo $learningPrecedentProjector->renderText($learningPrecedents);
+        }
         echo "Next:\n  " . $nextAction . "\n";
 
         return 0;
