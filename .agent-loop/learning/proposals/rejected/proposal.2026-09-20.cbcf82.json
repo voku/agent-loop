@@ -5,9 +5,9 @@
     "source_findings": [
         "finding.2026-09-19.95209d"
     ],
-    "reason": "A release gate failed on a valid large changelog because an early-exiting predicate closed git show under Bash pipefail. The fix is present and regression-tested, and the lesson generalizes to shell validation pipelines that consume potentially large producer output.",
+    "reason": "Superseded by existing LearningNote learning-note.2026-11-19.54b941, not invalid: the lesson stays valid and is enforced by tests/ReleaseTagWorkflowTest.php, but it is precedent rather than active Memory, as the proposal's own learning_decision ADD_LEARNING_NOTE says. Decision by voku, recorded by Claude Code on 2026-11-19.",
     "remaining_uncertainty": [],
-    "status": "candidate",
+    "status": "rejected",
     "proposed_by": "consolidation",
     "approved_by": null,
     "approved_at": null,

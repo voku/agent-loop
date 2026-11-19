@@ -36,7 +36,7 @@
     "validated_conclusion": "Select the host-appropriate Composer wrapper before invoking deterministic static-analysis tooling, and cover linked-worktree hook root resolution with executable regression tests.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
+    "status": "consolidated",
     "sensitivity": "public",
     "classification": "ADD_LEARNING_NOTE",
     "pattern_key": "process.runner.selects.host.wrapper",
@@ -44,5 +44,7 @@
         "given": "a Composer bin directory containing both an extensionless executable and a Windows .bat wrapper",
         "when": "a Linux process runner selects the first existing candidate without checking host compatibility",
         "then": "proc_open can fail with Exec format error, so the runner selects the host-appropriate executable before invoking it"
-    }
+    },
+    "validated_by": "voku",
+    "validated_at": "2026-11-19T19:49:34+00:00"
 }

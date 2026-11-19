@@ -31,7 +31,7 @@
     "validated_conclusion": "Do not claim the closed learning loop from fixture-only precedent and a separately hand-authored L1. Persist at least one owner-published LearningNote in the consuming repository, trace it into a later independent task, and require observable L2 -> L1 -> host behavior before calling the soft-learning loop proven. Keep the behavioral result UNKNOWN when a real coding-agent host has not executed the handoff.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
+    "status": "consolidated",
     "sensitivity": "public",
     "classification": "ADD_LEARNING_NOTE",
     "pattern_key": "workflow.closed_loop_requires_real_precedent_handoff",
@@ -39,5 +39,10 @@
         "given": "A consuming repository claims a closed learning loop and has separately green Finding/Recall and L2/L1 mechanics.",
         "when": "Its real durable Learning root contains no owner-published LearningNote and no later real coding-agent run demonstrates precedent-driven behavior.",
         "then": "The soft-learning product thesis remains unproven even though the component mechanics are green."
-    }
+    },
+    "validated_by": "voku",
+    "validated_at": "2026-11-19T19:50:13+00:00",
+    "status_reason": "Downstream handling complete: preserved as learning-note.2026-09-12.457001 (pattern workflow.closed_loop_requires_real_precedent_handoff). On 2026-11-19 its two evidence sources had drifted (review_needed); the methodology claims were re-checked against the current files and still hold, and the note was re-grounded with current SHA-256 evidence through agent-learning-note publish (evidence_state current). Decision by voku, recorded by Claude Code.",
+    "status_changed_by": "voku",
+    "status_changed_at": "2026-11-19T19:50:13+00:00"
 }

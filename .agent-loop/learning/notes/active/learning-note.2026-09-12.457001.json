@@ -24,11 +24,11 @@
     "repository_evidence": [
         {
             "source_ref": "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
-            "sha256": "6493c7951f9c7cb80fe3e978f333c502a683fdc4e7386566a28d9c3ef10d04a4"
+            "sha256": "db3d2e6f71b6250d2159cce36d511075789694f02267bb50351699d85330ec14"
         },
         {
             "source_ref": "tools/execution-contract-dogfood.php",
-            "sha256": "86d5f00e406e4e5e95ab7bc12e9ce85ef2985c6a5b8249eb227b9ee154888ce1"
+            "sha256": "f5a2cbe56dd1323bac5d161b490d0c9569e679abe366c90a6b4e283ab00695fb"
         }
     ],
     "content": {
@@ -51,6 +51,6 @@
         ]
     },
     "created_at": "2026-09-12T20:53:21+00:00",
-    "updated_at": "2026-09-22T05:24:26+00:00",
+    "updated_at": "2026-11-19T19:50:09+00:00",
     "retired_reason": null
 }

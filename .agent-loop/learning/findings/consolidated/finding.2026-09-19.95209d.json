@@ -25,7 +25,7 @@
     "validated_conclusion": "For a potentially large producer under Bash pipefail, do not use an early-exiting predicate pipeline as the validation result; capture the source once and inspect it without a producer-consumer pipe, while retaining the same exact-content check.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
+    "status": "consolidated",
     "sensitivity": "internal",
     "classification": "ADD_LEARNING_NOTE",
     "pattern_key": "shell.pipefail.capture.before.predicate",
@@ -33,5 +33,7 @@
         "given": "a Bash script running with pipefail that checks content emitted by a potentially large command",
         "when": "the check pipes the producer into a predicate that exits immediately after a match",
         "then": "the check can fail on producer SIGPIPE even though the required content exists, so the producer output is captured and inspected without that early-exit pipeline"
-    }
+    },
+    "validated_by": "voku",
+    "validated_at": "2026-11-19T19:49:34+00:00"
 }
