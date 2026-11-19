@@ -146,7 +146,7 @@ final class MemoryCanonicalHomesResolveTest extends TestCase
     {
         $declaration = '/function\s+' . preg_quote($method, '/') . '\s*\(/';
         foreach ($candidates as $candidate) {
-            if (preg_match($declaration, (string)file_get_contents($root . '/' . $candidate)) === 1) {
+            if (preg_match($declaration, (string) file_get_contents($root . '/' . $candidate)) === 1) {
                 return true;
             }
         }
