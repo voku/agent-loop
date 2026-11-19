@@ -348,6 +348,12 @@ final class HostFrontDoorCommandTest extends TestCase
             throw new RuntimeException('Unable to create learning directory.');
         }
 
+        exec('git -C ' . escapeshellarg($this->root) . ' init -b main 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.name "Test" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.email "test@example.com" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' add src/QuickTarget.php 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' commit -m "Initial commit" 2>&1');
+
         $quickResult = $this->runBinary([
             'quick',
             'QUICK-FINISH-1',
@@ -364,6 +370,40 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertTrue($finishPayload['complete'], $finishResult['stdout']);
         self::assertSame('complete', $finishPayload['manifest']['state']);
         self::assertSame('none', $finishPayload['next_action']);
+    }
+
+    public function testQuickFinishDoesNotAutoCloseWithoutDiffEvidence(): void
+    {
+        // No Git checkout: the Contract has no base commit, so the fast-path
+        // scope and line ceilings cannot be verified. Unverifiable evidence
+        // must not be treated as a clean micro-task.
+        $sourceDirectory = $this->root . '/src';
+        if (!mkdir($sourceDirectory, 0o775, true) && !is_dir($sourceDirectory)) {
+            throw new RuntimeException('Unable to create source directory.');
+        }
+        file_put_contents($sourceDirectory . '/QuickTarget.php', "<?php\nfinal class QuickTarget {}\n");
+        if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
+            throw new RuntimeException('Unable to create learning directory.');
+        }
+
+        $quickResult = $this->runBinary([
+            'quick',
+            'QUICK-NODIFF-1',
+            'Fix docblock in QuickTarget',
+            '--file=src/QuickTarget.php',
+            '--verify=php -r "exit(0);"',
+            '--format=json',
+        ]);
+        self::assertSame(0, $quickResult['exit'], $quickResult['stderr']);
+        self::assertNull((new TaskContractStore($this->root))->load('QUICK-NODIFF-1')->baseCommit);
+
+        // An out-of-scope change the fast path would refuse if it could see it.
+        file_put_contents($sourceDirectory . '/Undeclared.php', "<?php\nfinal class Undeclared {}\n");
+
+        $finishResult = $this->runBinary(['finish', 'QUICK-NODIFF-1', '--format=json']);
+        $finishPayload = $this->json($finishResult['stdout']);
+        self::assertFalse($finishPayload['complete'], $finishResult['stdout']);
+        self::assertStringContainsString('Fast-path auto-close requires diff evidence', $finishResult['stdout'] . $finishResult['stderr']);
     }
 
     public function testQuickFinishIgnoresUnchangedPreexistingOutOfScopeChanges(): void

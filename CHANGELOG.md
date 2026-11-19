@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+
+- Fast-path `finish` fails closed when the Git diff evidence is unavailable (no Contract base commit, base commit missing from the checkout, or Git unable to derive the diff). Previously the undeclared-file and 60-line ceilings were silently skipped and the micro-task still auto-acknowledged its review and auto-closed its Learning decision, so an out-of-scope change could close unchecked. It now refuses with `Fast-path auto-close requires diff evidence: <reason> Escalate to standard contract.`
+- A `fresh_required` execution stage now rejects the context of any accepted mutating stage, not only of its direct predecessor (`CONTEXT_REUSE_FORBIDDEN`). In the standard and hardened profiles a blind-spot or architecture review could previously reuse the builder's context because only the adjacent review was compared. Declared context ids remain declared separation, not proof of provider-level isolation.
+
 ### Development
 
 - The learning-effect runner (`tools/learning-effect/run-arm.sh`) now runs every session under a versioned Bash sandbox (`sandbox-settings.json`): no outbound network for Bash and its children, fail closed when the sandbox is unavailable, no unsandboxed fallback. Before each arm, a probe session must fail to reach github.com, judged only from the Bash tool result; otherwise the arm is refused. The protocol now requires one disposable container per arm, because the Read tool can read the whole disk, including the case clones with the historical repairs.
