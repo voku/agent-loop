@@ -1,0 +1,53 @@
+{
+    "schema_version": "1.0",
+    "id": "learning-note.2026-11-19.54b941",
+    "pattern_key": "shell.pipefail.capture.before.predicate",
+    "status": "active",
+    "scope": [
+        ".github/workflows/release-tag.yml",
+        "CHANGELOG.md",
+        "tests/ReleaseTagWorkflowTest.php"
+    ],
+    "tags": [
+        "ci",
+        "release",
+        "shell"
+    ],
+    "source_findings": [
+        "finding.2026-09-19.95209d"
+    ],
+    "source_proposals": [
+        "proposal.2026-09-20.cbcf82"
+    ],
+    "validation_case": {
+        "given": "a Bash script running with pipefail that checks content emitted by a potentially large command",
+        "when": "the check pipes the producer into a predicate that exits immediately after a match",
+        "then": "the check can fail on producer SIGPIPE even though the required content exists, so the producer output is captured and inspected without that early-exit pipeline"
+    },
+    "repository_evidence": [
+        {
+            "source_ref": ".github/workflows/release-tag.yml",
+            "sha256": "208410829a696a8fa95b09bfcb1a670e956b0d63f3eabf2aa6a2584dd21998f1"
+        },
+        {
+            "source_ref": "tests/ReleaseTagWorkflowTest.php",
+            "sha256": "6488b41f3994bd9e765b489e901901911022c345b32f61d32b71fbf3b360fc17"
+        }
+    ],
+    "content": {
+        "title": "Under pipefail, capture large output before matching it",
+        "context": "The tag workflow rejected a release whose target contained the required changelog heading. Under `set -o pipefail`, `git show <target>:CHANGELOG.md | grep -Fq ...` returned 141: grep matched early and exited, git show got SIGPIPE, and pipefail reported the whole check as failed.",
+        "guidance": "Capture the producer's output once into a variable and match it in-shell (for example `[[ \"$text\" == *\"needle\"* ]]`), keeping the exact-content check. Do not use `producer | grep -q` as the validation result under pipefail.",
+        "why_it_works": "The producer finishes writing before anything is matched, so no SIGPIPE can occur and the check's result depends only on the content.",
+        "when_to_apply": "In Bash scripts or CI steps with `set -o pipefail` that check output of unbounded size, such as changelogs, logs or `git show` content.",
+        "when_not_to_apply": "When the producer's output is guaranteed small, or when streaming is required because the output cannot be held in memory.",
+        "verification": "vendor/bin/phpunit --filter ReleaseTagWorkflowTest (testNewTagAcceptsLargeTargetChangelogBeforeCreatingTheTag). The same construct also failed 5/5 in voku/agent-learning's release workflow at 75 KB (fixed in voku/agent-learning#197) and is fixed in agent-map#200 and agent-recall-compiler#280.",
+        "symptoms": "A presence check reports content missing that is demonstrably present, typically only once the producer's output grows beyond the pipe buffer (about 64 KB); exit status 141 in traces.",
+        "failed_approaches": [],
+        "root_cause": "An early-exiting predicate (`grep -q`, `head`) closes the pipe while the producer is still writing; pipefail turns the producer's SIGPIPE into a failed pipeline.",
+        "examples": []
+    },
+    "created_at": "2026-11-19T19:34:49+00:00",
+    "updated_at": "2026-11-19T19:34:49+00:00",
+    "retired_reason": null
+}
