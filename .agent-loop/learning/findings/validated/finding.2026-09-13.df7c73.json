@@ -37,5 +37,12 @@
     "confidence": "high",
     "validation_status": "validated",
     "status": "validated",
-    "sensitivity": "public"
+    "sensitivity": "public",
+    "classification": "ADD_LEARNING_NOTE",
+    "pattern_key": "process.runner.selects.host.wrapper",
+    "validation_case": {
+        "given": "a Composer bin directory containing both an extensionless executable and a Windows .bat wrapper",
+        "when": "a Linux process runner selects the first existing candidate without checking host compatibility",
+        "then": "proc_open can fail with Exec format error, so the runner selects the host-appropriate executable before invoking it"
+    }
 }

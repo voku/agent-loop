@@ -1,0 +1,52 @@
+{
+    "schema_version": "1.0",
+    "id": "learning-note.2026-11-19.1b47ed",
+    "pattern_key": "git.hooks.worktree.environment.is.local",
+    "status": "active",
+    "scope": [
+        "resources/githooks/lib/agent-loop-hooks.sh",
+        "resources/githooks/pre-commit"
+    ],
+    "tags": [
+        "git",
+        "hooks",
+        "worktree"
+    ],
+    "source_findings": [
+        "finding.2026-09-15.17c7c3"
+    ],
+    "source_proposals": [
+        "proposal.2026-09-20.0ecd79"
+    ],
+    "validation_case": {
+        "given": "a linked worktree sharing core.hooksPath with its main checkout while generated hook environment is ignored per checkout",
+        "when": "the hook resolves its tool through a relative vendor/bin fallback or changes directory to the hook file's common checkout",
+        "then": "the hook can run the wrong root or fail to find the executable, so it resolves the current Git root and uses a pinned repository-local CLI path"
+    },
+    "repository_evidence": [
+        {
+            "source_ref": "resources/githooks/lib/agent-loop-hooks.sh",
+            "sha256": "1d90f16272f182b5d8bf101fadb573adaa466e5808f91fd6dc1525f4ea629873"
+        },
+        {
+            "source_ref": "tests/GitWorkTreeDetectionTest.php",
+            "sha256": "40207189a1165f91e91d2cacc53738ef7f61836f191dc98368b58d83debe8fdd"
+        }
+    ],
+    "content": {
+        "title": "Resolve the hook environment per checkout, not through shared hook configuration",
+        "context": "Linked Git worktrees share `core.hooksPath`, while the generated `agent-loop-hooks.env` is gitignored and therefore exists per checkout. In a fresh worktree the pre-commit hook found no env file, ran `vendor/bin/agent-loop` relative to the wrong root and failed. Running `init sync-githooks` would have rewritten the shared `core.hooksPath` for every worktree.",
+        "guidance": "In a hook, resolve the current checkout root with `git rev-parse --show-toplevel` first and fall back to that checkout's own `vendor/bin/agent-loop` or `bin/agent-loop` when no generated env exists. Do not repair a single worktree by mutating shared `core.hooksPath`.",
+        "why_it_works": "Every worktree then finds an executable CLI from its own root, and no worktree's fix changes what the others run.",
+        "when_to_apply": "When a hook or its helper library reads generated, gitignored state, or when debugging a hook that only fails in a linked worktree.",
+        "when_not_to_apply": "For repositories that never use linked worktrees and keep no checkout-local generated hook state.",
+        "verification": "vendor/bin/phpunit --filter GitWorkTreeDetectionTest (testPackagedHookHelperKeepsTheLinkedWorktreeRoot); see agent_loop_hooks_resolve_default_bin in resources/githooks/lib/agent-loop-hooks.sh.",
+        "symptoms": "`git commit` in a new linked worktree fails inside the hook with `vendor/bin/agent-loop: No such file or directory`, while the main checkout commits fine.",
+        "failed_approaches": [],
+        "root_cause": "Hook configuration is shared across worktrees but the generated hook environment is checkout-local, and the hook assumed both lived in the same place.",
+        "examples": []
+    },
+    "created_at": "2026-11-19T19:34:49+00:00",
+    "updated_at": "2026-11-19T19:34:49+00:00",
+    "retired_reason": null
+}
