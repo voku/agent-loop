@@ -207,6 +207,103 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         (new WorkflowContextCommand($this->root))->build(self::TASK, 12, 512);
     }
 
+    public function testExecutionBindingIsNullWithoutContract(): void
+    {
+        self::assertNull((new ExecutionGateway($this->root))->observeCurrentExecutionBinding(self::TASK));
+    }
+
+    public function testExecutionBindingDoesNotPrepareMissingPlanOrState(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        if (is_file($statePath)) {
+            self::assertTrue(unlink($statePath));
+        }
+        if (is_file($planPath)) {
+            self::assertTrue(unlink($planPath));
+        }
+
+        self::assertNull((new ExecutionGateway($this->root))->observeCurrentExecutionBinding(self::TASK));
+        self::assertFileDoesNotExist($planPath);
+        self::assertFileDoesNotExist($statePath);
+    }
+
+    public function testExecutionBindingProjectsCurrentRunRevisionAndPlanDigestWithoutRewriting(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $planPath = (new ExecutionPlanStore($this->root))->path(self::TASK);
+        $statePath = (new ExecutionStateStore($this->root))->path(self::TASK);
+        $planBefore = file_get_contents($planPath);
+        $stateBefore = file_get_contents($statePath);
+        $plan = (new ExecutionPlanStore($this->root))->load(self::TASK);
+        $contract = (new TaskContractStore($this->root))->load(self::TASK);
+        $run = (new GovernedRunStore($this->root))->findForContract($contract);
+        self::assertNotNull($run);
+
+        $binding = $gateway->observeCurrentExecutionBinding(self::TASK);
+
+        self::assertNotNull($binding);
+        self::assertSame($run->runId, $binding->runId);
+        self::assertSame($contract->revision, $binding->contractRevision);
+        self::assertSame($plan->digest(), $binding->executionPlanDigest);
+        self::assertSame($planBefore, file_get_contents($planPath));
+        self::assertSame($stateBefore, file_get_contents($statePath));
+    }
+
+    public function testExecutionBindingIsNullForRetiredRun(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        self::assertNotNull($gateway->observeCurrentExecutionBinding(self::TASK));
+        ob_start();
+        self::assertSame(0, (new WorkflowRetireCommand($this->root))->run([
+            self::TASK, '--status', 'abandoned', '--reason', 'Dropped by owner.', '--by', 'lars',
+        ]));
+        ob_end_clean();
+
+        self::assertNull($gateway->observeCurrentExecutionBinding(self::TASK));
+    }
+
+    public function testExecutionBindingIsNullWhileSupersedingRevisionIsUnapprovedOrNotEntered(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $this->supersedeContract();
+        self::assertNull($gateway->observeCurrentExecutionBinding(self::TASK), 'candidate revision');
+
+        ob_start();
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run([self::TASK, '--revision', '2', '--by', 'lars']));
+        ob_end_clean();
+        // The Run id of revision 1 is still in the manifest until the next
+        // prepare; it must not be reported as the current execution.
+        self::assertNull($gateway->observeCurrentExecutionBinding(self::TASK), 'approved but not entered');
+    }
+
+    public function testExecutionBindingDoesNotHideCorruptContractAsNoExecution(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        self::assertNotFalse(file_put_contents((new TaskContractStore($this->root))->path(self::TASK), '{broken JSON'));
+
+        $this->expectException(RuntimeException::class);
+        (new ExecutionGateway($this->root))->observeCurrentExecutionBinding(self::TASK);
+    }
+
+    public function testExecutionBindingRefusesTamperedPlan(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $gateway = new ExecutionGateway($this->root);
+        $gateway->projection(self::TASK);
+        $this->rewriteJson((new ExecutionPlanStore($this->root))->path(self::TASK), 'run_id', 'run:other');
+
+        $this->expectException(RuntimeException::class);
+        $gateway->observeCurrentExecutionBinding(self::TASK);
+    }
+
     public function testReadOnlyAttentionDoesNotPrepareMissingPlanOrState(): void
     {
         $this->prepareSurgicalRun(l2: false);
