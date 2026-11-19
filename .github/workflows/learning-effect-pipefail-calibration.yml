@@ -1,0 +1,117 @@
+name: Learning-effect pipefail calibration
+
+# Calibrates the fixtures of docs/dogfood/2026-11-19-learning-effect-pipefail.md.
+# It proves the hidden oracle and grader separate the vulnerable baseline from the
+# historical repair, and that the A/B/C starting states differ only as intended.
+# It runs no model and proves nothing about learning effectiveness.
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/learning-effect-pipefail-calibration.yml'
+      - 'docs/dogfood/2026-11-19-learning-effect-pipefail.md'
+      - 'tools/learning-effect/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calibrate:
+    name: ${{ matrix.case_id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case_id: agent-learning
+            repository: voku/agent-learning
+          - case_id: agent-recall-compiler
+            repository: voku/agent-recall-compiler
+          - case_id: agent-map
+            repository: voku/agent-map
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ matrix.repository }}
+          path: build/case-source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Prepare A/B/C and grade the baseline and the historical repair
+        shell: bash
+        env:
+          CASE_ID: ${{ matrix.case_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          composer config --global github-oauth.github.com "$GITHUB_TOKEN"
+          kit=tools/learning-effect
+          source="$PWD/build/case-source"
+          work="$RUNNER_TEMP/learning-effect"
+          evidence="$PWD/build/evidence/$CASE_ID"
+          mkdir -p "$evidence"
+
+          for arm in A B C; do
+            python3 "$kit/prepare.py" --case "$CASE_ID" --arm "$arm" --out "$work/$arm" \
+              --source "$source" --learning-source "$PWD"
+            cp "$work/$arm/manifest.json" "$evidence/manifest-$arm.json"
+          done
+
+          # Identical task and baseline commit in every arm; only B/C carry governance;
+          # only C carries the precedent.
+          test "$(jq -r '[.task_sha256, .baseline_commit] | join(" ")' "$work/A/manifest.json")" = \
+               "$(jq -r '[.task_sha256, .baseline_commit] | join(" ")' "$work/B/manifest.json")"
+          test "$(jq -r '[.task_sha256, .baseline_commit] | join(" ")' "$work/A/manifest.json")" = \
+               "$(jq -r '[.task_sha256, .baseline_commit] | join(" ")' "$work/C/manifest.json")"
+          test "$(jq -r '.governance' "$work/A/manifest.json")" = null
+          test "$(jq -r '.learning_store.precedent_present' "$work/B/manifest.json")" = false
+          test "$(jq -r '.learning_store.precedent_present' "$work/C/manifest.json")" = true
+          test "$(jq -r '.governance.non_release' "$work/B/manifest.json")" = false
+          test -x "$work/B/repo/tools/agent-loop/vendor/bin/agent-loop"
+          diff <(cd "$work/B/repo" && git ls-files | grep -v '^\.agent-loop/learning/') \
+               <(cd "$work/C/repo" && git ls-files | grep -v '^\.agent-loop/learning/')
+          diff <(cd "$work/B/repo" && git ls-files .agent-loop/learning) \
+               <(cd "$work/C/repo" && git ls-files .agent-loop/learning) \
+            | tee "$evidence/b-c-store-difference.txt" || true
+          test "$(grep -c '^>' "$evidence/b-c-store-difference.txt")" = 2
+          test "$(grep -c '^<' "$evidence/b-c-store-difference.txt")" = 0
+
+          # Grade an untouched arm A: the oracle must fail and the mistake must be present.
+          python3 "$kit/grade.py" --out "$work/A" --source "$source" | tee "$evidence/untouched.json"
+          cp "$work/A/result.json" "$evidence/result-untouched.json"
+          jq -e '.correct == false and .repeated_mistake == true and .oracle.ungradeable == false' "$work/A/result.json"
+
+          # Apply the historical repair to a fresh arm A: correct, no recurrence, and its
+          # own regression test must catch the reverted workflow every time.
+          python3 "$kit/prepare.py" --case "$CASE_ID" --arm A --out "$work/repaired" --source "$source"
+          repaired_sha="$(jq -r --arg id "$CASE_ID" '.cases[] | select(.id == $id) | .repaired_sha' "$kit/cases.json")"
+          for path in $(git -C "$source" diff --name-only "${repaired_sha}^" "$repaired_sha"); do
+            git -C "$source" show "${repaired_sha}:${path}" > "$work/repaired/repo/$path"
+          done
+          python3 "$kit/grade.py" --out "$work/repaired" --source "$source" | tee "$evidence/repaired.json"
+          cp "$work/repaired/result.json" "$evidence/result-repaired.json"
+          jq -e '.correct == true and .repeated_mistake == false and (.edits.unnecessary | length) == 0
+                 and .own_test.passes_on_final == true and .own_test.fails_on_reverted_workflow == "3/3"' \
+            "$work/repaired/result.json"
+
+      - name: Retain calibration evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: learning-effect-pipefail-${{ matrix.case_id }}
+          path: build/evidence/${{ matrix.case_id }}/
+          if-no-files-found: warn
