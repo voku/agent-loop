@@ -5,9 +5,9 @@
     "source_findings": [
         "finding.2026-09-15.17c7c3"
     ],
-    "reason": "A linked worktree reused shared core.hooksPath while its generated hook environment was checkout-local, causing a valid commit to invoke the fallback vendor/bin/agent-loop path and fail. The hook environment now pins the repository-local CLI path and resolves the current Git root, making this a repeatable worktree-safe precedent.",
+    "reason": "Superseded by existing LearningNote learning-note.2026-11-19.1b47ed, not invalid: the lesson stays valid and is enforced by tests/GitWorkTreeDetectionTest.php, but it is precedent rather than active Memory, as the proposal's own learning_decision ADD_LEARNING_NOTE says. Decision by voku, recorded by Claude Code on 2026-11-19.",
     "remaining_uncertainty": [],
-    "status": "candidate",
+    "status": "rejected",
     "proposed_by": "consolidation",
     "approved_by": null,
     "approved_at": null,

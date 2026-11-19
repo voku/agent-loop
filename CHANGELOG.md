@@ -7,6 +7,9 @@
 ### Learning
 
 - Classify findings `2026-09-13.df7c73`, `2026-09-15.17c7c3` and `2026-09-19.95209d` from their consolidation Proposals (`02e8eb`, `0ecd79`, `cbcf82`, each `learning_decision: ADD_LEARNING_NOTE`) and publish them as LearningNotes `learning-note.2026-11-19.91abcd` (host Composer wrapper), `.1b47ed` (checkout-local hook environment) and `.54b941` (capture before matching under pipefail). Each lesson is already enforced by an existing test, so they are precedent, not active Memory. The three Memory Proposals stay `candidate` for a named human decision (reject as Memory).
+- Reject Memory Proposals `02e8eb`, `0ecd79` and `cbcf82` (decision by voku) as superseded by those LearningNotes. The lessons stay valid; they are precedent, not active Memory. The `finding-reconcile` dry run then reports nothing left to reconcile, and findings `df7c73`, `17c7c3`, `95209d`, `2c3f55` and `457001` are `consolidated`.
+- Re-ground LearningNote `learning-note.2026-09-12.457001` against the current `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` and `tools/execution-contract-dogfood.php` (evidence state `current`) before consolidating `457001`.
+- Revalidate applied-pending Proposal `2026-08-20.c2a001` against `6c16f68` from scratch: the release-set dogfood job is still registered in `.github/workflows/ci.yml` and passed on that commit, recorded in `validation/proposal.2026-08-20.c2a001.revalidated-2026-11-19.json` next to the original evidence. It stays `approved`: `proposal-mark-applied` requires the approval in `history/decisions.jsonl`, and `history/` is gitignored, so the 2026-08-20 approval is not in this checkout and is not recreated here.
 
 ## [0.20.97] - 2026-11-18
 

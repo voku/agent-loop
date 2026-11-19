@@ -1,0 +1,46 @@
+{
+  "generated_files": [
+    "src/Run/RunPolicyEvaluator.php",
+    "src/Run/RunManifestProjector.php",
+    "tools/release-set-dogfood.php",
+    "tools/Dogfood/ComposerPathRepository.php",
+    "tests/ReleaseSetDogfoodFixtureTest.php"
+  ],
+  "registration_file": ".github/workflows/ci.yml",
+  "commit": "6c16f6887eda5a97dc1db336ca03cc5c5572f019",
+  "tests": [
+    {
+      "command": "CI job 'Installed release-set dogfood' (php tools/release-set-dogfood.php --workspace=<tmp> --report=build/release-set-report.json --keep, then the report gate requiring repeated_same_state_commands <= 2)",
+      "result": "passed",
+      "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487546"
+    },
+    {
+      "command": "CI 'tests (8.3)' composer ci incl. ReleaseSetDogfoodFixtureTest",
+      "result": "passed",
+      "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487542"
+    },
+    {
+      "command": "CI 'tests (8.4)' composer ci",
+      "result": "passed",
+      "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487406"
+    },
+    {
+      "command": "CI 'tests (8.5)' composer ci",
+      "result": "passed",
+      "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487549"
+    }
+  ],
+  "validation_result": {
+    "result": "passed",
+    "summary": "Independent revalidation on 2026-11-19 against main 6c16f6887eda5a97dc1db336ca03cc5c5572f019, not reusing the 2026-08-20 evidence (commit 'working-tree', hashes of files that have since changed). The original registration workflow .github/workflows/f-gate-recovery-evidence.yml was removed as expired in 40b7a64; the rule is now enforced by the 'release-set-dogfood' job in .github/workflows/ci.yml, which runs six recovery scenarios with expected next-action kinds and gates repeated_same_state_commands <= 2. That job and the PHP 8.3-8.5 test matrix passed on this exact commit."
+  },
+  "content_hashes": {
+    "src/Run/RunPolicyEvaluator.php": "sha256:50f247a277b5e40b3707ad913d3bb74ac1fdeafc8f2e9e6b65e3972902e747e9",
+    "src/Run/RunManifestProjector.php": "sha256:08651abe366de6dd7a1e9b391b7b115edabf4196071df3703bd40ace89474f94",
+    "tools/release-set-dogfood.php": "sha256:5e529362bbe4413754ae16aff3c1847b561b238622978dc5b11c4c8ec3b10d0c",
+    "tools/Dogfood/ComposerPathRepository.php": "sha256:2e17d19e311f41134214ac0702c980498763e088dfae6ef426e5557face4b0e0",
+    "tests/ReleaseSetDogfoodFixtureTest.php": "sha256:c4448f3fb4d02e0b1cbb1f739562a84ed2e2dbf0905e1e7db487015dc0509ad2",
+    ".github/workflows/ci.yml": "sha256:e3ded3d28757661aafadc0c2bf4b15ccd81011b36e3f6eeecc3832cd1be3a57e"
+  },
+  "supersedes_validation": ".agent-loop/learning/validation/proposal.2026-08-20.c2a001.json"
+}
