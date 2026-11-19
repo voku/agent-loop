@@ -1,7 +1,8 @@
-## [Unreleased]
+## [0.20.100] - 2026-11-19
 
 ### Dependencies
 
+- Allow `voku/phpstan-agent-format ^0.4.0` alongside `^0.3.1` (locked 0.4.0, was 0.3.1). 0.4.0 carries PHPStan 2.3.5+ `fixable: true` evidence into agent reports as an optional field and registers `ArchitectureNoticeBuilder` explicitly for PHPStan 2.1 DI compatibility; Loop's `agentFormat` configuration is unchanged.
 - Require `voku/agent-edit ^0.8.0` (was `^0.6.1`; locked 0.8.0, was 0.6.4), `voku/agent-map ^0.22.3 || ^0.23.0 || ^0.24.0` (locked 0.24.0, was 0.23.0) and lock `voku/agent-recall-compiler` 0.29.2 (was 0.29.1; the declared `^0.29.0` minimum is unchanged, because the candidate dogfood workflows pin that minimum release). The agent-edit API Loop uses (`EditEngine::apply()`, `ApplyCommand`, `VerifyCommand`, `WorkingTreeSnapshot(ter)`) is unchanged; 0.7.0 only adds `EditEngine::recover()`.
   - **agent-edit 0.7.0:** a write-ahead publication journal makes an interrupted apply recoverable (`agent-edit recover`, failure code `recovery_required`).
   - **agent-edit 0.8.0:** adds `instructions --format=text` and an opt-in requirement for read-time source digests.
