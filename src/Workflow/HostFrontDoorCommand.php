@@ -416,29 +416,36 @@ final readonly class HostFrontDoorCommand
 
                     if (in_array('fast_path', $contract->tags, true)) {
                         $diff = (new HumanReviewDiffCollector($this->rootPath))->collect($contract);
-                        if ($diff->available) {
-                            $unexpected = $this->unexpectedFastPathTouchedFiles($contract, $diff);
-                            if ($unexpected !== []) {
-                                throw new RuntimeException(sprintf(
-                                    'Fast-path scope violated: modified undeclared file(s): %s. Escalate to standard contract.',
-                                    implode(', ', $unexpected),
-                                ));
+                        if (!$diff->available) {
+                            // The scope and line ceilings are what make auto-review
+                            // and auto-close safe; unverifiable evidence must not
+                            // pass as a clean micro-task.
+                            throw new RuntimeException(sprintf(
+                                'Fast-path auto-close requires diff evidence: %s Escalate to standard contract.',
+                                $diff->unavailableReason ?? 'Git diff is unavailable.',
+                            ));
+                        }
+                        $unexpected = $this->unexpectedFastPathTouchedFiles($contract, $diff);
+                        if ($unexpected !== []) {
+                            throw new RuntimeException(sprintf(
+                                'Fast-path scope violated: modified undeclared file(s): %s. Escalate to standard contract.',
+                                implode(', ', $unexpected),
+                            ));
+                        }
+                        $lineCount = 0;
+                        foreach (explode("\n", $diff->patch) as $patchLine) {
+                            if (str_starts_with($patchLine, '+++') || str_starts_with($patchLine, '---')) {
+                                continue;
                             }
-                            $lineCount = 0;
-                            foreach (explode("\n", $diff->patch) as $patchLine) {
-                                if (str_starts_with($patchLine, '+++') || str_starts_with($patchLine, '---')) {
-                                    continue;
-                                }
-                                if (str_starts_with($patchLine, '+') || str_starts_with($patchLine, '-')) {
-                                    ++$lineCount;
-                                }
+                            if (str_starts_with($patchLine, '+') || str_starts_with($patchLine, '-')) {
+                                ++$lineCount;
                             }
-                            if ($lineCount > 60) {
-                                throw new RuntimeException(sprintf(
-                                    'Fast-path line limit exceeded: %d modified lines (limit: 60). Escalate to standard contract.',
-                                    $lineCount,
-                                ));
-                            }
+                        }
+                        if ($lineCount > 60) {
+                            throw new RuntimeException(sprintf(
+                                'Fast-path line limit exceeded: %d modified lines (limit: 60). Escalate to standard contract.',
+                                $lineCount,
+                            ));
                         }
 
                         if ($this->validationComplete($boundary) && $reviewSha256 !== null && !$review['invalid'] && in_array($review['report_status'], ['ok', 'warn'], true)) {

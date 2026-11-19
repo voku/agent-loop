@@ -78,6 +78,39 @@ final class ExecutionContextIsolationTest extends TestCase
         );
     }
 
+    public function testFreshReviewRejectsANonAdjacentMutatingContext(): void
+    {
+        // build -> correctness-review -> blindspot-review (STANDARD shape):
+        // the blind-spot reviewer differs from its direct predecessor but
+        // reuses the builder's context. A fresh review of a mutation must
+        // not be performed by any context that authored it.
+        [$plan, $state] = $this->twoReviewState();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('CONTEXT_REUSE_FORBIDDEN');
+
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $plan->stage('blindspot-review'),
+            $this->stageResult($plan, $state, 'blindspot-review', 'ctx:builder'),
+        );
+    }
+
+    public function testFreshReviewMayFollowANonAdjacentNonMutatingContext(): void
+    {
+        [$plan, $state] = $this->twoReviewState();
+
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $plan->stage('blindspot-review'),
+            $this->stageResult($plan, $state, 'blindspot-review', 'ctx:blindspot'),
+        );
+
+        self::addToAssertionCount(1);
+    }
+
     public function testFreshReviewAcceptsDistinctContext(): void
     {
         [$plan, $state] = $this->reviewState('ctx:builder');
@@ -277,6 +310,55 @@ final class ExecutionContextIsolationTest extends TestCase
         );
 
         return [$plan, $state];
+    }
+
+    /**
+     * @return array{ExecutionPlan, ExecutionState}
+     */
+    private function twoReviewState(): array
+    {
+        $builder = new ExecutionRole('builder', true, []);
+        $correctness = new ExecutionRole('correctness-review', false, []);
+        $blindspot = new ExecutionRole('blindspot-review', false, []);
+        $plan = new ExecutionPlan(
+            'ABC-123',
+            'run:context-isolation',
+            1,
+            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
+            str_repeat('2', 40),
+            ExecutionProfileName::STANDARD,
+            [$builder, $correctness, $blindspot],
+            [
+                new ExecutionStage('build', ExecutionStageKind::AGENT, 'builder', true, [], [StageOutcome::COMPLETED->value => 'correctness-review']),
+                new ExecutionStage('correctness-review', ExecutionStageKind::AGENT, 'correctness-review', false, ['build'], [StageOutcome::PASS->value => 'blindspot-review'], ExecutionContextPolicy::FRESH_REQUIRED),
+                new ExecutionStage('blindspot-review', ExecutionStageKind::AGENT, 'blindspot-review', false, ['correctness-review'], [StageOutcome::PASS->value => null], ExecutionContextPolicy::FRESH_REQUIRED),
+            ],
+            '2026-09-26T00:00:00+00:00',
+        );
+        $candidate = (string) $plan->baseCommit;
+        $build = new StageResult('submission:build', $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(), 'build', 1, StageOutcome::COMPLETED, $candidate, [], [], 'Build complete.', 'ctx:builder');
+        $review = new StageResult('submission:correctness', $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(), 'correctness-review', 1, StageOutcome::PASS, $candidate, [], [], 'Correctness reviewed.', 'ctx:correctness');
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'blindspot-review',
+            1,
+            $candidate,
+            null,
+            [
+                new AcceptedStageResult($build, null, '2026-09-26T00:01:00+00:00'),
+                new AcceptedStageResult($review, null, '2026-09-26T00:02:00+00:00'),
+            ],
+        );
+
+        return [$plan, $state];
+    }
+
+    private function stageResult(ExecutionPlan $plan, ExecutionState $state, string $stageId, string $contextId): StageResult
+    {
+        return new StageResult('submission:' . $stageId, $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(), $stageId, 1, StageOutcome::PASS, $state->candidateRevision, [], [], 'Reviewed.', $contextId);
     }
 
     private function plan(): ExecutionPlan
