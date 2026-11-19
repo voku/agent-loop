@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a99c5147e99d61412ff2ca1eb3afbf9b",
+    "content-hash": "0fda77a2fd81fb82af37e7f0f2500000",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -6249,16 +6249,16 @@
         },
         {
             "name": "voku/phpstan-agent-format",
-            "version": "0.3.1",
+            "version": "0.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/phpstan-agent-format.git",
-                "reference": "441d1ff0c816cbafecbedbf08bfc73ea3d89f650"
+                "reference": "1bc18c8e63f63b34b094b3aa8f1aad4afc3a7c6f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/phpstan-agent-format/zipball/441d1ff0c816cbafecbedbf08bfc73ea3d89f650",
-                "reference": "441d1ff0c816cbafecbedbf08bfc73ea3d89f650",
+                "url": "https://api.github.com/repos/voku/phpstan-agent-format/zipball/1bc18c8e63f63b34b094b3aa8f1aad4afc3a7c6f",
+                "reference": "1bc18c8e63f63b34b094b3aa8f1aad4afc3a7c6f",
                 "shasum": ""
             },
             "require": {
@@ -6293,9 +6293,9 @@
             "description": "PHPStan custom error formatter optimized for coding-agent repair loops.",
             "support": {
                 "issues": "https://github.com/voku/phpstan-agent-format/issues",
-                "source": "https://github.com/voku/phpstan-agent-format/tree/0.3.1"
+                "source": "https://github.com/voku/phpstan-agent-format/tree/0.4.0"
             },
-            "time": "2026-10-14T23:03:43+00:00"
+            "time": "2026-11-19T18:44:18+00:00"
         }
     ],
     "aliases": [],
