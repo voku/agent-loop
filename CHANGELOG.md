@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Development
+
+- The learning-effect runner (`tools/learning-effect/run-arm.sh`) now runs every session under a versioned Bash sandbox (`sandbox-settings.json`): no outbound network for Bash and its children, fail closed when the sandbox is unavailable, no unsandboxed fallback. Before each arm, a probe session must fail to reach github.com, judged only from the Bash tool result; otherwise the arm is refused. The protocol now requires one disposable container per arm, because the Read tool can read the whole disk, including the case clones with the historical repairs.
+
 ## [0.20.99] - 2026-11-19
 
 ### Dependencies
