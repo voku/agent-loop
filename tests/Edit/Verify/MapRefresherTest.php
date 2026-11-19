@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests\Edit\Verify;
 use voku\AgentLoop\ProjectLayout;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\PathResolver;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\Verify\MapRefresher;
@@ -84,6 +85,9 @@ final class MapRefresherTest extends TestCase
         self::assertSame($this->bundleIndex(), $result['index']);
         self::assertFileExists($this->bundleIndex());
         self::assertSame($before, $this->sharedSnapshot());
+        // A refresh that could have read or written either index names both (finding.2026-09-09.3db1d5).
+        self::assertStringContainsString(PathResolver::relativeTo($this->root, $this->sharedIndex()), $result['detail']);
+        self::assertStringContainsString(PathResolver::relativeTo($this->root, $this->bundleIndex()), $result['detail']);
     }
 
     public function testChangedFileIsRefreshedInTheBundleCopyOnly(): void

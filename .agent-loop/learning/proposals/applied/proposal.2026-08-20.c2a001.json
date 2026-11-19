@@ -1,0 +1,106 @@
+{
+    "id": "proposal.2026-08-20.c2a001",
+    "created_at": "2026-08-20T06:05:00+00:00",
+    "action": "ADD",
+    "target_type": "constraint",
+    "source_findings": [
+        "finding.2026-08-19.049f83",
+        "finding.2026-08-19.82221f"
+    ],
+    "reason": "Two independent dogfood runs reproduced the same forbidden lifecycle state: the canonical next action can be a command that cannot advance the blocker it names. The repository has since hardened this with release-set recovery-convergence assertions and a continuous F-GATE. Promote that existing executable enforcement into the reviewed Constraint lineage instead of adding another soft reminder or duplicate test.",
+    "remaining_uncertainty": [
+        "This proposal intentionally adopts existing CI enforcement. The owner-side generation/activation path still has to prove that an already-existing hard constraint can be promoted without generating a duplicate implementation."
+    ],
+    "status": "applied",
+    "proposed_by": "agent-loop-roadmap",
+    "approved_by": "Lars",
+    "approved_at": "2026-08-20T06:43:00+00:00",
+    "scope": [
+        "src/Run/RunPolicyEvaluator.php",
+        "tools/release-set-dogfood.php",
+        ".github/workflows/f-gate-recovery-evidence.yml"
+    ],
+    "scope_justification": "The two source findings directly cover RunPolicyEvaluator. The release-set runner and F-GATE workflow are the current hard enforcement added after those observations; including them is necessary to bind the durable Constraint to the executable guard that now owns the invariant.",
+    "validation": [
+        "composer ci",
+        "php tools/release-set-dogfood.php --workspace=build/constraint-recovery --report=build/constraint-recovery/report.json --keep"
+    ],
+    "constraint": {
+        "rule_id": "workflow.recovery.next-action-must-advance",
+        "engine": "ci",
+        "rule_class_name": "RecoveryConvergenceGate",
+        "target_rule_path": ".github/workflows/f-gate-recovery-evidence.yml",
+        "registration_files": [
+            ".github/workflows/ci.yml"
+        ],
+        "scope": [
+            "src/Run/RunPolicyEvaluator.php",
+            "src/Run/RunManifestProjector.php",
+            "tools/release-set-dogfood.php"
+        ],
+        "violation": "A recovery result advertises a canonical next action that cannot advance or change the blocking state, causing an obedient host to repeat the same state/action indefinitely.",
+        "allowed_boundaries": [
+            "decision_required may remain non-mutating because progress requires explicit judgment rather than a mechanical repair",
+            "host_work may require model work, but it must name the owner/cause/action needed to change the state rather than a read-only diagnostic loop"
+        ],
+        "detectability": "runtime",
+        "false_positive_risk": "low",
+        "validation_commands": [
+            "composer ci",
+            "php tools/release-set-dogfood.php --workspace=build/constraint-recovery --report=build/constraint-recovery/report.json --keep"
+        ],
+        "example_rule_paths": [
+            ".github/workflows/f-gate-recovery-evidence.yml",
+            "tools/release-set-dogfood.php"
+        ]
+    },
+    "applied_by": "voku",
+    "applied_at": "2026-11-19T21:06:23+00:00",
+    "commit": "6c16f6887eda5a97dc1db336ca03cc5c5572f019",
+    "applied_validation": {
+        "generated_files": [
+            "src/Run/RunPolicyEvaluator.php",
+            "src/Run/RunManifestProjector.php",
+            "tools/release-set-dogfood.php",
+            "tools/Dogfood/ComposerPathRepository.php",
+            "tests/ReleaseSetDogfoodFixtureTest.php"
+        ],
+        "registration_file": ".github/workflows/ci.yml",
+        "commit": "6c16f6887eda5a97dc1db336ca03cc5c5572f019",
+        "tests": [
+            {
+                "command": "CI job 'Installed release-set dogfood' (php tools/release-set-dogfood.php --workspace=<tmp> --report=build/release-set-report.json --keep, then the report gate requiring repeated_same_state_commands <= 2)",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487546"
+            },
+            {
+                "command": "CI 'tests (8.3)' composer ci incl. ReleaseSetDogfoodFixtureTest",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487542"
+            },
+            {
+                "command": "CI 'tests (8.4)' composer ci",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487406"
+            },
+            {
+                "command": "CI 'tests (8.5)' composer ci",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44601403991/job/135833487549"
+            }
+        ],
+        "validation_result": {
+            "result": "passed",
+            "summary": "Independent revalidation on 2026-11-19 against main 6c16f6887eda5a97dc1db336ca03cc5c5572f019, not reusing the 2026-08-20 evidence (commit 'working-tree', hashes of files that have since changed). The original registration workflow .github/workflows/f-gate-recovery-evidence.yml was removed as expired in 40b7a64; the rule is now enforced by the 'release-set-dogfood' job in .github/workflows/ci.yml, which runs six recovery scenarios with expected next-action kinds and gates repeated_same_state_commands <= 2. That job and the PHP 8.3-8.5 test matrix passed on this exact commit."
+        },
+        "content_hashes": {
+            "src/Run/RunPolicyEvaluator.php": "sha256:50f247a277b5e40b3707ad913d3bb74ac1fdeafc8f2e9e6b65e3972902e747e9",
+            "src/Run/RunManifestProjector.php": "sha256:08651abe366de6dd7a1e9b391b7b115edabf4196071df3703bd40ace89474f94",
+            "tools/release-set-dogfood.php": "sha256:5e529362bbe4413754ae16aff3c1847b561b238622978dc5b11c4c8ec3b10d0c",
+            "tools/Dogfood/ComposerPathRepository.php": "sha256:2e17d19e311f41134214ac0702c980498763e088dfae6ef426e5557face4b0e0",
+            "tests/ReleaseSetDogfoodFixtureTest.php": "sha256:c4448f3fb4d02e0b1cbb1f739562a84ed2e2dbf0905e1e7db487015dc0509ad2",
+            ".github/workflows/ci.yml": "sha256:e3ded3d28757661aafadc0c2bf4b15ccd81011b36e3f6eeecc3832cd1be3a57e"
+        },
+        "supersedes_validation": ".agent-loop/learning/validation/proposal.2026-08-20.c2a001.json"
+    }
+}

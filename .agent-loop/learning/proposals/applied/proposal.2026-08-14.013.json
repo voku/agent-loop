@@ -41,7 +41,7 @@
         "exit_code": 0,
         "commit": "e05cf7d25261bf629b5ae389418399e9c51c228d",
         "target_source_ref": "MEMORY.md",
-        "target_content_hash": "7a9afab8ec812280ae036e6afd901d6c8d7e0f35bc3439197a547f886926fa0e",
+        "target_content_hash": "738041bca71a6bca806e1033bd2e202393c90f2e8ee2581896e92c0156afaaa6",
         "summary": "481 tests, PHPStan level 8 clean, nine project rule fixtures asserted out of process, context validate and discipline dogfood. composer review:slop reported 0 new findings and php tools/self-shape-dogfood.php governed this diff to PASSED.",
         "evidence": [
             "composer ci",
@@ -49,7 +49,7 @@
             "php tools/self-shape-dogfood.php"
         ],
         "reanchored_by": "voku",
-        "reanchored_at": "2026-10-10T19:33:03+00:00",
-        "reanchor_reason": "Correct three stale validated/ Finding references and two src/Dogfood/ references to their existing consolidated/ and tools/Dogfood/ paths; one directory reference occurs in durable rule text (agent-loop #742, #758)."
+        "reanchored_at": "2026-11-19T21:07:46+00:00",
+        "reanchor_reason": "MEMORY.md canonical homes corrected to the current owners (WorkflowRunPreparer::activeSession(), WorkflowCloseReadinessInspector::checkReviewGate()), found by MemoryCanonicalHomesResolveTest; the durable rules are unchanged."
     }
 }
