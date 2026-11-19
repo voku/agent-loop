@@ -9,6 +9,16 @@
 
 ### Dependencies
 
+- Require `voku/agent-learning ^0.20.1`: the committed Proposal is now the canonical approval record, so `proposal-mark-applied` works from a fresh clone, where `history/` (gitignored here) is absent, and never manufactures an approval. Rejections keep the Proposal's own rationale as `proposal_reason`.
+
+### Learning
+
+- Learning backlog review (decision by voku, recorded by Claude Code). Each of the 50 validated findings was reviewed individually against `main`. 35 are closed: 34 archived because a named test, rule, CI job or owner check now enforces them, or because they are obsolete or out of scope, and `2026-09-14.481001` marked superseded. Each archive reason cites its evidence. Proposal `2026-09-21.11d3a8` (UPDATE_SKILL) is rejected as superseded by #680, which consolidates `ed98de`. The 12 findings that need new checks, cross-owner work or a human decision stay `validated` and are tracked in a GitHub issue.
+- Two lessons are now enforced by tests instead of notes:
+  - `tests/MemoryCanonicalHomesResolveTest.php` requires every `MEMORY.md` canonical home (path, file name, class, `Class::method()`) to resolve (finding `100138`). It found two stale homes, `WorkflowStartCommand` (removed) and `WorkflowCloseCommand::checkReviewGate()` (moved to `WorkflowCloseReadinessInspector`), which are corrected. The two applied `MEMORY.md` guidance proofs are re-anchored with `proposal-reanchor --auto`.
+  - The post-edit map refresh now names the index it read and the index it wrote, pinned in `MapRefresherTest` (finding `3db1d5`).
+- Complete applied-pending Proposal `2026-08-20.c2a001` with `proposal-mark-applied` against its 2026-11-19 revalidation evidence. Its release-set dogfood job and constraint files are unchanged since that evidence's commit, `6c16f68`. The applied record keeps the original approval (Lars, 2026-08-20) and records `voku` as the applier. Source findings `049f83` and `82221f` are consolidated.
+
 - Allow `voku/agent-map ^0.23.0` alongside `^0.22.3` (and lock 0.23.0 with `voku/agent-recall-compiler` 0.29.1 and `voku/agent-edit` 0.6.4, the first releases of those owners that accept it). agent-map 0.23.0 only adds pluggable template dialects, an experimental Smarty evidence API and Smarty/Blade template-reference fixes; Loop uses none of the changed scanner/template APIs directly, and the experimental Smarty API is not consumed.
 
 ### Development
