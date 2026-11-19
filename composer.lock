@@ -4,24 +4,24 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "161d05c41f3d1e60f152c244bcbf6f89",
+    "content-hash": "450a2a52eb5496f6b1ee24f2717dff35",
     "packages": [
         {
             "name": "doctrine/deprecations",
-            "version": "1.1.6",
+            "version": "1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/doctrine/deprecations.git",
-                "reference": "d4fe3e6fd9bb9e72557a19674f44d8ac7db4c6ca"
+                "reference": "d2e16653a734c8784c1851ad68b02f997b53ca82"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/doctrine/deprecations/zipball/d4fe3e6fd9bb9e72557a19674f44d8ac7db4c6ca",
-                "reference": "d4fe3e6fd9bb9e72557a19674f44d8ac7db4c6ca",
+                "url": "https://api.github.com/repos/doctrine/deprecations/zipball/d2e16653a734c8784c1851ad68b02f997b53ca82",
+                "reference": "d2e16653a734c8784c1851ad68b02f997b53ca82",
                 "shasum": ""
             },
             "require": {
-                "php": "^7.1 || ^8.0"
+                "php": "^7.4 || ^8.0"
             },
             "conflict": {
                 "phpunit/phpunit": "<=7.5 || >=14"
@@ -50,9 +50,9 @@
             "homepage": "https://www.doctrine-project.org/",
             "support": {
                 "issues": "https://github.com/doctrine/deprecations/issues",
-                "source": "https://github.com/doctrine/deprecations/tree/1.1.6"
+                "source": "https://github.com/doctrine/deprecations/tree/1.2.0"
             },
-            "time": "2026-02-07T07:09:04+00:00"
+            "time": "2026-11-11T10:04:49+00:00"
         },
         {
             "name": "fidry/cpu-core-counter",
@@ -968,23 +968,23 @@
         },
         {
             "name": "voku/agent-edit",
-            "version": "0.6.2",
+            "version": "0.6.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-edit.git",
-                "reference": "8bc3d88367d21d4b628272f771ceceb3daf34b00"
+                "reference": "aa10e974fb5d79ec6794eb9d514cf4aee32aeef4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-edit/zipball/8bc3d88367d21d4b628272f771ceceb3daf34b00",
-                "reference": "8bc3d88367d21d4b628272f771ceceb3daf34b00",
+                "url": "https://api.github.com/repos/voku/agent-edit/zipball/aa10e974fb5d79ec6794eb9d514cf4aee32aeef4",
+                "reference": "aa10e974fb5d79ec6794eb9d514cf4aee32aeef4",
                 "shasum": ""
             },
             "require": {
                 "helgesverre/toon": "^3.1",
                 "nikic/php-parser": "^5.2",
                 "php": "^8.3",
-                "voku/agent-map": "^0.20.0 || ^0.21.0 || ^0.22.0",
+                "voku/agent-map": "^0.20.0 || ^0.21.0 || ^0.22.0 || ^0.23.0",
                 "voku/simple-php-code-parser": "^0.22.14"
             },
             "require-dev": {
@@ -1026,20 +1026,20 @@
                 "issues": "https://github.com/voku/agent-edit/issues",
                 "source": "https://github.com/voku/agent-edit"
             },
-            "time": "2026-11-05T19:16:46+00:00"
+            "time": "2026-11-19T07:11:19+00:00"
         },
         {
             "name": "voku/agent-graph",
-            "version": "0.3.2",
+            "version": "0.3.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-graph.git",
-                "reference": "3c26e8ffabdbd39ad63560bb9cd4754f38e7e802"
+                "reference": "65e33c736f81154782842798bec65fef8223e2ef"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-graph/zipball/3c26e8ffabdbd39ad63560bb9cd4754f38e7e802",
-                "reference": "3c26e8ffabdbd39ad63560bb9cd4754f38e7e802",
+                "url": "https://api.github.com/repos/voku/agent-graph/zipball/65e33c736f81154782842798bec65fef8223e2ef",
+                "reference": "65e33c736f81154782842798bec65fef8223e2ef",
                 "shasum": ""
             },
             "require": {
@@ -1078,7 +1078,7 @@
                 "issues": "https://github.com/voku/agent-graph/issues",
                 "source": "https://github.com/voku/agent-graph"
             },
-            "time": "2026-10-29T02:42:21+00:00"
+            "time": "2026-11-18T22:31:35+00:00"
         },
         {
             "name": "voku/agent-kanban",
@@ -1217,16 +1217,16 @@
         },
         {
             "name": "voku/agent-map",
-            "version": "0.22.6",
+            "version": "0.23.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-map.git",
-                "reference": "b79b406a7a43515146b575ae37d04b87865e7975"
+                "reference": "c013fe0ddc730a6bf358ade04f111526d327f479"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-map/zipball/b79b406a7a43515146b575ae37d04b87865e7975",
-                "reference": "b79b406a7a43515146b575ae37d04b87865e7975",
+                "url": "https://api.github.com/repos/voku/agent-map/zipball/c013fe0ddc730a6bf358ade04f111526d327f479",
+                "reference": "c013fe0ddc730a6bf358ade04f111526d327f479",
                 "shasum": ""
             },
             "require": {
@@ -1234,7 +1234,7 @@
                 "helgesverre/toon": "^3.1",
                 "nikic/php-parser": "^5.0",
                 "php": "^8.3",
-                "voku/agent-graph": "^0.3.2",
+                "voku/agent-graph": "^0.3.3",
                 "voku/simple-php-code-parser": "^0.22.15",
                 "voku/stop-words": "^2.0"
             },
@@ -1288,25 +1288,25 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-05T09:40:30+00:00"
+            "time": "2026-11-19T06:16:04+00:00"
         },
         {
             "name": "voku/agent-recall-compiler",
-            "version": "0.29.0",
+            "version": "0.29.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-recall-compiler.git",
-                "reference": "f0589db6281c2fb39b4814e64834ac6b2499df4f"
+                "reference": "6c948d104f4cdf99fe1e570554ad5b73c7d025a5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-recall-compiler/zipball/f0589db6281c2fb39b4814e64834ac6b2499df4f",
-                "reference": "f0589db6281c2fb39b4814e64834ac6b2499df4f",
+                "url": "https://api.github.com/repos/voku/agent-recall-compiler/zipball/6c948d104f4cdf99fe1e570554ad5b73c7d025a5",
+                "reference": "6c948d104f4cdf99fe1e570554ad5b73c7d025a5",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.3",
-                "voku/agent-map": "^0.20.0 || ^0.21.0 || ^0.22.0"
+                "voku/agent-map": "^0.20.0 || ^0.21.0 || ^0.22.0 || ^0.23.0"
             },
             "require-dev": {
                 "phpstan/phpstan": "^2.1",
@@ -1355,7 +1355,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-13T19:44:26+00:00"
+            "time": "2026-11-19T20:53:29+00:00"
         },
         {
             "name": "voku/agent-session",
@@ -1800,16 +1800,16 @@
         },
         {
             "name": "webmozart/assert",
-            "version": "2.5.0",
+            "version": "2.5.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/webmozarts/assert.git",
-                "reference": "8a163706bbcac613733dba03f51e13b5eb1bb819"
+                "reference": "e578132c01bd0c64108386ab20d8217cd175ddec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/webmozarts/assert/zipball/8a163706bbcac613733dba03f51e13b5eb1bb819",
-                "reference": "8a163706bbcac613733dba03f51e13b5eb1bb819",
+                "url": "https://api.github.com/repos/webmozarts/assert/zipball/e578132c01bd0c64108386ab20d8217cd175ddec",
+                "reference": "e578132c01bd0c64108386ab20d8217cd175ddec",
                 "shasum": ""
             },
             "require": {
@@ -1860,9 +1860,9 @@
             ],
             "support": {
                 "issues": "https://github.com/webmozarts/assert/issues",
-                "source": "https://github.com/webmozarts/assert/tree/2.5.0"
+                "source": "https://github.com/webmozarts/assert/tree/2.5.1"
             },
-            "time": "2026-10-05T23:14:19+00:00"
+            "time": "2026-11-15T13:41:13+00:00"
         }
     ],
     "packages-dev": [

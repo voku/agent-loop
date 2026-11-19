@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Dependencies
+
+- Allow `voku/agent-map ^0.23.0` alongside `^0.22.3` (and lock 0.23.0 with `voku/agent-recall-compiler` 0.29.1 and `voku/agent-edit` 0.6.4, the first releases of those owners that accept it). agent-map 0.23.0 only adds pluggable template dialects, an experimental Smarty evidence API and Smarty/Blade template-reference fixes; Loop uses none of the changed scanner/template APIs directly, and the experimental Smarty API is not consumed.
+
 ### Development
 
 - Prepare the pipefail learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-pipefail.md`): does the same governed agent repeat a known mistake less often with the learned precedent (LearningNote `54b941`) than without it? `tools/learning-effect/` builds isolated A (native), B (governed, no precedent) and C (governed, with precedent) starting states from three real sibling-repository baselines that repeated the mistake, runs one arm headless and grades it against the hidden historical oracle. The CI calibration workflow proves the oracle separates baseline from repair and that B and C differ only by the precedent. No model run yet; dev-only, outside production autoload.
