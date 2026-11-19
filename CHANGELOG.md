@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Tests
+
+- Codex runtime proof: assert that the managed project-instruction router reaches an ordinary `codex exec` provider request exactly once without explicit skill selection (baseline without `AGENTS.md`: zero), against a local Responses-compatible mock provider. This is transport evidence only; it proves no model compliance, lifecycle behavior or token savings (#875, refresh of #877).
+
 ### Fixed
 
 - Fast-path `finish` fails closed when the Git diff evidence is unavailable (no Contract base commit, base commit missing from the checkout, or Git unable to derive the diff). Previously the undeclared-file and 60-line ceilings were silently skipped and the micro-task still auto-acknowledged its review and auto-closed its Learning decision, so an out-of-scope change could close unchecked. It now refuses with `Fast-path auto-close requires diff evidence: <reason> Escalate to standard contract.`
