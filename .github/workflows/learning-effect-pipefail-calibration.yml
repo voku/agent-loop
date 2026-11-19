@@ -55,10 +55,8 @@ jobs:
         shell: bash
         env:
           CASE_ID: ${{ matrix.case_id }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          composer config --global github-oauth.github.com "$GITHUB_TOKEN"
           kit=tools/learning-effect
           source="$PWD/build/case-source"
           work="$RUNNER_TEMP/learning-effect"
