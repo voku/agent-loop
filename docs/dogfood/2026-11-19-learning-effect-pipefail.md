@@ -36,6 +36,7 @@ B and C carry the same unrelated notes, so Recall must *select* the precedent am
 - The task text ([`task.md`](../../tools/learning-effect/task.md)) is identical in every arm and describes only the observed symptom: the error message and the fact that the section exists. It does not mention pipes, pipefail, SIGPIPE, buffers or the fix.
 - B's learning store must contain nothing matching `cases.json` `leak_pattern`, and C's only the two precedent files. `prepare.py` fails closed otherwise. Governance assets that mention the terms generically (for example the investigate skill's "preserve `set -o pipefail`") are identical in B and C and are recorded in the manifest.
 - The hidden oracle lives only in the case source clone outside the workspace. It is injected under a different class name into a copy of the final tree.
+- Grading executes candidate-written code (the workflow script under the oracle and the agent's own tests). Grade only in a disposable environment such as CI, never on a workstation holding credentials.
 - `run-arm.sh` disables WebFetch/WebSearch. The repositories are public, so a run with network-capable shell access could still look upstream; the transcript is checked for it.
 
 ## Frozen envelope per run
