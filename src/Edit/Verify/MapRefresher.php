@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit\Verify;
 
 use Throwable;
+use voku\AgentLoop\PathResolver;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentMap\Prepare\MapPreparationRequest;
 use voku\AgentMap\Prepare\MapPreparationService;
@@ -71,7 +72,12 @@ final readonly class MapRefresher
                 $stale[] = $entry['path'];
             }
 
-            return ['available' => true, 'index' => $index, 'stale' => $stale, 'detail' => 'Post-edit map refreshed by agent-map into the bundle.'];
+            // Name the index read and the index written: a refresh that could have acted on either says which.
+            return ['available' => true, 'index' => $index, 'stale' => $stale, 'detail' => sprintf(
+                'Post-edit map refreshed by agent-map from %s into %s.',
+                PathResolver::relativeTo($projectRoot, $source),
+                PathResolver::relativeTo($projectRoot, $index),
+            )];
         } catch (Throwable $exception) {
             return ['available' => false, 'index' => null, 'stale' => [], 'detail' => 'Post-edit map refresh failed: ' . $exception->getMessage()];
         }
