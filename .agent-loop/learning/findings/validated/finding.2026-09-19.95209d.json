@@ -26,5 +26,12 @@
     "confidence": "high",
     "validation_status": "validated",
     "status": "validated",
-    "sensitivity": "internal"
+    "sensitivity": "internal",
+    "classification": "ADD_LEARNING_NOTE",
+    "pattern_key": "shell.pipefail.capture.before.predicate",
+    "validation_case": {
+        "given": "a Bash script running with pipefail that checks content emitted by a potentially large command",
+        "when": "the check pipes the producer into a predicate that exits immediately after a match",
+        "then": "the check can fail on producer SIGPIPE even though the required content exists, so the producer output is captured and inspected without that early-exit pipeline"
+    }
 }

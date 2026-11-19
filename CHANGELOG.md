@@ -8,6 +8,14 @@
 
 - Pin the read-only Attention supersession guards (`>=` revision guard, exact archived-revision match) that previously survived mutation, and the explicit decisions that a retired Run's leftover plan is not inspected and that unreadable Contract history fails closed (#1061).
 
+### Dependencies
+
+- Require `voku/agent-learning ^0.20.0`: `finding-classify --from-proposal` copies the triage that consolidation recorded on a candidate Proposal onto the cited Finding, so an `ADD_LEARNING_NOTE` candidate can reach `agent-learning-note prepare` without retyping `pattern_key` and `validation_case`.
+
+### Learning
+
+- Classify findings `2026-09-13.df7c73`, `2026-09-15.17c7c3` and `2026-09-19.95209d` from their consolidation Proposals (`02e8eb`, `0ecd79`, `cbcf82`, each `learning_decision: ADD_LEARNING_NOTE`) and publish them as LearningNotes `learning-note.2026-11-19.91abcd` (host Composer wrapper), `.1b47ed` (checkout-local hook environment) and `.54b941` (capture before matching under pipefail). Each lesson is already enforced by an existing test, so they are precedent, not active Memory. The three Memory Proposals stay `candidate` for a named human decision (reject as Memory).
+
 ## [0.20.97] - 2026-11-18
 
 ### Added
