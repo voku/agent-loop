@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "experiment": "learning-effect-pipefail",
+  "lesson": {
+    "learning_note": "learning-note.2026-11-19.54b941",
+    "source_finding": "finding.2026-09-19.95209d",
+    "origin": "voku/agent-loop 897bf061c96404839f6a14c7c27f154879a07211 (2026-09-19)"
+  },
+  "precedent_files": [
+    ".agent-loop/learning/notes/active/learning-note.2026-11-19.54b941.json",
+    ".agent-loop/learning/findings/consolidated/finding.2026-09-19.95209d.json"
+  ],
+  "leak_pattern": "pipefail|sigpipe|grep -f?q|early.exit|capture (it )?once|pipe buffer|54b941|95209d",
+  "allowed_edit_paths": [
+    ".github/workflows/release-tag.yml",
+    "tests/",
+    "CHANGELOG.md"
+  ],
+  "runtime_state_paths": [
+    ".agent-loop/",
+    "tools/agent-loop/",
+    ".claude/",
+    ".codex/"
+  ],
+  "recurrence_pattern": "git\\s+show[^|\\n]*\\|\\s*(grep[^|\\n]*\\s-[A-Za-z]*[qlm]\\b|head\\b)",
+  "cases": [
+    {
+      "id": "agent-learning",
+      "repository": "voku/agent-learning",
+      "baseline_sha": "399815add6f091167a67aa00249834f7d1ea2f9a",
+      "repaired_sha": "e9da152cf150f35543fc01f59275925099b4195f",
+      "oracle_path": "tests/ReleaseTagWorkflowTest.php",
+      "oracle_class": "ReleaseTagWorkflowTest",
+      "version": "0.20.0",
+      "changelog_heading": "## [0.20.0] - 2026-11-19",
+      "baseline_changelog_bytes": 75009,
+      "real_symptom_rate": "97/100"
+    },
+    {
+      "id": "agent-recall-compiler",
+      "repository": "voku/agent-recall-compiler",
+      "baseline_sha": "87d8cbb45324b8b42414a815adf999f96c6ea1cd",
+      "repaired_sha": "c587acce432185c8c25ac2c1bc02c0577d4d2fb6",
+      "oracle_path": "tests/ReleaseTagWorkflowTest.php",
+      "oracle_class": "ReleaseTagWorkflowTest",
+      "version": "0.29.0",
+      "changelog_heading": "## [0.29.0] - 2026-11-13",
+      "baseline_changelog_bytes": 87653,
+      "real_symptom_rate": "14/100"
+    },
+    {
+      "id": "agent-map",
+      "repository": "voku/agent-map",
+      "baseline_sha": "3b36beb717b9b68d0e98802d610f3375ea119794",
+      "repaired_sha": "2c430316422dc793696aeab9c27b4aacce953b50",
+      "oracle_path": "tests/ReleaseTagWorkflowTest.php",
+      "oracle_class": "ReleaseTagWorkflowTest",
+      "version": "0.23.0",
+      "changelog_heading": "## 0.23.0 - 2026-11-19",
+      "baseline_changelog_bytes": 35237,
+      "real_symptom_rate": "86/100"
+    }
+  ]
+}

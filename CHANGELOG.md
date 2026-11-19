@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Development
+
+- Prepare the pipefail learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-pipefail.md`): does the same governed agent repeat a known mistake less often with the learned precedent (LearningNote `54b941`) than without it? `tools/learning-effect/` builds isolated A (native), B (governed, no precedent) and C (governed, with precedent) starting states from three real sibling-repository baselines that repeated the mistake, runs one arm headless and grades it against the hidden historical oracle. The CI calibration workflow proves the oracle separates baseline from repair and that B and C differ only by the precedent. No model run yet; dev-only, outside production autoload.
+
 ## [0.20.98] - 2026-11-19
 
 ### Added
