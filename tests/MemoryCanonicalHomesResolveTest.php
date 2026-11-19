@@ -73,12 +73,7 @@ final class MemoryCanonicalHomesResolveTest extends TestCase
             }
             $cells = array_map(trim(...), explode('|', trim(trim($line), '|')));
             if ($column === null) {
-                foreach (self::HOME_COLUMNS as $header) {
-                    $index = array_search($header, $cells, true);
-                    if (is_int($index)) {
-                        $column = $index;
-                    }
-                }
+                $column = self::homeColumn($cells);
                 continue;
             }
             $cell = $cells[$column] ?? '';
@@ -88,6 +83,23 @@ final class MemoryCanonicalHomesResolveTest extends TestCase
         }
 
         return array_values(array_unique($homes));
+    }
+
+    /**
+     * The index of the canonical-home column in a table header row, or null for any other row.
+     *
+     * @param list<string> $cells
+     */
+    private static function homeColumn(array $cells): ?int
+    {
+        foreach (self::HOME_COLUMNS as $header) {
+            $index = array_search($header, $cells, true);
+            if (is_int($index)) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -105,23 +117,41 @@ final class MemoryCanonicalHomesResolveTest extends TestCase
             return isset($files[$home]) ? null : 'no file with this name';
         }
         if (preg_match('/^(?<class>[A-Z]\w*)(?:::(?<method>\w+)\(\))?$/', $home, $match) === 1) {
-            $candidates = $files[$match['class'] . '.php'] ?? [];
-            if ($candidates === []) {
-                return 'no ' . $match['class'] . '.php';
-            }
-            if (!isset($match['method'])) {
-                return null;
-            }
-            foreach ($candidates as $candidate) {
-                if (preg_match('/function\s+' . preg_quote($match['method'], '/') . '\s*\(/', (string)file_get_contents($root . '/' . $candidate)) === 1) {
-                    return null;
-                }
-            }
-
-            return 'method ' . $match['method'] . '() is not declared in ' . $match['class'] . '.php';
+            return self::unresolvedSymbol($match['class'], $match['method'] ?? null, $root, $files);
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, list<string>> $files
+     */
+    private static function unresolvedSymbol(string $class, ?string $method, string $root, array $files): ?string
+    {
+        $candidates = $files[$class . '.php'] ?? [];
+        if ($candidates === []) {
+            return 'no ' . $class . '.php';
+        }
+        if ($method === null || self::declaresMethod($candidates, $method, $root)) {
+            return null;
+        }
+
+        return 'method ' . $method . '() is not declared in ' . $class . '.php';
+    }
+
+    /**
+     * @param list<string> $candidates
+     */
+    private static function declaresMethod(array $candidates, string $method, string $root): bool
+    {
+        $declaration = '/function\s+' . preg_quote($method, '/') . '\s*\(/';
+        foreach ($candidates as $candidate) {
+            if (preg_match($declaration, (string)file_get_contents($root . '/' . $candidate)) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
