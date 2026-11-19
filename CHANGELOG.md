@@ -1,3 +1,13 @@
+## [0.20.98] - 2026-11-19
+
+### Added
+
+- Typed read-only `ExecutionGateway::observeCurrentExecutionBinding(string $taskId): ?ExecutionBinding` (`runId`, `contractRevision`, `executionPlanDigest`) so observers such as `voku/agent-ui` can tell whether a Runner journal attempt belongs to the current governed execution without rebuilding Loop's binding rules. It never prepares or persists a plan or state. No approved Contract, no Run, a retired Run or an unprepared plan observe `null`; a corrupt artifact or a plan bound to another Run throws and must be shown as unavailable. The plan binding check is shared with `observePendingAttention()` (#1062, #1063).
+
+### Tests
+
+- Pin the read-only Attention supersession guards (`>=` revision guard, exact archived-revision match) that previously survived mutation, and the explicit decisions that a retired Run's leftover plan is not inspected and that unreadable Contract history fails closed (#1061).
+
 ## [0.20.97] - 2026-11-18
 
 ### Added
