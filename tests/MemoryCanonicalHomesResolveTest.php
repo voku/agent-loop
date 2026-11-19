@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use SplFileInfo;
 
 /**
  * MEMORY.md is an index into executable truth: each row names the canonical home that
@@ -160,13 +162,13 @@ final class MemoryCanonicalHomesResolveTest extends TestCase
     private static function repositoryFiles(string $root): array
     {
         $files = [];
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS));
-        foreach ($iterator as $file) {
-            $relative = substr($file->getPathname(), strlen($root) + 1);
-            if (preg_match('#^(vendor|\.git|var|build|tools/[^/]+/vendor)/#', $relative) === 1) {
-                continue;
-            }
-            $files[$file->getFilename()][] = $relative;
+        // Prune excluded trees before descending into them, so vendor/ and .git/ are never walked.
+        $directories = new RecursiveCallbackFilterIterator(
+            new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
+            static fn (SplFileInfo $file): bool => preg_match('#^(vendor|\.git|var|build|tools/[^/]+/vendor)$#', substr($file->getPathname(), strlen($root) + 1)) !== 1,
+        );
+        foreach (new RecursiveIteratorIterator($directories) as $file) {
+            $files[$file->getFilename()][] = substr($file->getPathname(), strlen($root) + 1);
         }
 
         return $files;
