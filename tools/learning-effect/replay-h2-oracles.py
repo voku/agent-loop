@@ -106,8 +106,7 @@ def replay_h2a(base: Path, fixed: Path, evidence: Path) -> dict[str, Any]:
 
 
 def replay_h2b(base: Path, fixed: Path, evidence: Path) -> dict[str, Any]:
-    outcomes: dict[str, Any] = {}
-    for name, tree in (("baseline", base), ("repair", fixed)):
+    def analyse(name: str, tree: Path) -> dict[str, Any]:
         result = run(
             [
                 str(tree / "vendor/bin/phpstan"),
@@ -122,21 +121,41 @@ def replay_h2b(base: Path, fixed: Path, evidence: Path) -> dict[str, Any]:
         )
         lines = (result.stdout + "\n" + result.stderr).splitlines()
         diagnostic_lines = [line for line in lines if DIAGNOSTIC in line]
-        outcomes[name] = {
+        return {
             "exit_code": result.returncode,
             "in_process_diagnostic_count": len(diagnostic_lines),
             "matched_paths": sorted(set(line.split(":", 1)[0] for line in diagnostic_lines)),
         }
 
+    baseline = analyse("baseline", base)
+    repair = analyse("repair", fixed)
+
+    # Negative control: the tempting "add TypeInferenceTestCase to the
+    # direct-parent deny-list" fix detects the direct and abstract cases but
+    # still misses the indirect child. Verify that the oracle rejects it.
+    rule_path = base / "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php"
+    original = rule_path.read_text(encoding="utf-8")
+    needle = "$scope->resolveName($node->extends) !== self::RULE_TEST_CASE"
+    replacement = (
+        "(" + needle
+        + r" && $scope->resolveName($node->extends) !== 'PHPStan\\Testing\\TypeInferenceTestCase')"
+    )
+    if original.count(needle) != 1:
+        raise RuntimeError("Historical negative-control mutation target not unique")
+    rule_path.write_text(original.replace(needle, replacement), encoding="utf-8")
+    wrong_fix = analyse("direct-parent-denylist-negative-control", base)
+
+    outcomes = {
+        "baseline": baseline,
+        "repair": repair,
+        "plausible_wrong_fix": wrong_fix,
+    }
     return {
-        "passed": outcomes["baseline"]["in_process_diagnostic_count"] == 2
-        and outcomes["repair"]["in_process_diagnostic_count"] == 5
-        and any(
-            H2B_FIXTURE in path for path in outcomes["repair"]["matched_paths"]
-        )
-        and not any(
-            H2B_FIXTURE in path for path in outcomes["baseline"]["matched_paths"]
-        ),
+        "passed": baseline["in_process_diagnostic_count"] == 2
+        and repair["in_process_diagnostic_count"] == 5
+        and wrong_fix["in_process_diagnostic_count"] == 4
+        and any(H2B_FIXTURE in path for path in repair["matched_paths"])
+        and not any(H2B_FIXTURE in path for path in baseline["matched_paths"]),
         "outcomes": outcomes,
     }
 
