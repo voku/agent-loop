@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [0.20.103] - 2026-11-20
+
+### Changed
+
+- The discipline hook no longer denies `grep` and `find`, avoiding unnecessary retries for standard search commands. `git grep` remains available; map-dump and in-place `sed` guardrails remain unchanged (#1108).
+
 ## [0.20.102] - 2026-11-20
 
 ### Dependencies
