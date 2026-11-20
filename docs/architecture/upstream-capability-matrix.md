@@ -117,6 +117,18 @@ judge was also corrected to score what the agent actually delivered
 persona/intensity state and the existing experiment-provenance boundary; they do
 not justify importing Ponytail mode state into Loop.
 
+Recheck at current head `96608e078b2d5ea607c5c3b8b5a54d1c1fba6846` (2026-11-20). The six commits since `09c434ab` are status-band fixes (#1242, #1291, #1302, #1305), the v5.3.3 release and README entries. The band stays `REJECT` and no other row changes.
+
+This recheck also adds first-party behaviour evidence for the `ADAPT` row that `coding-simplicity` owns. See the H2b pilot in [`../dogfood/2026-11-20-learning-effect-h2-screening.md`](../dogfood/2026-11-20-learning-effect-h2-screening.md).
+- **Setup:** three governed runs without the skill and three with the pinned skill (`c9e3b296`), on one task.
+- **Correctness:** identical on what was measured, the hidden oracle plus a `LevelsTestCase` probe. The oracle alone missed the screening run's false positive, so that probe was added.
+- **Speculative surface:**
+  - The runs without the skill added detection or naming surface the task did not need in 2 of 3 pilot runs.
+  - The earlier screening run had the same habit. Its namespace-wide match wrongly rejects out-of-process `LevelsTestCase` subclasses.
+  - All three runs with the skill chose the minimal design and read the skill.
+  - The false positive itself did not recur in any pilot run.
+- **Scope of the evidence:** this is a small signal (n=3 per arm, one task, one model) that supports keeping the `ADAPT` decision. It is not a measured correctness gain.
+
 
 | Upstream mechanism | Decision | First-party equivalent / enforcement |
 | --- | --- | --- |
@@ -132,7 +144,7 @@ not justify importing Ponytail mode state into Loop.
 | Diff-only over-engineering review | `ALREADY` | `agent-loop-simplify-review` is a thin workflow overlay around first-party `code-review-simplicity`. |
 | Repository-wide over-engineering audit | `ALREADY` | `agent-loop-simplify-audit` is a bounded navigation/evidence wrapper around `code-review-simplicity`. |
 | Cross-repository shortcut/debt ledger | `DEFER` | The concept is useful, but `agent-session` does not yet expose a typed cross-session decision query. `agent-loop` will not grep focused-package internals to fake one. |
-| Benchmark/gain scoreboard | `DEFER` | Upstream numbers are not evidence for our adaptation. A first-party benchmark should compare baseline, full Ponytail, the seven-word arm, and progressively shorter complete-rule instructions on safety, completeness, and implementation surface before claiming behavioral equivalence. |
+| Benchmark/gain scoreboard | `DEFER` | Upstream numbers are not evidence for our adaptation. A first-party benchmark should compare baseline, full Ponytail, the seven-word arm, and progressively shorter complete-rule instructions on safety, completeness, and implementation surface before claiming behavioral equivalence. Screen before running it: in eight governed runs without the skill (holdouts H1 and H2), production code stayed close to the historical fix in 7 of 8, so a broad benchmark would mostly measure a ceiling. Run it only on tasks with demonstrated avoidable surface, as the 2026-11-20 H2b pilot did. |
 | Session/subagent reinjection of Ponytail coding behavior | `REJECT` | Coding minimization is task-specific engineering guidance. SessionStart/SubagentStart carry workflow/navigation/evidence bootstrap only; load `coding-simplicity` when coding work needs it. |
 | Multi-host adapters around one behavior source | `ALREADY` | `agent-loop` can project canonical local first-party skills into supported host roots without copying their semantics into the workflow package. |
 | User-selectable persistent intensity/mode tracking | `REJECT` | Engineering semantics are selected by task context, not a hidden persona/intensity flag. |
