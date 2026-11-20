@@ -554,7 +554,6 @@ final class AgentDisciplineHookTest extends TestCase
     /** @return iterable<string, array{string, string}> */
     public static function discouragedShellToolProvider(): iterable
     {
-        yield 'find' => ['find modules -name "*.php"', 'Use rg for literal or file discovery.'];
         yield 'sed in-place short option' => ['sed -i "s/old/new/" src/Foo.php', 'Use agent-loop edit'];
         yield 'sed in-place long option' => ['sed --in-place=".bak" "s/old/new/" src/Foo.php', 'Use agent-loop edit'];
     }
@@ -571,9 +570,6 @@ final class AgentDisciplineHookTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function chainedDiscouragedToolProvider(): iterable
     {
-        yield 'after semicolon' => ['cd src; find . -name "*.php"'];
-        yield 'quoted argument before the real call' => ['echo "ok" && find . -name "*.php"'];
-        yield 'backtick command substitution' => ['echo "`find src -name Foo.php`"'];
         yield 'sed inside command substitution' => ['echo "$(sed -i s/old/new/ src/Foo.php)"'];
     }
 
@@ -601,9 +597,9 @@ final class AgentDisciplineHookTest extends TestCase
         $this->assertPassThrough($command);
     }
 
-    public function testGrepSearchesAreAllowed(): void
+    public function testStandardSearchCommandsAreAllowed(): void
     {
-        foreach (['grep -R needle src', 'git grep needle', 'git ls-files | grep Foo', 'echo "$(grep pattern file)"'] as $command) {
+        foreach (['grep -R needle src', 'git grep needle', 'git ls-files | grep Foo', 'echo "$(grep pattern file)"', 'find modules -name "*.php"', 'cd src; find . -name "*.php"', 'echo "`find src -name Foo.php`"'] as $command) {
             $this->assertPassThrough($command);
         }
     }
