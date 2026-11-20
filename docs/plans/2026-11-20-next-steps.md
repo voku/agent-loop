@@ -18,7 +18,7 @@ This section is the only ordering. The T-sections below hold the details. Work i
 ### Why this order
 
 1. **Close what is in flight before starting new work.** #1115 already holds two validated candidates.
-2. **Measure before building.** T10 observes real Recall/Map use before any DX change. The decision-card feature #1114 also comes *after* the T10 runs, because those runs produce the approval friction it should fix.
+2. **Measure before building.** T10 observes real Recall/Map use before any DX change. **Exception, owner decision 2026-11-20:** the decision card (#1114, now R3b) comes right after #1115. The owner rejected two approval questions as unreadable in one session, and every later step needs approvals.
 3. **The protocol before comparisons.** T5 must exist before any A/B (T10 step 2) or holdout (T6).
 4. **Deadlines are fixed points.** T7 must finish before 2026-12-10, whatever else is running.
 
@@ -26,18 +26,18 @@ This section is the only ordering. The T-sections below hold the details. Work i
 
 | # | Step | Task id | Depends on | Stops for the owner at | Done when |
 | --- | --- | --- | --- | --- | --- |
-| **R1** | Add a **negative fixture** to the in-process rule: a plain PHPUnit `TestCase` must stay unflagged. This closes the gap named in `9b62ae`'s `remaining_uncertainty` before that spec is approved | `RULE-NEG-FIXTURE` | – | Contract approval. Scope: `tests/PHPStan/data/`, `tools/Dogfood/ProjectRuleFixtureCheck.php` | `php tools/project-phpstan-rules.php` passes **and** the fixture is shown to fail when the rule over-matches (temporary mutation, not committed); PR merged |
-| **R2** | Owner reviews #1115's candidates | – | R1 (for `9b62ae`) | `proposal-approve` / reject for `4b7e8f` and `9b62ae` | both decided |
+| ~~R1~~ | ~~Negative fixture for the in-process rule~~ **Skipped by the owner (2026-11-20).** `9b62ae` is reviewed with its stated uncertainty (no negative fixture) | ~~`RULE-NEG-FIXTURE`~~ rejected rev 1 | – | – | – |
+| **R2** | Owner reviews #1115's candidates | – | – | `proposal-approve` / reject for `4b7e8f` and `9b62ae` | both decided |
 | **R3** | Apply the approved candidates: write the row verbatim, commit, `proposal-reanchor MEMORY.md` (proofs 007, 013), `proposal-mark-applied`; for the constraint: `mark-applied` → `constraint-activate --overwrite` (absolute `--project-root`) → `proposal-retire 2acd04 --superseded-by` | `LEARN-INPROC-APPLY` | R2 | Contract approval (scope `MEMORY.md`); merge of #1115 | `validate` and `composer ci` pass on the exact head; #1115 merged; Recall compile for a rule-file task shows only the new boundary |
+| **R3b** | #1114: typed `human_decision.card` (scope-expansion cards, compact/markdown/html per host session), shape: What / Why / Changes / Risk / Recommendation, ids last (see the #1114 comments on two live misses). Also answers D2 for decisions | `FEAT-DECISION-CARD` | R3 | Contract approval | merged and released; three formats proven identical in subject, digest and choices |
 | **R4** | **Owner decision batch** (one card, answered together): D1, D3, D4, D5 (December experiment budget, which T10/T6 runs spend) | – | – (any time before R6) | all four | answers recorded in this plan |
 | **R5** | T5 protocol doc: experiments, oracles calibrated with a plausible wrong fix and negative fixtures, leakage, approvals, and provided ≠ received ≠ used ≠ useful | `DOC-EXP-PROTOCOL` | – | Contract approval | merged; README links it |
-| **R6** | T10 step 1a: observe the **small** task `c2f7eb` (`@putenv` shape test). It also tests the observation setup | `OBS-C2F7EB` | R3, R4 (budget) | the sub-agent's real Contract | PR merged or closed with a reason; observation row recorded |
+| **R6** | T10 step 1a: observe the **small** task `c2f7eb` (`@putenv` shape test). It also tests the observation setup | `OBS-C2F7EB` | R3b, R4 (budget) | the sub-agent's real Contract | PR merged or closed with a reason; observation row recorded |
 | **R7** | T10 step 1b: observe the **Learning-relevant** task `5e1f07` (untested "Multiple active Sessions" refusal) | `OBS-5E1F07` | R6 | its Contract | same as R6 |
 | **R8** | T10 step 1c: observe the **multi-file** task `a958dd` (hand-built owner-artifact file names) | `OBS-A958DD` | R7 | its Contract (probably owner-first: a typed path API in the owning package) | same as R6 |
 | **R9** | Write the T10 record: provided / received / used / useful per task, and the step-2 decision (A/B or none) | `DOC-T10-RECORD` | R6–R8 | Contract approval | merged |
 | **R10** | Only if R9 names an anomaly: one A/B on a calibrated historical task | `EXP-T10-AB` | R5, R9 | experiment protocol approval | result recorded, including null |
 | **R11** | At most one DX fix in the owner R9/R10 names. Candidates: Map help or output, Recall output or budget, the `constraint-activate` relative `--project-root` bug (agent-learning, seen 2026-11-20) | owner repo | R9 (or R10) | Contract; owner release | released, bumped in Loop, `composer ci` green |
-| **R12** | #1114: typed `human_decision.card` (scope-expansion cards, compact/markdown/html per host session), designed from the approval friction recorded in R6–R9. Also answers D2 for decisions | `FEAT-DECISION-CARD` | R9 | Contract approval | merged and released; three formats proven identical in subject, digest and choices |
 | **R13** | T6 next holdout for #457. Candidates come from lessons recorded in R3/R6–R8; screen arm B first | `EXP-HOLDOUT-3` | R5, R10/R11 | experiment protocol approval | recorded |
 | **R14** | T8 design only, then T9 housekeeping | – | – | – | – |
 
