@@ -147,7 +147,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         file_put_contents($this->root . '/src/Source.php', "<?php\nnamespace Demo;\ninterface Source { public function amount(): int; }\n");
         file_put_contents($this->root . '/src/Fixed.php', "<?php\nnamespace Demo;\nfinal class Fixed implements Source { public function amount(): int { return 1; } }\n");
         file_put_contents($this->root . '/src/Coupon.php', "<?php\nnamespace Demo;\nfinal class Coupon { public function amount(): int { return 2; } }\n");
-        file_put_contents($this->root . '/src/Total.php', "<?php\nnamespace Demo;\nfinal class Total { public function sum(Source \$source, Fixed \$fixed, Coupon \$coupon): int { return \$source->amount() + \$fixed->amount() + \$coupon->amount(); } }\n");
+        file_put_contents($this->root . '/src/Total.php', "<?php\nnamespace Demo;\nfinal class Total { public function sum(Source \$source, Fixed \$fixed, Coupon \$coupon): int {\n        return \$source->amount()\n            + \$fixed->amount()\n            + \$coupon->amount();\n    } }\n");
 
         $map = CachedAgentMapBuilder::build($this->root, ['src'], []);
         $mapIndex = $this->root . '/map.json';
@@ -171,7 +171,10 @@ final class MethodRenameEditRunnerTest extends TestCase
         self::assertSame(0, $result->exitCode, $result->stdout . $result->stderr);
         self::assertStringContainsString('public function total(): int;', (string) file_get_contents($this->root . '/src/Source.php'));
         self::assertStringContainsString('public function total(): int { return 1; }', (string) file_get_contents($this->root . '/src/Fixed.php'));
-        self::assertStringContainsString('$source->total() + $fixed->total() + $coupon->amount()', (string) file_get_contents($this->root . '/src/Total.php'));
+        $total = (string) file_get_contents($this->root . '/src/Total.php');
+        self::assertStringContainsString('$source->total()', $total);
+        self::assertStringContainsString('$fixed->total()', $total);
+        self::assertStringContainsString('$coupon->amount()', $total, 'a call to the unrelated same-named method must stay');
         self::assertStringContainsString('public function amount(): int { return 2; }', (string) file_get_contents($this->root . '/src/Coupon.php'), 'an unrelated same-named method must stay');
     }
 
