@@ -11,6 +11,7 @@
 
 ### Development
 
+- Learning-effect holdout H1 (`docs/dogfood/2026-11-20-learning-effect-holdout-h1.md` and its `.results.jsonl` ledger). PR #612's task was replayed with the system-written note `a5fcbe`. Every agent's own tests caught an override-branch mutant (B 3/3, C′ 3/3), so the result is a ceiling, not a learning effect. Two findings: with its real scope, the note is not selected for this task, because it is scoped to the incident's files, not the decision's home; and the backport missed `workflow plan --format=json`, so 2 of 3 C′ runs never saw the precedent before approval.
 - Round 3 of the learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-round2.md`). The same C1 task was rerun with the precedent projection from this change, backported into the baseline. All three governed agents read the precedent during planning and revised their Contract to sibling bundles. The fix was correct 3/3 on the historical tests with realistic bundle fixtures (2/3 with the exact message relaxed, 0/3 strict on message wording), against 0/6 for the runs without a visible precedent.
 
 ## [0.20.100] - 2026-11-19
