@@ -16,7 +16,7 @@ Roadmap context: voku/agent-loop#901. Learning thesis: voku/agent-loop#457 (stay
 | agent-map | research PRs #165, #174, #178, #179, #187 closed with evidence records |
 | agent-loop#1030 | **blocked** draft; reopen needs criterion 0 (need), then five security boundaries ([comment](https://github.com/voku/agent-loop/pull/1030#issuecomment-7048800098)) |
 | Learning effect | positive only for C1 (non-derivable fact, operator-written note): 0/6 → 3/3. Ceilings: H1, H2a, H2b, pipefail, worktree-hook |
-| Ponytail | already adapted as `voku/agent-skills` `coding-simplicity` (pin `c9e3b296`). Pilot: leaner production code with the skill, identical measured correctness |
+| Ponytail | already adapted as `voku/agent-skills` `coding-simplicity` (pilot pin `c9e3b296`; CI pin moved to `2d90a9d2` by T4). Pilot: leaner production code with the skill, identical measured correctness |
 | Skill activation | P-N1 (explicit-root projection plus routing, no pointer): **NOT_LOADED**. The catalog-listing case is untested; see T0 |
 
 Key records:
@@ -142,7 +142,7 @@ Key records:
 - **The constraint specification inside an applied proposal is immutable.** Do not edit it. In the report, state that a separate REPLACE proposal for the constraint (or retirement plus a new constraint) is needed, and let the owner choose.
 - **Done when:** the candidate proposal validates and the decision is handed to the owner.
 
-### T4 — Bump the agent-skills pin used by agent-loop CI
+### T4 — Bump the agent-skills pin used by agent-loop CI (**done**, see the CHANGELOG `[Unreleased]` entry)
 
 - **Evidence:**
   - `.github/workflows/ci.yml` checks out `voku/agent-skills` at `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8`.
