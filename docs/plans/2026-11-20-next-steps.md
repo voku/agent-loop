@@ -17,7 +17,7 @@ Roadmap context: voku/agent-loop#901. Learning thesis: voku/agent-loop#457 (stay
 | agent-loop#1030 | **blocked** draft; reopen needs criterion 0 (need), then five security boundaries ([comment](https://github.com/voku/agent-loop/pull/1030#issuecomment-7048800098)) |
 | Learning effect | positive only for C1 (non-derivable fact, operator-written note): 0/6 → 3/3. Ceilings: H1, H2a, H2b, pipefail, worktree-hook |
 | Ponytail | already adapted as `voku/agent-skills` `coding-simplicity` (pin `c9e3b296`). Pilot: leaner production code with the skill, identical measured correctness |
-| Skill activation | **unknown in real hosts**. A normal-projection probe (P-N1) ran on 2026-11-20; see Task T0 |
+| Skill activation | P-N1 (normal projection plus routing, no pointer): **NOT_LOADED**. The catalog-listing case is untested; see T0 |
 
 Key records:
 - `docs/dogfood/2026-11-19-learning-effect-round2.md`
@@ -64,7 +64,7 @@ Key records:
 
 ## 3. Tasks
 
-### T0 — Finish the skill-activation investigation (session that started it; otherwise redo)
+### T0 — Skill-activation investigation (**recorded**: H2 doc, "Real-host activation probe"; remaining work is owner decision D2)
 
 - **Goal:** answer "does a real host load `coding-simplicity` under normal projection?" without building instrumentation.
 - **Status:** probe **P-N1** exists only in the 2026-11-20 container.

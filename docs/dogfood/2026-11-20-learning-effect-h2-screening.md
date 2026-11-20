@@ -111,6 +111,50 @@ agent-loop already adapts Ponytail's implementation rules as `voku/agent-skills`
 
 **Not measured:** whether real hosts load `coding-simplicity` in governed runs, outside this explicit pointer. Existing records cannot answer this. CI and the Codelight composition dogfood only prove projection and routing, and no recorded real host run shows the skill being loaded on a coding task. The capability matrix tracks per-host skill consumption as `DEFER`.
 
+## Real-host activation probe (normal projection, no pointer)
+
+**Question:** under the normal workflow, does a host load `coding-simplicity` by itself?
+- The pilot above pointed agents at `.claude/skills/`, so it measured "read when pointed to".
+- This probe (P-N1) uses the H2b workspace with the lesson removed, plus real projection: `bin/agent-loop init install-assets --agent=claude --extra-skills-root=<voku/agent-skills@c9e3b296>/skills --skip-git-config`.
+  - That put 42 skills into the gitignored `.claude/skills`, including `coding-simplicity`.
+  - The projected `agent-loop-discipline` and `agent-loop-surgical-edit` skills route to it.
+  - AGENTS.md says to "use repository-managed skills and subagents when their descriptions match the task".
+- The prompt was the original H2b task with **no skills pointer**. There was one operator approval, as submitted.
+
+**Three claims, kept separate:**
+
+| Claim | Evidence source | P-N1 |
+| --- | --- | --- |
+| **Available**: the skill is in the catalog the model is shown | the host's skill-listing attachment in the transcript | **no**. A sub-agent host gets its catalog from the parent session, not from the workspace. The pilot catalogs never listed it either |
+| **Loaded**: the SKILL.md was read for use | tool calls touching `.claude/skills/…` or the Skill tool (`audit_transcripts.py`). A read can also be source editing, and the pilot agents loaded via `cat`, not the Skill tool | **no**. No skill file and no Skill call, before or after approval |
+| **Applied**: the skill changed the implementation | design and line counts against the arms, plus the transcript linking choice to rule | n/a |
+
+**Outcome:**
+- Hidden oracle: 5/5 expected locations.
+- `LevelsTestCase` probe: not flagged. The agent explicitly allowed it, along with plain PHPUnit cases.
+- It is the largest rule of any run: 62 rule code lines, +90 production lines, against 27–29 and 22–33 in the skill arm and 29–42 and 39–58 without it.
+- Part of that surface is legitimate: rejecting direct `PHPStanTestCaseTrait` users (P-S3 keyed on the same trait) and the explicit out-of-process allowance.
+- Part of it is speculative: a separate error for unresolvable `PHPStan\Testing\` parents, and nested-trait walking.
+- The transcript audit shows no network use, no forbidden reads, and one scratch file outside the workspace.
+
+**Reading** (n=1, one task, one model):
+- **NOT_LOADED** for projected files plus instruction routing, *without* catalog listing. Projection plus AGENTS.md routing did not make the agent open the skill.
+- The catalog-listing case is the one a real host started in the repository would have. It remains untested, because this harness cannot start a host inside the workspace.
+- Writing into this host's own `.claude/skills` to test it was refused as a change to the operator's harness configuration.
+
+**Existing evidence structures cannot record "skill X was loaded":**
+- `recall-log.draft.json` outcome rows exist only for *selected Learning guidance* (memory, constraint), and package skills are never selected.
+- `also_prescribed_by` accepts only the category `skill`.
+- Session evidence is free text or command and exit-code records.
+- The only typed runtime evidence for skill loading is PR #727's provider-free Codex proof (`host_runtime_skill_consumption`). It is limited to **explicit** selection of one package skill.
+
+**Smallest verified gap:** implicit selection of projected first-party skills is unobserved for every host, and P-N1 shows it does not happen through file projection plus routing alone.
+
+**Options:**
+- (a) **Do nothing** (recommended): keep the capability-matrix `DEFER`. No decision currently depends on the activation rate.
+- (b) Make the always-on bootstrap name `coding-simplicity` for coding tasks. This conflicts with the matrix row "`REJECT` session/subagent reinjection" and is an owner decision.
+- (c) Only if a concrete decision needs it: one real-host run started inside a projected repository, observed with the #727 pattern (skill body in the captured request). No Loop or Session schema change.
+
 ## Confounds and deviations
 
 - **Vendor:** both workspaces use the round-2/H1 runtime vendor plus PHPUnit, with lock drift against the baselines. H2b additionally has PHPStan 2.3.6 linked in, because the runtime vendor has no PHPStan; the oracle needs it. The vendors are hardlinked.
