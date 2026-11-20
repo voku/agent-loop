@@ -630,7 +630,7 @@ final readonly class AgentDisciplineHook
 
     private function isLegacyRepositorySearch(string $command): bool
     {
-        return preg_match('~(?:^|[;&|]\s*)(?:grep|find)\b~i', $this->shellCommandText($command)) === 1;
+        return preg_match('~(?:^|[;&|]\s*)(?:find)\b~i', $this->shellCommandText($command)) === 1;
     }
 
     private function isInPlaceSedEdit(string $command): bool
