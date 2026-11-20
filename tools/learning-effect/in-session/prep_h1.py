@@ -41,7 +41,7 @@ if arm == "C":
 subprocess.run([sys.executable, str(EXP2 / "backport_1091.py"), str(repo)], check=True, capture_output=True)
 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 subprocess.run(["git", "commit", "-q", "--amend", "--no-verify", "-m", f"baseline agent-loop@{BASELINE}"], cwd=repo, check=True, env={**os.environ, **FIXED})
-subprocess.run([sys.executable, str(EXP3.parent / "overlay.py"), str(repo / "vendor"),
+subprocess.run([sys.executable, str(EXP3 / "overlay.py"), str(repo / "vendor"),
                 json.dumps({"voku/agent-recall-compiler": ["/home/user/agent-recall-compiler", "0.29.4", "0.29.4"]})], check=True, capture_output=True)
 subprocess.run(["composer", "dump-autoload", "--dev", "--no-interaction", "--no-scripts"], cwd=repo, check=True, capture_output=True,
                env={**os.environ, "COMPOSER_ALLOW_SUPERUSER": "1"})

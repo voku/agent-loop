@@ -6,7 +6,8 @@ def classify(path):
 def numstat_ws(repo):
     out=subprocess.run(['git','-C',repo,'diff','--numstat','HEAD'],capture_output=True,text=True).stdout
     rows=[l.split('\t') for l in out.splitlines()]
-    for f in subprocess.run(['git','-C',repo,'ls-files','--others','--exclude-standard'],capture_output=True,text=True).stdout.split():
+    for f in subprocess.run(['git','-C',repo,'ls-files','-z','--others','--exclude-standard'],capture_output=True,text=True).stdout.split('\0'):
+        if not f: continue
         if f.startswith('.agent-loop/'): continue
         n=sum(1 for _ in open(f'{repo}/{f}',errors='ignore')); rows.append([str(n),'0',f])
     return rows

@@ -28,6 +28,11 @@ with tempfile.TemporaryDirectory() as scratch:
     (snap/FIX).write_text(CODE)
     subprocess.run(["cp","-al",str(vendor),str(snap/"vendor")],check=True)
     p=subprocess.run(["php","vendor/phpstan/phpstan/phpstan","analyse","--configuration=phpstan/project-rule-test.neon","--error-format=json","--no-progress","--memory-limit=1G"],cwd=snap,capture_output=True,text=True)
-    d=json.loads(p.stdout)
+    try:
+        d=json.loads(p.stdout)
+    except json.JSONDecodeError:
+        print("LevelsTestCase subclass flagged: ANALYSIS_FAILED (no JSON)"); raise SystemExit(0)
+    if d.get("errors"):
+        print("LevelsTestCase subclass flagged: ANALYSIS_FAILED", d["errors"][:2]); raise SystemExit(0)
     hits=[(Path(f).name,m["line"]) for f,x in d.get("files",{}).items() for m in x["messages"] if m.get("identifier")=="agentLoop.phpstan.inProcessRuleTestCase" and Path(f).name==Path(FIX).name]
     print("LevelsTestCase subclass flagged:", hits or "no")

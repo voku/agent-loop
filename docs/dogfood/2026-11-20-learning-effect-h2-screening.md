@@ -111,10 +111,11 @@ agent-loop already adapts Ponytail's implementation rules as `voku/agent-skills`
 
 **Not measured:** whether real hosts load `coding-simplicity` in governed runs, outside this explicit pointer. Existing records cannot answer this. CI and the Codelight composition dogfood only prove projection and routing, and no recorded real host run shows the skill being loaded on a coding task. The capability matrix tracks per-host skill consumption as `DEFER`.
 
-## Real-host activation probe (normal projection, no pointer)
+## Activation probe: explicit-root projection, no pointer
 
-**Question:** under the normal workflow, does a host load `coding-simplicity` by itself?
+**Question:** when `coding-simplicity` is projected into the repository, does a host load it by itself?
 - The pilot above pointed agents at `.claude/skills/`, so it measured "read when pointed to".
+- **Setup caveat:** the standard preparation path (`tools/learning-effect/prepare.py`, and the baseline's `.agent-loop/init.json`) projects only package skills. `coding-simplicity` comes from `voku/agent-skills`, so it reaches a workspace only through an explicit `--extra-skills-root`. This probe therefore tests a workspace that **a deliberate extra-root install produces**, not what the default path produces.
 - This probe (P-N1) uses the H2b workspace with the lesson removed, plus real projection: `bin/agent-loop init install-assets --agent=claude --extra-skills-root=<voku/agent-skills@c9e3b296>/skills --skip-git-config`.
   - That put 42 skills into the gitignored `.claude/skills`, including `coding-simplicity`.
   - The projected `agent-loop-discipline` and `agent-loop-surgical-edit` skills route to it.

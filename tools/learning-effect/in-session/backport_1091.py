@@ -39,11 +39,25 @@ patch("src/Workflow/HostFrontDoorCommand.php",
             }
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')""")
 patch("src/Workflow/WorkflowPlanCommand.php",
+"""        if ($options['format'] === 'json') {
+            echo json_encode([
+                'schema_version' => '1.0',
+                'command' => 'workflow plan',""",
+"""        $learningPrecedentProjector = new WorkflowLearningPrecedentProjector($this->rootPath);
+        $learningPrecedents = $learningPrecedentProjector->project($taskId->value);
+        if ($options['format'] === 'json') {
+            echo json_encode([
+                'schema_version' => '1.0',
+                'command' => 'workflow plan',""")
+patch("src/Workflow/WorkflowPlanCommand.php",
+"""                'next_action_kind' => 'decision_required',
+            ], JSON_PRETTY_PRINT""",
+"""                'next_action_kind' => 'decision_required',
+            ] + ($learningPrecedents !== null ? ['learning_precedents' => $learningPrecedents] : []), JSON_PRETTY_PRINT""")
+patch("src/Workflow/WorkflowPlanCommand.php",
 """        echo "Scope:\\n  " . implode("\\n  ", $contract->scope) . "\\n";
         echo "Next:\\n";""",
 """        echo "Scope:\\n  " . implode("\\n  ", $contract->scope) . "\\n";
-        $learningPrecedentProjector = new WorkflowLearningPrecedentProjector($this->rootPath);
-        $learningPrecedents = $learningPrecedentProjector->project($taskId->value);
         if ($learningPrecedents !== null) {
             echo $learningPrecedentProjector->renderText($learningPrecedents);
         }
