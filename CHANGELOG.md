@@ -7,6 +7,7 @@
 ### Dependencies
 
 - Require `voku/agent-recall-compiler ^0.29.4` (was `^0.29.0`; locked 0.29.4, was 0.29.2) for `LearningPrecedentPreview`, `CompiledRecallOutput::renderedLearningPrecedents()` and `hasFinalLearningPrecedentSelection()`, which the precedent projection below uses. The candidate dogfood workflows that pin the Recall minimum now check out `0.29.4`.
+- Require `voku/agent-edit ^0.8.1` (was `^0.8.0`; locked 0.8.1) and `voku/agent-map ^0.24.2` (was `^0.22.3 || ^0.23.0 || ^0.24.0`; locked 0.24.2, was 0.24.0). The two releases fix method rename families that the edit boundary accepts. Before 0.8.1, agent-edit refused every safe interface or override rename plan at apply. agent-map 0.24.1 and 0.24.2 stop nullsafe calls, first-class callables and anonymous implementations from blocking or downgrading method and parameter rename plans. These defects turned up while preparing voku/agent-edit route-experiment Run 2.
 
 ### Development
 
