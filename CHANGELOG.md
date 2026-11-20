@@ -1,3 +1,17 @@
+## [Unreleased]
+
+### Added
+
+- `workflow plan` and `enter` now name the LearningNotes Recall selects for the task (`learning_precedents` in JSON, a "Learning precedent" block in text). For a candidate Contract, Recall's new `LearningPrecedentPreview` runs over the candidate scope, so the planning agent and the approving human see the precedent before the design is approved. Once approved, `enter` lists the notes the compiled briefing renders. Missing note evidence shows as `status: blocked` already at planning, instead of first blocking at compilation. The projection is historical precedent, not an instruction, and changes no lifecycle state. In the round-2 learning-effect experiment, all three governed agents fixed their design before Recall compiled the matching note, and none of them opened it (#1091).
+
+### Dependencies
+
+- Require `voku/agent-recall-compiler ^0.29.4` (was `^0.29.0`; locked 0.29.4, was 0.29.2) for `LearningPrecedentPreview`, `CompiledRecallOutput::renderedLearningPrecedents()` and `hasFinalLearningPrecedentSelection()`, which the precedent projection below uses. The candidate dogfood workflows that pin the Recall minimum now check out `0.29.4`.
+
+### Development
+
+- Round 3 of the learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-round2.md`). The same C1 task was rerun with the precedent projection from this change, backported into the baseline. All three governed agents read the precedent during planning and revised their Contract to sibling bundles. The fix was correct 3/3 on the historical tests with realistic bundle fixtures (2/3 with the exact message relaxed, 0/3 strict on message wording), against 0/6 for the runs without a visible precedent.
+
 ## [0.20.100] - 2026-11-19
 
 ### Dependencies

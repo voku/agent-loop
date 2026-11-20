@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0fda77a2fd81fb82af37e7f0f2500000",
+    "content-hash": "db3f5468f1c8f9641a4469da4bb1028c",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -1292,16 +1292,16 @@
         },
         {
             "name": "voku/agent-recall-compiler",
-            "version": "0.29.2",
+            "version": "0.29.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-recall-compiler.git",
-                "reference": "c69d0ac285b40f33eddbca728d8e17351afe30b3"
+                "reference": "e0beaf8a6b84dd7ced06a2183bebab4ab66c9cd7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-recall-compiler/zipball/c69d0ac285b40f33eddbca728d8e17351afe30b3",
-                "reference": "c69d0ac285b40f33eddbca728d8e17351afe30b3",
+                "url": "https://api.github.com/repos/voku/agent-recall-compiler/zipball/e0beaf8a6b84dd7ced06a2183bebab4ab66c9cd7",
+                "reference": "e0beaf8a6b84dd7ced06a2183bebab4ab66c9cd7",
                 "shasum": ""
             },
             "require": {
@@ -1355,7 +1355,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-19T22:38:19+00:00"
+            "time": "2026-11-20T00:11:30+00:00"
         },
         {
             "name": "voku/agent-session",

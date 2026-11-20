@@ -1,6 +1,6 @@
 # Learning-effect experiment, round 2: a lesson the governed agent gets wrong
 
-Date: 2026-11-19. Follows [Run 1](2026-11-19-learning-effect-pipefail.md), which hit a ceiling: every arm fixed the pipefail lesson, so the precedent could not change anything. Round 2 looks for a lesson that governed arm B (no precedent) actually fails, then compares it with C′ (governed, precedent delivered). Per-run data: [`2026-11-19-learning-effect-round2.results.jsonl`](2026-11-19-learning-effect-round2.results.jsonl).
+Date: 2026-11-19. Follows [Run 1](2026-11-19-learning-effect-pipefail.md), which hit a ceiling: every arm fixed the pipefail lesson, so the precedent could not change anything. Round 2 looks for a lesson that governed arm B (no precedent) actually fails, then compares it with C′ (governed, precedent delivered). Rounds 2 and 3. Per-run data: [`2026-11-19-learning-effect-round2.results.jsonl`](2026-11-19-learning-effect-round2.results.jsonl).
 
 ## Method
 
@@ -49,7 +49,55 @@ The other two hidden tests pass in every run. `testMultiPlanEditBundlesAllVerifi
 4. **Governance did not catch the wrong design.** The Contract, the human approval, the agent's own tests and the `finish` validation all accepted a fix that misses the incident's layout. No run reached a complete `finish`, because `composer ci` cannot pass in this sandbox (see confounds), but nothing in the gate inspects the bundle layout anyway.
 5. **C′ cost more without reading the precedent:** +11% tokens and +40% tool calls versus B. With n=3 and the precedent unread, this is variance in scope (one C′ run added a new class and test file), not an effect of the precedent.
 
-**Next step this points to.** To test whether the lesson helps, the precedent has to reach the agent while it is still choosing the design. That means surfacing scope-matched LearningNotes when the candidate Contract is planned, before approval, and naming delivered precedents in `enter`'s `host_work` response. Re-run C1 B/C′ only after such a change; the B baseline here (0/3) is reusable.
+**Next step this points to.** To test whether the lesson helps, the precedent has to reach the agent while it is still choosing the design. That means surfacing scope-matched LearningNotes when the candidate Contract is planned, before approval, and naming delivered precedents in `enter`'s `host_work` response. That change is #1091 (#1093), and round 3 below reruns C′ with it.
+
+## Round 3: the same task with the precedent surfaced (#1091)
+
+#1093 makes `workflow plan` and `enter` name the LearningNotes Recall selects:
+- before approval, a Recall preview over the candidate Contract's scope;
+- after approval, the notes the compiled briefing renders.
+
+Round 3 reruns only arm C′ on C1, three repetitions. B (0/3 above) is unchanged by the change, because with no matching note nothing is projected.
+
+**Setup:**
+- the same baseline, task prompt, operator protocol and operator-authored note as round 2;
+- #1091 backported into the baseline's `enter` and `workflow plan`, as part of the start commit, so it is not counted in the agents' diffs;
+- the vendored agent-recall-compiler replaced by the #286 branch (0.29.3);
+- the vendor tree otherwise identical to round 2's: 5,094 runtime files matched the round-2 checksums, and PHPUnit comes from the same shared copy.
+
+A probe workspace confirmed the projection before any agent ran:
+- the `workflow plan` text names the note with its full guidance;
+- `enter` names it while approval is pending (`candidate_contract`) and again after approval (`compiled_recall`).
+
+**What the agents did:** all three read the projected precedent during planning. Each revised its candidate Contract to revision 2, with sibling `<task>-*` bundles, before asking for approval. The operator approved revision 2 as submitted (one intervention each). No transcript shows a foreign read or network use.
+
+**Grading:** grading is at three levels, applied to all nine C1 runs:
+- **Strict:** the historical test file, unchanged.
+- **Relaxed message:** the one exact-message assertion (`missing verification-result.json for edit bundle ABC-123-plan2`) is replaced by two checks: the output names the missing `verification-result.json` and the bundle `ABC-123-plan2`. The round-3 agents print the bundle as a path (`.agent-loop/edit/ABC-123-plan2`), which the exact string rejects.
+- **Relaxed message + realistic fixtures:** in addition, the oracle's `execution.json` fixtures carry `{"task_id":"ABC-123"}` instead of `{}`. Every bundle the baseline's edit commands write records its `task_id`, and the verify commands require it. One round-3 agent refuses unbound sibling bundles (fail closed), which the synthetic `{}` fixtures trip.
+
+| Arm (C1, n=3 each) | Strict | Relaxed message | + realistic fixtures | Precedent in agent context | Mean tokens* | Mean tool calls | Mean minutes |
+| --- | --- | --- | --- | --- | ---: | ---: | ---: |
+| B, no precedent | 0/3 | 0/3 | 0/3 | n/a | 205,218 | 43.7 | 4.5 |
+| C′, compiled but not surfaced (round 2) | 0/3 | 0/3 | 0/3 | 0/3 | 227,522 | 61.0 | 6.3 |
+| C′ + #1091, surfaced at planning (round 3) | 0/3 | 2/3 | **3/3** | 3/3 | 221,737 | 61.7 | 6.5 |
+
+\* Summed over the two agent segments: before approval, and after resume.
+
+Every B and round-2 C′ run fails the behavioural assertion: close readiness reports ready (exit `0` instead of `2`) while one sibling plan bundle is unverified. Under the realistic oracle, every round-3 run reports blocked for that bundle and lets the all-verified multi-plan task close.
+
+**What this shows:**
+- **First evidence of a learning effect in this setup, on the deterministic oracle.** With the same model, task and lesson, delivering the precedent where the agent plans turned 0/6 wrong designs (B plus round-2 C′) into 3/3 correct ones under the realistic oracle. The exact-wording oracle still fails all nine, so the effect is on behaviour, not on reproducing the historical message.
+- **Delivery, not the lesson, was the bottleneck.** The note was present in all six C′ runs. It changed the outcome only when Loop named it at the point where the design is fixed.
+- **Cost:** about +8% tokens and +41% tool calls over B, roughly the same as round 2's unread precedent. Reading and revising the plan is cheap next to the extra Contract scope (`ProjectLayout` and its tests).
+
+**Limits:**
+- n=3 per arm.
+- One model, and all agents are the same model as the operating session.
+- The note was written by the operator from the pre-fix Finding: the real store had no note for this lesson. Its guidance names sibling bundles explicitly, so this measures delivery of a sharp lesson, not the quality of a lesson the system wrote itself.
+- The realistic-fixture oracle is an adaptation, motivated by the baseline's own bundle writers; the strict and relaxed results are reported next to it.
+- No governed run reached a complete `finish`, because `composer ci` cannot pass offline here.
+- The approving operator also saw the precedent and approved as submitted without acting on it.
 
 ## Confounds and deviations
 
