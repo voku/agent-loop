@@ -136,6 +136,45 @@ final class MethodRenameEditRunnerTest extends TestCase
         }, 'changed before apply'];
     }
 
+    /**
+     * An interface method rename is a family rename: the interface, every
+     * implementation and the calls typed by either. Loop delegates the apply to
+     * agent-edit, which refused every family-bound edit before 0.8.1, so this
+     * governed path could not rename an interface method at all.
+     */
+    public function testInterfaceMethodFamilyRenameAppliesThroughTheGovernedRunner(): void
+    {
+        file_put_contents($this->root . '/src/Source.php', "<?php\nnamespace Demo;\ninterface Source { public function amount(): int; }\n");
+        file_put_contents($this->root . '/src/Fixed.php', "<?php\nnamespace Demo;\nfinal class Fixed implements Source { public function amount(): int { return 1; } }\n");
+        file_put_contents($this->root . '/src/Coupon.php', "<?php\nnamespace Demo;\nfinal class Coupon { public function amount(): int { return 2; } }\n");
+        file_put_contents($this->root . '/src/Total.php', "<?php\nnamespace Demo;\nfinal class Total { public function sum(Source \$source, Fixed \$fixed, Coupon \$coupon): int { return \$source->amount() + \$fixed->amount() + \$coupon->amount(); } }\n");
+
+        $map = CachedAgentMapBuilder::build($this->root, ['src'], []);
+        $mapIndex = $this->root . '/map.json';
+        (new IndexWriter())->write($map, $mapIndex);
+        $request = new EditRequest(
+            taskId: 'RENAME-FAMILY',
+            target: 'Demo\\Source::amount',
+            instruction: 'Rename the interface method family.',
+            projectRoot: $this->root,
+            recallRoot: $this->root,
+            mapIndex: $mapIndex,
+            mapRoot: $this->root,
+            outputDirectory: $this->root . '/edit',
+            mapPaths: ['src'],
+            runner: 'method-rename',
+            replacementMethod: 'total',
+        );
+
+        $result = (new MethodRenameEditRunner())->run(new EditExecution($request, $this->root . '/prompt.md', $map->resolveMethod($request->target)));
+
+        self::assertSame(0, $result->exitCode, $result->stdout . $result->stderr);
+        self::assertStringContainsString('public function total(): int;', (string) file_get_contents($this->root . '/src/Source.php'));
+        self::assertStringContainsString('public function total(): int { return 1; }', (string) file_get_contents($this->root . '/src/Fixed.php'));
+        self::assertStringContainsString('$source->total() + $fixed->total() + $coupon->amount()', (string) file_get_contents($this->root . '/src/Total.php'));
+        self::assertStringContainsString('public function amount(): int { return 2; }', (string) file_get_contents($this->root . '/src/Coupon.php'), 'an unrelated same-named method must stay');
+    }
+
     public function testSecondPublicationFailureRestoresEverySource(): void
     {
         $before = $this->sources();

@@ -6,6 +6,7 @@
 
 ### Dependencies
 
+- Require `voku/agent-edit ^0.8.1` (was `^0.8.0`; locked 0.8.1) and lock `voku/agent-map` 0.24.1 (was 0.24.0). Before agent-edit 0.8.1, every safe `method_rename_plan` for an interface or overridden method was refused at apply ("not bound to the declared target identity"), so Loop's governed `method-rename` runner could not rename an interface method at all. agent-map 0.24.1 no longer blocks or downgrades family renames that pass through nullsafe calls, first-class callables or anonymous implementations. Both defects were found while preparing agent-edit route-experiment Run 2. `MethodRenameEditRunnerTest::testInterfaceMethodFamilyRenameAppliesThroughTheGovernedRunner` renames an interface method, its implementation and typed calls through the runner and leaves an unrelated same-named method alone. It fails against agent-edit 0.8.0 with that exact error.
 - Require `voku/agent-recall-compiler ^0.29.4` (was `^0.29.0`; locked 0.29.4, was 0.29.2) for `LearningPrecedentPreview`, `CompiledRecallOutput::renderedLearningPrecedents()` and `hasFinalLearningPrecedentSelection()`, which the precedent projection below uses. The candidate dogfood workflows that pin the Recall minimum now check out `0.29.4`.
 
 ### Development
