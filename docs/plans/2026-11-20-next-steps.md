@@ -118,6 +118,13 @@ Key records:
 
 ### T3 — Correct stale guidance about the in-process PHPStan rule (Learning workflow, stops at approval)
 
+> **Status (2026-11-20): at approval.** See PR #1115:
+> - Finding `finding.2026-11-20.0a3b45`;
+> - memory REPLACE candidate `proposal.2026-11-20.4b7e8f`;
+> - constraint candidate `proposal.2026-11-20.9b62ae`, the D6 owner choice "replace". Constraint proposals can only be `ADD`, so applying it means: apply, `constraint-activate --overwrite`, then `proposal-retire proposal.2026-09-13.2acd04 --superseded-by <new>`. This path was exercised end to end on a scratch copy.
+>
+> Both candidates wait for a named human. The steps below are kept as written.
+
 - **Evidence:**
   - The rule was widened in `0866edaf` (2026-09-15) to reject any `PHPStan\Testing\PHPStanTestCase` subclass.
   - Still stale on `main`: `MEMORY.md` row 14 ("Do not load `PHPStan\\Testing\\RuleTestCase` …") and the specification of applied proposal `proposal.2026-09-13.2acd04` ("Only direct RuleTestCase inheritance is detected.") in `.agent-loop/learning/constraint-generation/proposal.2026-09-13.2acd04/specification.json`.
@@ -209,6 +216,36 @@ Key records:
   2. Define an outcome oracle, i.e. what a correct downstream engineering result looks like.
 - **Do not** run model sessions without owner approval, and do not tune on the original 10 cases.
 
+### T10 — Observe real Recall/Map use on real tasks, then fix only what the observation shows
+
+Approved scope (owner, 2026-11-20). Files this task may change:
+- this plan;
+- one new record `docs/dogfood/<date>-recall-map-real-use.md` (plus `.results.jsonl`);
+- `tools/learning-effect/in-session/audit_transcripts.py`, for the `owner_tool_calls` counter.
+
+Not allowed: `src/`, owner repositories, prompts, hooks. Widening this list is a new owner decision, presented as a decision card.
+
+- **Question:** in normal work, what do Recall and Map **provide**, what does the host **receive or call**, is it **relevant**, what **happens next**, and is it **usable**? Each is a separate claim: provided ≠ received ≠ used ≠ useful.
+- **Already known (do not redo):**
+  - Recall records selection and provenance in `selection-report.json` and `context_explain`.
+  - The in-session learning-effect records (round 2, H1, H2) cover lesson delivery.
+  - This operator session, measured on its own transcript (biased: one host, and the operator is the agent): 34 `enter`/`finish` calls on real tasks, 558 plain searches, **0** `agent-map` calls. Recall artifacts were read only while experimenting.
+- **Step 1: observe (3 real pending tasks from #1082, chosen 2026-11-20 and verified still open on `main`):**
+
+  | Shape | Task | Why it fits |
+  | --- | --- | --- |
+  | Cause spread over several files | `2026-09-09.a958dd`: `src/` builds owner-artifact file names by hand (`ExecutionGateway.php:902`, `RunManifestProjector.php:1013`, …) | Finding every call site is where Map could help |
+  | Prior decision / Learning should matter | `2026-08-19.5e1f07`: the "Multiple active Sessions" refusal in `WorkflowRunPreparer::activeSession()` has no test; a MEMORY row and a Finding exist | Recall should deliver the lesson; check that it does |
+  | Small, obvious file | `2026-10-09.c2f7eb`: `ComposerScriptsShapeTest` for `@putenv` in `composer.json` | Expected result: Map and Recall add nothing, and that is fine |
+
+  For each task, a sub-agent host gets a fresh workspace, the normal setup, and the issue text only. No hint to use Map, Recall or a lesson; no historical fix. Its Contract approval is a real owner decision, because these are real tasks. Measure from existing artifacts only:
+  - provided: `selection-report.json`, the Map output, if any;
+  - received or called: `audit_transcripts.py` → `owner_tool_calls`, next to `plain_search`;
+  - relevance and what happened next: the diff, the tests, and which provided item (if any) the diff or review cites.
+- **Step 2 (only if step 1 shows a concrete anomaly):** one A/B on a calibrated historical task. Same base commit, task text and host. The oracle must fail on the baseline, pass on the historical fix, and reject one plausible wrong fix and a negative fixture. A pilot is directional only.
+- **Step 3:** at most one DX change, in the owner the observation names (Map help or output → agent-map; Recall budget or output → Recall; selection miss → Learning/Recall; loaded but ignored → host integration). "Direct work was enough" is a valid result.
+- **Done when:** the record states, for each task, the provided / received / used / useful claims with their evidence, and the step-2 decision.
+
 ### T9 — Housekeeping (any agent, low priority)
 
 - Delete the experiment workspaces in the scratch area after T0 is recorded. Use literal paths.
@@ -226,4 +263,5 @@ Key records:
 | D3 | Should Learning ask at Finding time whether a conclusion is recoverable from code alone? Open an agent-learning issue first; no code | H2 record, "What the rounds together suggest" |
 | D4 | Keep the in-session harness in `tools/` (this PR) or move it to an archive branch | T2 |
 | D5 | Experiment budget for December per #901 | T6 budget line |
-| D6 | Constraint `2acd04`: replace its specification, or retire it and generate a new constraint | T3 report |
+| D6 | Constraint `2acd04`: **decided 2026-11-20: replace.** Remaining: approve or reject candidate `proposal.2026-11-20.9b62ae` | T3 status, PR #1115 |
+| D7 | T10: approve each real-task Contract the observation hosts submit | T10 |
