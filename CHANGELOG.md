@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Dependencies
+
+- Require `voku/agent-learning ^0.21.0` (was `^0.20.1`; locked 0.21.0). `finding-create` now reports a non-blocking `scope_advisories` entry when every `--scope` entry is a single file, and the installed Learning skills say to scope a lesson to its decision's home (its directory when sibling files must receive it). The learning-effect holdout H1 showed why: a note inherits its Findings' scope, and one scoped only to the incident's files never reached the next change to the same decision (agent-learning#203).
+
 ## [0.20.101] - 2026-11-20
 
 ### Added
