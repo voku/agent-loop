@@ -24,7 +24,7 @@ use voku\AgentRecallCompiler\RecallCompilationBlockedException;
  * historical precedent, not an instruction, and changes no lifecycle state.
  *
  * @phpstan-type PrecedentItem array{note_id: string, pattern_key: string|null, title: string|null, guidance: string|null, matching_task_files: list<string>}
- * @phpstan-type PrecedentProjection array{source: 'candidate_contract'|'compiled_recall', status: 'selected'|'blocked'|'unavailable', use: 'historical_precedent_not_instruction', message: string, precedents: list<PrecedentItem>}
+ * @phpstan-type PrecedentProjection array{source: 'candidate_contract'|'compiled_recall', status: 'selected'|'eligible'|'blocked'|'unavailable', use: 'historical_precedent_not_instruction', message: string, precedents: list<PrecedentItem>}
  */
 final readonly class WorkflowLearningPrecedentProjector
 {
@@ -48,8 +48,13 @@ final readonly class WorkflowLearningPrecedentProjector
                 $output = (new CompiledRecallOutputReader())->readForTask((new ProjectLayout($this->rootPath))->recallRoot(), $taskId);
                 if ($output !== null) {
                     $rendered = $output->renderedLearningPrecedents();
+                    if ($rendered === []) {
+                        return null;
+                    }
 
-                    return $rendered === [] ? null : $this->selected('compiled_recall', $rendered);
+                    return $output->hasFinalLearningPrecedentSelection()
+                        ? $this->selected('compiled_recall', $rendered)
+                        : $this->selected('compiled_recall', $rendered, 'eligible');
                 }
                 // Approved but not compiled yet: the preview still names the precedent.
                 $source = 'candidate_contract';
@@ -108,17 +113,21 @@ final readonly class WorkflowLearningPrecedentProjector
     /**
      * @param 'candidate_contract'|'compiled_recall' $source
      * @param non-empty-list<RenderedLearningPrecedent> $precedents
+     * @param 'selected'|'eligible' $status eligible: the compiled selection report is unavailable,
+     *        so these notes matched but whether the briefing rendered them is unknown
      * @return PrecedentProjection
      */
-    private function selected(string $source, array $precedents): array
+    private function selected(string $source, array $precedents, string $status = 'selected'): array
     {
         return [
             'source' => $source,
-            'status' => 'selected',
+            'status' => $status,
             'use' => 'historical_precedent_not_instruction',
-            'message' => $source === 'candidate_contract'
-                ? 'Recall selected these LearningNotes for the candidate scope. Read them before approving the design; revise the Contract if the precedent changes it.'
-                : 'Recall rendered these LearningNotes into this task\'s briefing. Check your change against them.',
+            'message' => match (true) {
+                $source === 'candidate_contract' => 'Recall selected these LearningNotes for the candidate scope. Read them before approving the design; revise the Contract if the precedent changes it.',
+                $status === 'eligible' => 'These LearningNotes matched this task, but Recall\'s final selection is unavailable, so whether the briefing rendered them is unknown. Read them before relying on the briefing.',
+                default => 'Recall rendered these LearningNotes into this task\'s briefing. Check your change against them.',
+            },
             'precedents' => array_map(static fn (RenderedLearningPrecedent $p): array => [
                 'note_id' => $p->noteId,
                 'pattern_key' => $p->patternKey,

@@ -65,6 +65,29 @@ final class WorkflowLearningPrecedentVisibilityTest extends TestCase
         $this->assertNamesPrecedent($approved, 'compiled_recall');
     }
 
+    public function testCompiledBriefingWithoutFinalSelectionIsReportedAsEligibleNotRendered(): void
+    {
+        $this->writeNote(['src/CloseGate.php'], 'src/CloseGate.php');
+        $this->agentLoop(['workflow', 'plan', 'GATE-3', '--by', 'tester', '--file', 'src/CloseGate.php', '--goal', 'Fix the close gate.', '--validation', 'php -l src/CloseGate.php']);
+        $this->agentLoop(['workflow', 'approve', 'GATE-3', '--revision', '1', '--by', 'tester']);
+        $compiled = $this->json($this->agentLoop(['enter', 'GATE-3', '--format=json']));
+        $projection = $compiled['learning_precedents'] ?? null;
+        self::assertIsArray($projection);
+        self::assertSame('selected', $projection['status']);
+
+        $report = $this->root . '/.agent-loop/recall/GATE-3/selection-report.json';
+        self::assertFileExists($report);
+        unlink($report);
+
+        $payload = $this->json($this->agentLoop(['enter', 'GATE-3', '--format=json'], expectSuccess: false));
+        $projection = $payload['learning_precedents'] ?? null;
+        self::assertIsArray($projection);
+        self::assertSame('compiled_recall', $projection['source']);
+        self::assertSame('eligible', $projection['status'], 'without the final selection a note must not be reported as rendered');
+        self::assertIsString($projection['message']);
+        self::assertStringContainsString('final selection is unavailable', $projection['message']);
+    }
+
     public function testUnrelatedScopeNamesNoPrecedent(): void
     {
         $this->writeNote(['src/CloseGate.php'], 'src/CloseGate.php');

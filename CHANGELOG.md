@@ -6,7 +6,17 @@
 
 ### Dependencies
 
-- Require `voku/agent-recall-compiler ^0.29.3` (was `^0.29.0`; locked 0.29.3, was 0.29.2) for `LearningPrecedentPreview` and `CompiledRecallOutput::renderedLearningPrecedents()`, which the precedent projection below uses. The candidate dogfood workflows that pin the Recall minimum now check out `0.29.3` (`d560adf`).
+- Require `voku/agent-recall-compiler ^0.29.4` (was `^0.29.0`; locked 0.29.4, was 0.29.2) for `LearningPrecedentPreview`, `CompiledRecallOutput::renderedLearningPrecedents()` and `hasFinalLearningPrecedentSelection()`, which the precedent projection below uses. The candidate dogfood workflows that pin the Recall minimum now check out `0.29.4`.
+
+### Development
+
+- Round 3 of the learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-round2.md`). The same C1 task was rerun with the precedent projection from this change, backported into the baseline. All three governed agents read the precedent during planning and revised their Contract to sibling bundles. The fix was correct 3/3 on the historical tests with realistic bundle fixtures (2/3 with the exact message relaxed, 0/3 strict on message wording), against 0/6 for the runs without a visible precedent.
+
+## [0.20.100] - 2026-11-19
+
+### Dependencies
+
+- Allow `voku/phpstan-agent-format ^0.4.0` alongside `^0.3.1` (locked 0.4.0, was 0.3.1). 0.4.0 carries PHPStan 2.3.5+ `fixable: true` evidence into agent reports as an optional field and registers `ArchitectureNoticeBuilder` explicitly for PHPStan 2.1 DI compatibility; Loop's `agentFormat` configuration is unchanged.
 - Require `voku/agent-edit ^0.8.0` (was `^0.6.1`; locked 0.8.0, was 0.6.4), `voku/agent-map ^0.22.3 || ^0.23.0 || ^0.24.0` (locked 0.24.0, was 0.23.0) and lock `voku/agent-recall-compiler` 0.29.2 (was 0.29.1; the declared `^0.29.0` minimum is unchanged, because the candidate dogfood workflows pin that minimum release). The agent-edit API Loop uses (`EditEngine::apply()`, `ApplyCommand`, `VerifyCommand`, `WorkingTreeSnapshot(ter)`) is unchanged; 0.7.0 only adds `EditEngine::recover()`.
   - **agent-edit 0.7.0:** a write-ahead publication journal makes an interrupted apply recoverable (`agent-edit recover`, failure code `recovery_required`).
   - **agent-edit 0.8.0:** adds `instructions --format=text` and an opt-in requirement for read-time source digests.
@@ -23,7 +33,6 @@
 
 ### Development
 
-- Round 3 of the learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-round2.md`). The same C1 task was rerun with the precedent projection from this change, backported into the baseline. All three governed agents read the precedent during planning and revised their Contract to sibling bundles. The fix was correct 3/3 on the historical tests with realistic bundle fixtures (2/3 with the exact message relaxed, 0/3 strict on message wording), against 0/6 for the runs without a visible precedent.
 - Round 2 of the learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-round2.md` and its `.results.jsonl` ledger). The worktree-hooks lesson hit the same ceiling as Run 1 (governed arm B correct). On the multi-plan close-gate lesson, governed arm B failed 3 of 3: every agent assumed nested per-plan bundles where the incident had sibling `<task>-*` bundles. C′ also failed 3 of 3, but no C′ agent saw the precedent: Recall compiled the LearningNote in every C′ workspace only after Contract approval, when the design was already fixed, and `enter` does not name delivered precedents. So the run shows no learning effect, and it says nothing about the lesson's value until precedents reach planning.
 - Run 1 of the pipefail learning-effect experiment (3 cases × A/B/C′, one repetition each, in-session agents; results in `docs/dogfood/2026-11-19-learning-effect-pipefail.md` and its `.results.jsonl` ledger). All 9 runs were correct and none repeated the mistake: a ceiling effect, with the cause diagnosed before Recall could deliver the precedent. Governed arms cost about 2.2× the tokens and 3× the tool calls of the native arm. Unmodified, the cross-repository LearningNote blocks Recall compilation, because its evidence exists only in agent-loop.
 - The learning-effect runner (`tools/learning-effect/run-arm.sh`) now runs every session under a versioned Bash sandbox (`sandbox-settings.json`): no outbound network for Bash and its children, fail closed when the sandbox is unavailable, no unsandboxed fallback. Before each arm, a probe session must fail to reach github.com, judged only from the Bash tool result; otherwise the arm is refused. The protocol now requires one disposable container per arm, because the Read tool can read the whole disk, including the case clones with the historical repairs.
