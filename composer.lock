@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0864a32d07ae17ec9a6e2435b5f58e2e",
+    "content-hash": "979f06836bd462f61fa1e46fd0492a8e",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -1217,16 +1217,16 @@
         },
         {
             "name": "voku/agent-map",
-            "version": "0.24.1",
+            "version": "0.24.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-map.git",
-                "reference": "e9ac0b587a47586452e07d5b4c0dbecf92b04606"
+                "reference": "2963a6a176bed1240fc87822a286240eabdd2ca3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-map/zipball/e9ac0b587a47586452e07d5b4c0dbecf92b04606",
-                "reference": "e9ac0b587a47586452e07d5b4c0dbecf92b04606",
+                "url": "https://api.github.com/repos/voku/agent-map/zipball/2963a6a176bed1240fc87822a286240eabdd2ca3",
+                "reference": "2963a6a176bed1240fc87822a286240eabdd2ca3",
                 "shasum": ""
             },
             "require": {
@@ -1288,7 +1288,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-20T00:17:12+00:00"
+            "time": "2026-11-20T00:59:27+00:00"
         },
         {
             "name": "voku/agent-recall-compiler",
