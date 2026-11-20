@@ -176,6 +176,7 @@ final class ItPortalInlineVarWrongDelimiterRule implements Rule
   - 36 not_used
   - 48 irrelevant
   - 0 harmful
+  - The four itemized classifications sum to 97, not 101. The source report did not itemize the remaining 4, and `history/outcomes.jsonl` is not committed here, so this document cannot reconcile them. Treat both the total and the breakdown as unverified historical figures.
 - With the deterministic PHPStan rule active, soft prompt text was no longer required in operating prompts:
   - Any regression immediately halts CI with an actionable compiler error.
   - Zero context tokens wasted on reminding agents to write `/**` instead of `/*`.
