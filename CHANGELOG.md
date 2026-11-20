@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- CI and the Codex skill-consumption proof pin `voku/agent-skills` at `2d90a9d2` (was `c9e3b296`). 29 skill files changed, none removed or renamed. Three skills are new: `engineering-reframing`, `language-onboarding-authoring` and `project-onboarding`. `coding-simplicity` gains a "Proportional defenses and complexity boundaries" section.
+
 ## [0.20.102] - 2026-11-20
 
 ### Dependencies

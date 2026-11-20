@@ -56,7 +56,7 @@ boundaries.
 | `tell-grokbot`: send conversation context to a provider-specific agent webhook | `REJECT` | External agent messaging, webhook credentials and provider routines are integration concerns, not governed task authority. Loop does not acquire a second agent-to-agent transport merely for convenience. |
 
 The installed release-set proof pins `voku/agent-skills` at
-`c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and proves that both adapted portable interaction skills are
+`2d90a9d2a755ee6dd53f5f4ed892655528170e84` and proves that both adapted portable interaction skills are
 projected into the clean consumer host roots. Projection remains installation
 evidence rather than runtime-consumption evidence by itself.
 
@@ -133,7 +133,7 @@ This recheck also adds first-party behaviour evidence for the `ADAPT` row that `
 | Upstream mechanism | Decision | First-party equivalent / enforcement |
 | --- | --- | --- |
 | YAGNI / existing code / stdlib / native / installed dependency / minimum code ladder | `ADAPT` | `voku/agent-skills/coding-simplicity` owns the coding-time search order. `agent-loop` routes to it instead of injecting the ladder into every session. |
-| Review-time replacement verification uses repository reuse -> stdlib -> native -> installed dependency | `ADAPT` | `voku/agent-skills/code-review-simplicity` owns the check; agent-loop pins `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and the installed release-set proof verifies that reviewed skill catalog is projected into the consumer host roots. |
+| Review-time replacement verification uses repository reuse -> stdlib -> native -> installed dependency | `ADAPT` | `voku/agent-skills/code-review-simplicity` owns the check; agent-loop pins `2d90a9d2a755ee6dd53f5f4ed892655528170e84` and the installed release-set proof verifies that reviewed skill catalog is projected into the consumer host roots. |
 | Exact-once host consumption of persisted context | `DEFER` | Repository projection is already owned; real consumption/reinjection semantics must be proven per host in #618, #623 and #611 before any runtime claim changes. |
 | Benchmark-arm isolation from repository instructions, user memory and mutable plugin selection | `ADAPT` | #663/#675 owns this only as experiment provenance: frozen inputs, authority-state observation and dependency-graph identity. It is not session guidance or a product subsystem. |
 | Understand the real flow before choosing the small fix | `ADAPT` | `coding-simplicity` requires task/flow understanding before minimization; `agent-map` remains bounded navigation support, not the semantic owner. |
