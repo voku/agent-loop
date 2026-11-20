@@ -106,12 +106,6 @@ final readonly class AgentDisciplineHook
                 'Use agent-loop map query, related, file, changed, or stats. Generated map state is navigation state, not prompt evidence.',
             );
         }
-        if ($this->isLegacyRepositorySearch($command)) {
-            return $this->deny(
-                'Legacy repository search command is blocked.',
-                'Use rg for literal or file discovery. For PHP symbols, callers, tests, and source scope, use agent-loop map query, related, scope, or context first.',
-            );
-        }
         if ($this->isInPlaceSedEdit($command)) {
             return $this->deny(
                 'In-place sed edits are blocked.',
@@ -626,11 +620,6 @@ final readonly class AgentDisciplineHook
             '~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*(?:php-symbols\.(?:json|toon)|php-relations\.(?:json|toon)|graph\.sqlite|graph-generation\.json|search\.sqlite|history\.sqlite|structural-cache\.json|phpstan-cache)~i',
             $command,
         ) === 1;
-    }
-
-    private function isLegacyRepositorySearch(string $command): bool
-    {
-        return preg_match('~(?:^|[;&|]\s*)(?:grep|find)\b~i', $this->shellCommandText($command)) === 1;
     }
 
     private function isInPlaceSedEdit(string $command): bool

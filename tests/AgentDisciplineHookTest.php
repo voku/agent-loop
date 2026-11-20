@@ -541,8 +541,7 @@ final class AgentDisciplineHookTest extends TestCase
                 'tool_input' => ['command' => 'cat README.md; grep -R "needle" src'],
             ]));
 
-            self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
-            self::assertStringContainsString('Use rg for literal or file discovery', $output['hookSpecificOutput']['additionalContext'] ?? '');
+            self::assertArrayNotHasKey('permissionDecision', $output['hookSpecificOutput']);
         } finally {
             putenv($previousTrustedPaths === false
                 ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
@@ -555,8 +554,6 @@ final class AgentDisciplineHookTest extends TestCase
     /** @return iterable<string, array{string, string}> */
     public static function discouragedShellToolProvider(): iterable
     {
-        yield 'grep' => ['grep -R "class Foo" src', 'Use rg for literal or file discovery.'];
-        yield 'find' => ['find modules -name "*.php"', 'Use rg for literal or file discovery.'];
         yield 'sed in-place short option' => ['sed -i "s/old/new/" src/Foo.php', 'Use agent-loop edit'];
         yield 'sed in-place long option' => ['sed --in-place=".bak" "s/old/new/" src/Foo.php', 'Use agent-loop edit'];
     }
@@ -573,13 +570,6 @@ final class AgentDisciplineHookTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function chainedDiscouragedToolProvider(): iterable
     {
-        yield 'after &&' => ['cd src && grep -rn Foo .'];
-        yield 'after pipe' => ['git ls-files | grep Foo'];
-        yield 'after semicolon' => ['cd src; find . -name "*.php"'];
-        yield 'quoted argument before the real call' => ['echo "ok" && find . -name "*.php"'];
-        yield 'quoted command substitution' => ['echo "$(grep pattern file)"'];
-        yield 'chain inside quoted command substitution' => ['echo "$(true; grep pattern file)"'];
-        yield 'backtick command substitution' => ['echo "`find src -name Foo.php`"'];
         yield 'sed inside command substitution' => ['echo "$(sed -i s/old/new/ src/Foo.php)"'];
     }
 
@@ -605,6 +595,13 @@ final class AgentDisciplineHookTest extends TestCase
     public function testToolNameInsideQuotedTextIsNotACommand(string $command): void
     {
         $this->assertPassThrough($command);
+    }
+
+    public function testStandardSearchCommandsAreAllowed(): void
+    {
+        foreach (['grep -R needle src', 'git grep needle', 'git ls-files | grep Foo', 'echo "$(grep pattern file)"', 'find modules -name "*.php"', 'cd src; find . -name "*.php"', 'echo "`find src -name Foo.php`"'] as $command) {
+            $this->assertPassThrough($command);
+        }
     }
 
     public function testBoundedSedReadRemainsAllowedAfterNavigation(): void
