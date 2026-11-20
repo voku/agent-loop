@@ -121,7 +121,7 @@ Recheck at current head `96608e078b2d5ea607c5c3b8b5a54d1c1fba6846` (2026-11-20).
 
 This recheck also adds first-party behaviour evidence for the `ADAPT` row that `coding-simplicity` owns. See the H2b pilot in [`../dogfood/2026-11-20-learning-effect-h2-screening.md`](../dogfood/2026-11-20-learning-effect-h2-screening.md).
 - **Setup:** three governed runs without the skill and three with the pinned skill (`c9e3b296`), on one task.
-- **Correctness:** identical. Every run passed the hidden oracle.
+- **Correctness:** identical on what was measured, the hidden oracle plus a `LevelsTestCase` probe. The oracle alone missed the screening run's false positive, so that probe was added.
 - **Speculative surface:**
   - The runs without the skill added detection or naming surface the task did not need in 2 of 3 pilot runs.
   - The earlier screening run had the same habit. Its namespace-wide match wrongly rejects out-of-process `LevelsTestCase` subclasses.

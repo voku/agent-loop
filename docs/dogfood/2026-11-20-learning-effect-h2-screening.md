@@ -101,14 +101,15 @@ agent-loop already adapts Ponytail's implementation rules as `voku/agent-skills`
 \* Non-comment, non-blank lines of the final rule file. The historical fix is a single ancestor check.
 
 **What this shows:**
-- **Correctness is identical.** All six pilot runs pass the oracle, and none reproduces the false positive. The screening run's defect occurred 1 time in 4 runs without the skill. That is too rare to test whether the skill prevents it.
+- **Correctness is identical on what was measured:** the hidden oracle plus the `LevelsTestCase` probe. All six pilot runs pass both. The screening run's defect occurred 1 time in 4 runs without the skill, which is too rare to test whether the skill prevents it.
+- **Measurement gap:** the hidden oracle did not cover the screening run's false positive. Only the probe added afterwards caught it. So "passes the oracle" does not cover inputs outside its fixtures, and broader-than-needed logic can hide real misclassifications from it. A future holdout should include negative fixtures (cases the rule must *not* flag) in its oracle, not only the historical positives.
 - **The skill arm produced only minimal designs.** All three S runs read the skill and chose a single exact-ancestor (or container-trait) check. In 2 of 3 B runs, and in the screening run, the agent added detection or naming surface the task did not need.
 - **Production code was smaller with the skill:** 22–33 added lines, against 39–58 without. The rule files themselves: 27–29 code lines, against 29–42.
 - **Test lines went the other way:** 42–109 with the skill, against 36–56 without. This fits the skill's verification floor, but with n=3 it may be noise.
 - **Cost:** tokens are the same, about 225k per run in both arms.
 - **Reading:** this is a small, consistent signal (n=3 per arm, one task, one model) that the existing skill reduces speculative surface. It supports the `ADAPT` decision for `coding-simplicity`. It does not justify a new prompt, gate or benchmark, and it shows no correctness gain.
 
-**Not measured:** whether real hosts load `coding-simplicity` in governed runs, outside this explicit pointer. The capability matrix tracks per-host skill consumption as `DEFER`.
+**Not measured:** whether real hosts load `coding-simplicity` in governed runs, outside this explicit pointer. Existing records cannot answer this. CI and the Codelight composition dogfood only prove projection and routing, and no recorded real host run shows the skill being loaded on a coding task. The capability matrix tracks per-host skill consumption as `DEFER`.
 
 ## Confounds and deviations
 
