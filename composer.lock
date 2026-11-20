@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "979f06836bd462f61fa1e46fd0492a8e",
+    "content-hash": "c6275a5172fd5d729db27e9db673e41b",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -1079,7 +1079,8 @@
                 "issues": "https://github.com/voku/agent-graph/issues",
                 "source": "https://github.com/voku/agent-graph"
             },
-            "time": "2026-11-18T22:31:35+00:00"
+            "time": "2026-11-18T22:31:35+00:00",
+            "published-time": "2026-11-18T22:38:11+00:00"
         },
         {
             "name": "voku/agent-kanban",
@@ -1150,16 +1151,16 @@
         },
         {
             "name": "voku/agent-learning",
-            "version": "0.20.1",
+            "version": "0.21.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-learning.git",
-                "reference": "311c41314b789f5d36583cc1157664860c7f8289"
+                "reference": "3fe8978a7c943a0931fb25a44fd06a6e8b1227ea"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-learning/zipball/311c41314b789f5d36583cc1157664860c7f8289",
-                "reference": "311c41314b789f5d36583cc1157664860c7f8289",
+                "url": "https://api.github.com/repos/voku/agent-learning/zipball/3fe8978a7c943a0931fb25a44fd06a6e8b1227ea",
+                "reference": "3fe8978a7c943a0931fb25a44fd06a6e8b1227ea",
                 "shasum": ""
             },
             "require": {
@@ -1214,7 +1215,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-19T21:01:17+00:00"
+            "time": "2026-11-20T18:41:12+00:00",
+            "published-time": "2026-11-20T18:43:37+00:00"
         },
         {
             "name": "voku/agent-map",
