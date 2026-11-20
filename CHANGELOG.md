@@ -1,6 +1,10 @@
 ## [Unreleased]
 
+## [0.20.103] - 2026-11-20
+
 ### Changed
+
+- The discipline hook no longer denies `grep` and `find`, avoiding unnecessary retries for standard search commands. `git grep` remains available; map-dump and in-place `sed` guardrails remain unchanged (#1108).
 
 - CI and the Codex skill-consumption proof pin `voku/agent-skills` at `2d90a9d2` (was `c9e3b296`). 29 skill files changed, none removed or renamed. Three skills are new: `engineering-reframing`, `language-onboarding-authoring` and `project-onboarding`. `coding-simplicity` gains a "Proportional defenses and complexity boundaries" section.
 
