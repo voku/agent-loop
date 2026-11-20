@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as scratch:
                             "tests/HiddenOracleTest.php"], cwd=snap, capture_output=True, text=True, timeout=900)
         passes += p.returncode == 0
         tail = (p.stdout + p.stderr)[-700:]
-data = json.loads((out / "result.json").read_text())
+data = json.loads((out / "result.json").read_text()) if (out / "result.json").exists() else {}
 data["realistic_oracle" if realistic else "behavioural_oracle"] = {"passes": f"{passes}/3", "correct": passes == 3, "tail": tail if passes < 3 else ""}
 (out / "result.json").write_text(json.dumps(data, indent=2) + "\n")
 print(run, f"{passes}/3", "" if passes == 3 else tail[-260:].replace("\n", " | "))

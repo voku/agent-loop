@@ -17,7 +17,7 @@ Roadmap context: voku/agent-loop#901. Learning thesis: voku/agent-loop#457 (stay
 | agent-loop#1030 | **blocked** draft; reopen needs criterion 0 (need), then five security boundaries ([comment](https://github.com/voku/agent-loop/pull/1030#issuecomment-7048800098)) |
 | Learning effect | positive only for C1 (non-derivable fact, operator-written note): 0/6 → 3/3. Ceilings: H1, H2a, H2b, pipefail, worktree-hook |
 | Ponytail | already adapted as `voku/agent-skills` `coding-simplicity` (pin `c9e3b296`). Pilot: leaner production code with the skill, identical measured correctness |
-| Skill activation | P-N1 (normal projection plus routing, no pointer): **NOT_LOADED**. The catalog-listing case is untested; see T0 |
+| Skill activation | P-N1 (explicit-root projection plus routing, no pointer): **NOT_LOADED**. The catalog-listing case is untested; see T0 |
 
 Key records:
 - `docs/dogfood/2026-11-19-learning-effect-round2.md`
@@ -58,15 +58,15 @@ Key records:
 - GitHub zipball downloads can fail through the egress proxy (`ws_closed_mid_exchange`). Composer then falls back to full git clones and can fill the disk. For lock-only bumps, keep the lock diff minimal and let CI install.
 - The disk is a fixed allowance. Hardlink large vendors (`cp -al`). `rm -rf $VAR/...` is refused by a safety check: use literal absolute paths.
 - Do not write into the host's own `.claude/` configuration; it is treated as changing your own harness.
-- `gh` CLI: use it only for code search; use the GitHub MCP tools for everything else.
+- `gh` CLI: in cloud sessions use it only for code search and use the GitHub MCP tools for everything else. T7 is the exception: it runs on a separate machine with its own `gh` login.
 
 ---
 
 ## 3. Tasks
 
-### T0 — Skill-activation investigation (**recorded**: H2 doc, "Real-host activation probe"; remaining work is owner decision D2)
+### T0 — Skill-activation investigation (**recorded**: H2 doc, "Activation probe: explicit-root projection, no pointer"; remaining work is owner decision D2)
 
-- **Goal:** answer "does a real host load `coding-simplicity` under normal projection?" without building instrumentation.
+- **Goal:** answer "does a real host load `coding-simplicity` after an explicit extra-skills-root projection?" without building instrumentation.
 - **Status:** probe **P-N1** exists only in the 2026-11-20 container.
   - Setup: workspace at baseline `5f54b84e`, lesson `481001` removed, then `bin/agent-loop init install-assets --agent=claude --extra-skills-root=<agent-skills@c9e3b296>/skills --skip-git-config`. That projects 42 skills into gitignored `.claude/skills`.
   - Prompt: the original H2b task with no skills pointer.
@@ -87,7 +87,7 @@ Key records:
   2. Run `audit_transcripts.py` and record `skill_access`.
   3. Classify the outcome as **NOT_LOADED**, **LOADED_NOT_APPLIED** or **LOADED_APPLIED**. "Applied" means the design avoids speculative surface *and* the transcript links the choice to the skill.
 - **Steps if the container is gone:** redo P-N1 with `prep_h2.py` + `install-assets` as above, one run, the same prompt.
-- **Deliverable:** a section "Real-host activation probe" in `docs/dogfood/2026-11-20-learning-effect-h2-screening.md`, with:
+- **Deliverable:** a section "Activation probe: explicit-root projection, no pointer" in `docs/dogfood/2026-11-20-learning-effect-h2-screening.md`, with:
   - the three-claims table (available / loaded / applied, each with its evidence source);
   - the smallest verified observability gap;
   - options:
@@ -149,7 +149,7 @@ Key records:
   - The agent-skills default branch has 29 changed skill files since then, including a new "Proportional defenses and complexity boundaries" section in `coding-simplicity`. That section is relevant to the H2b fallback pattern.
 - **Steps:**
   1. `git clone --depth 50 https://github.com/voku/agent-skills` and pick the current default-branch SHA `N`.
-  2. `git diff --stat c9e3b296 N -- skills`. Summarise each changed skill in one line for the PR body.
+  2. `git -C agent-skills diff --stat c9e3b296 N -- skills` (run it in the skills clone; the diff needs those revisions). Summarise each changed skill in one line for the PR body.
   3. `git grep -n c9e3b296` in agent-loop. Update every **live** pin: `.github/workflows/ci.yml`, `.github/workflows/codex-skill-consumption-proof.yml`, and the pin mentions in `docs/architecture/upstream-capability-matrix.md`. Do **not** rewrite historical records: CHANGELOG released sections, `docs/dogfood/*` and `.results.jsonl` record what was run.
   4. Run `COMPOSER_ALLOW_SUPERUSER=1 vendor/bin/phpunit tests/Ci/ReleasePinConsistencyTest.php` and check whether it constrains this SHA pin. If it fails, fix the pin, not the test.
   5. Open a PR and wait for green CI. The installed release-set, Codex skill-consumption and skill-projection jobs prove the projection. Squash-merge.
@@ -196,7 +196,7 @@ Key records:
   - Recall #270 artifact `13739723837` and #271 artifact `13741055299`: around **2026-12-10**.
   - agent-map #165–#179 artifacts: around 2027-01-27.
 - **Steps:**
-  1. Download them with `gh run download <run-id> -R voku/<repo> -n <artifact-name>`, from a machine whose network allows `*.actions.githubusercontent.com` (blocked in the 2026-11-20 container).
+  1. Download them with `gh run download <run-id> -R voku/<repo> -n <artifact-name>`. This is the one place `gh` is allowed beyond code search, and only on a machine with its own GitHub authentication, from a machine whose network allows `*.actions.githubusercontent.com` (blocked in the 2026-11-20 container).
   2. Store them as release assets or in a private archive.
   3. Comment the location on each closed PR.
 - **OWNER:** where the archive lives.

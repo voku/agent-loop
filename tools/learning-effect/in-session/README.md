@@ -1,6 +1,8 @@
 # In-session learning-effect harness (as run, 2026-11-19/20)
 
-These are the **verbatim scripts** used for learning-effect round 2/3, holdout H1, holdout H2 and the H2b `coding-simplicity` pilot. They are kept for provenance and reuse; they are development tooling only (no production autoload, no CI gate).
+These are the scripts used for learning-effect round 2/3, holdout H1, holdout H2 and the H2b `coding-simplicity` pilot. They are kept for provenance and reuse; they are development tooling only (no production autoload, no CI gate).
+
+They are copies of the as-run scripts with a few corrections made after review (listed under "Changes since the runs" below). Behaviour that results in the recorded numbers is unchanged.
 
 - **Records:**
   - `docs/dogfood/2026-11-19-learning-effect-round2.md`
@@ -34,7 +36,7 @@ The scripts were written for one container. Before reusing them, replace these c
 | `prepare_ws.py <name> <baseline-sha>` | fresh single-commit workspace at a baseline (no history, no remote) with a private vendor | baseline SHA | `runs/<name>/repo`, `manifest.json` |
 | `prep_h2.py <name> <baseline> <finding-id>…` | **arm B**: workspace with the lesson record(s) removed, plus CHANGELOG lines naming them; fails if the id still appears anywhere | baseline, lesson ids | workspace + manifest deviation |
 | `prep_h1.py <name> B\|C` | H1 arms; **C′** adds a LearningNote (scope widened, task-naming text removed, evidence re-hashed). Copy this pattern for any C′ arm | — | workspace |
-| `backport_1091.py <repo>` | backports agent-loop#1091 (precedent projection in `enter`/`workflow plan`) into old baselines. Patches the **text and JSON** `plan` paths (H1 found a JSON gap) | workspace repo | patched files |
+| `backport_1091.py <repo>` | backports agent-loop#1091 (precedent projection in `enter`/`workflow plan`) into old baselines. Patches `enter` (JSON and text) and `workflow plan` (JSON and text). **The H1 runs used the earlier text-only plan patch**; that gap caused 2 of 3 missed deliveries (see the H1 record). The JSON path was added afterwards and verified: `plan --format=json` on the H1 probe workspace returned `learning_precedents` (`candidate_contract`, `selected`) | workspace repo | patched files |
 | `overlay.py <vendor> '<json>'` | replaces a voku package in a vendor dir with a git ref of a local clone | vendor, `{"pkg": [clone, ref, version]}` | updated vendor |
 | `snaptest.py <commit\|dir> <test> <filter> [--overlay-tests-from <commit>] [--repeat N]` | runs PHPUnit on a snapshot. Use `--overlay-tests-from <fix-commit>` to run the historical (hidden) tests against an agent's tree | — | `passes/N` |
 | `oracle_h2b.py <commit\|dir> <vendor>` | example **PHPStan-diagnostic oracle**: adds a hidden fixture, counts diagnostics by identifier | — | count + locations |
@@ -54,3 +56,17 @@ The scripts were written for one container. Before reusing them, replace these c
 5. **Vendor:** hardlink one master vendor (`cp -al`), but give each workspace a private `vendor/composer` and `vendor/bin`. PHPStan reached through a symlink loads two autoloaders, which is a fatal error.
 6. **Approvals:** the operator approves the Contract as submitted, appends one line to `<run>/interventions.jsonl`, and resumes with the standard message. Side questions from the agent are not answered.
 7. **`finish` never completes offline:** `composer ci` cannot pass with this vendor. Grade with the hidden oracle, never with the agent's own claim.
+
+## Changes since the runs
+
+Review of the first version found real defects. These fixes do not change any recorded result:
+
+- `backport_1091.py`: also patches the `workflow plan --format=json` payload. The as-run version only patched the text path.
+- `overlay.py`: extracts the archive to a staging directory and replaces the installed package only after it succeeds, so a bad ref no longer leaves an empty vendor package.
+- `prep_h1.py`: finds `overlay.py` next to itself.
+- `size.py`: lists untracked files NUL-delimited, so names with spaces work.
+- `grade_h1.py`: every PHPUnit run starts without a stale `junit.xml`. A non-zero exit with no report counts as an execution failure, not as green. Grading results are merged into `result.json` instead of replacing it.
+- `behavioural_oracle.py`: creates `result.json` when it is missing.
+- `fp_h2b.py`: a PHPStan analysis failure prints `ANALYSIS_FAILED` and is no longer reported as a clean "no".
+- `grade_pilot.py`: records `levels_false_positive: "analysis_failed"` and `skill_read: "transcript_unavailable"` as separate values, not as false.
+- `audit_transcripts.py`: recognises `git -C <dir> fetch` and other forms with global options; the workspace exemption uses path containment instead of a string prefix; forbidden paths are classified before any exemption.

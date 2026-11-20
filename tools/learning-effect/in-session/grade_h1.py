@@ -57,12 +57,16 @@ def materialize(scratch: Path, env, tree: str, name: str, mutant: bool, hidden: 
 
 def phpunit(snap: Path, args: list[str]) -> tuple[int, set[str], set[str]]:
     junit = snap / "junit.xml"
+    junit.unlink(missing_ok=True)  # each report must come from this invocation
     p = subprocess.run(["php", "run-phpunit.php", "--do-not-cache-result", "--log-junit", str(junit), *args], cwd=snap, capture_output=True, text=True, timeout=1800)
     failed, passed = set(), set()
     if junit.exists():
         for tc in ET.parse(junit).iter("testcase"):
             key = tc.get("class", "") + "::" + tc.get("name", "")
             (failed if (tc.find("failure") is not None or tc.find("error") is not None) else passed).add(key)
+    elif p.returncode != 0:
+        # PHP died before PHPUnit wrote a report: an execution failure, never a green run.
+        failed.add("<execution failure: exit " + str(p.returncode) + ", no report for " + " ".join(args)[:80] + ">")
     return p.returncode, failed, passed
 
 with tempfile.TemporaryDirectory() as scratch:
@@ -118,5 +122,8 @@ result = {
     "precedent_in_context": exposed, "foreign_reads": sorted({p for p in outside if p.startswith("/home/") or ("/runs/" in p and not p.startswith(str(out)))}),
     "outside_paths": sorted(set(outside))[:12], "network": network[:5], "usage": usage,
 }
-(out / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+result_path = out / "result.json"
+merged = json.loads(result_path.read_text()) if result_path.exists() else {}
+merged.update(result)  # keep keys written by other graders (behavioural_oracle, realistic_oracle)
+result_path.write_text(json.dumps(merged, indent=2) + "\n")
 print(json.dumps({k: result[k] for k in ("run", "arm", "hidden_612_tests", "own_tests", "own_tests_green", "mutant_killed_by_own_tests", "delegated_to_catalog", "precedent_in_context")} | {"killers": len(killers), "foreign": len(result["foreign_reads"]), "network": len(network)}))

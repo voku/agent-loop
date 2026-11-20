@@ -8,7 +8,7 @@ expected at <runs-dir>/<run-name>/repo, where <runs-dir> is the directory that h
 runmap.tsv plus "/runs" (set RUNS_DIR to override).
 
 For each run it prints one JSON object:
-  network            tool calls that use the web tools, curl/wget, or git fetch/clone/pull/push;
+  network            tool calls that use the web tools, curl/wget, or git fetch/clone/pull/push/ls-remote (also after global options such as -C);
   forbidden_paths    paths outside the run's workspace that point at real repositories,
                      candidate lists, other runs or other transcripts (must be empty);
   other_outside      remaining paths outside the workspace (scratch logs etc.), counted;
@@ -28,7 +28,8 @@ from pathlib import Path
 runmap = Path(sys.argv[1]).resolve()
 runs_dir = Path(os.environ.get("RUNS_DIR", str(runmap.parent / "runs")))
 PATH_RE = re.compile(r'(/(?:home|tmp|root|etc|opt|var|dev/shm)[^"\s\\\';]*)')
-NET_RE = re.compile(r'\b(curl|wget|git (fetch|clone|pull|push))\b')
+# git may carry global options (-C <dir>, -c k=v, --git-dir=...) before the subcommand.
+NET_RE = re.compile(r'\b(curl|wget)\b|\bgit(?:\s+(?:-C\s+\S+|-c\s+\S+|--[\w-]+(?:=\S+)?))*\s+(fetch|clone|pull|push|ls-remote)\b')
 SKILL_RE = re.compile(r'(?:\.claude|resources)/skills/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?')
 # /tasks/a<16 hex>.output are other agents' transcripts; /tasks/b<id>.output are the agent's
 # own background-shell outputs and are not a leak.
@@ -59,11 +60,13 @@ for line in runmap.read_text().splitlines():
                 skills.append(("Skill", text[:120]))
             skills += [(item.get("name"), p) for p in SKILL_RE.findall(text)]
             for path in (os.path.normpath(p) for p in PATH_RE.findall(text)):
-                if path.startswith(workspace) or path.startswith("/tmp/tmp") or path == "/dev/null":
-                    continue
-                other_runs = f"{runs_dir}/" in path and not path.startswith(workspace)
+                # Classify forbidden paths first: a temp-path or workspace exemption must never hide them.
+                in_workspace = path == workspace or path.startswith(workspace + os.sep)  # containment, not string prefix
+                other_runs = f"{runs_dir}{os.sep}" in path and not in_workspace
                 if FORBIDDEN_RE.search(path) or other_runs:
                     forbidden.append(path[:120])
+                elif in_workspace or path == "/dev/null":
+                    continue
                 else:
                     other[path[:80]] += 1
     print(json.dumps({"run": name, "network": net, "forbidden_paths": forbidden,
