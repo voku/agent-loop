@@ -67,6 +67,9 @@ final readonly class HostFrontDoorApplication
                     $config['prompting']['language'],
                     $htmlLanguageMatches,
                 );
+                if (!$showDecisionPresentation) {
+                    echo (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderHtmlDecisionAdvice($taskId);
+                }
             } else {
                 $this->printControlPlanePresentation($htmlPresentation);
             }
@@ -253,7 +256,8 @@ final readonly class HostFrontDoorApplication
      * @param array{
      *     status: string,
      *     url: string|null,
-     *     detail: string|null
+     *     detail: string|null,
+     *     start_command?: non-empty-list<string>|null
      * }|null $presentation
      */
     private function printControlPlanePresentation(?array $presentation): void
@@ -276,10 +280,13 @@ final readonly class HostFrontDoorApplication
             echo ' (' . $detail . ')';
         }
         echo "\n";
+        if ($status === 'unreachable' && is_array($presentation['start_command'] ?? null)) {
+            echo 'Start agent-ui manually: ' . implode(' ', array_map(escapeshellarg(...), $presentation['start_command'])) . "\n";
+        }
     }
 
     /**
-     * @param array{status: string, url: string|null, detail: string|null}|null $presentation
+     * @param array{status: string, url: string|null, detail: string|null, start_command?: non-empty-list<string>|null}|null $presentation
      */
     private function printHtmlDecisionPresentation(
         ?array $presentation,

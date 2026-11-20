@@ -104,6 +104,8 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         $router = file_get_contents(dirname(__DIR__) . '/AGENTS.md');
 
         self::assertIsString($router);
+        self::assertStringContainsString('engineering-codelight', $router);
+        self::assertStringNotContainsString('C  Context is a dependency', $router);
         foreach (['command', 'command_template', 'decision_required', 'host_work', 'none'] as $kind) {
             self::assertStringContainsString(
                 $kind,

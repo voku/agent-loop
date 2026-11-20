@@ -41,7 +41,8 @@ final readonly class ControlPlanePresentationProjector
      *     status: 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed',
      *     required: false,
      *     url: string|null,
-     *     detail: string|null
+     *     detail: string|null,
+     *     start_command: non-empty-list<string>|null
      * }|null
      */
     public function project(string $taskId): ?array
@@ -102,7 +103,20 @@ final readonly class ControlPlanePresentationProjector
             : null;
 
         if ($status !== 'ready') {
-            return $this->result($status, null, $detail);
+            if ($process->exitCode !== 2) {
+                return $this->result('probe_failed', null, 'agent-ui reported a non-ready state with an unexpected exit code.');
+            }
+
+            // Never start a process during a read-only status projection. A
+            // launch hint is safe only for an unoccupied local endpoint.
+            $startCommand = $status === 'unreachable' ? [
+                $binary,
+                '--root=' . $this->rootPath,
+                '--host=' . $controlPlane['host'],
+                '--port=' . $controlPlane['port'],
+            ] : null;
+
+            return $this->result($status, null, $detail, $startCommand);
         }
         if ($process->exitCode !== 0) {
             return $this->result('probe_failed', null, 'agent-ui reported ready with a non-zero exit code.');
@@ -127,10 +141,12 @@ final readonly class ControlPlanePresentationProjector
      *     status: 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed',
      *     required: false,
      *     url: string|null,
-     *     detail: string|null
+     *     detail: string|null,
+     *     start_command: non-empty-list<string>|null
      * }
+     * @param non-empty-list<string>|null $startCommand
      */
-    private function result(string $status, ?string $url, ?string $detail): array
+    private function result(string $status, ?string $url, ?string $detail, ?array $startCommand = null): array
     {
         if (!in_array($status, [
             'ready',
@@ -151,6 +167,7 @@ final readonly class ControlPlanePresentationProjector
             'required' => false,
             'url' => $url,
             'detail' => $detail,
+            'start_command' => $startCommand,
         ];
     }
 

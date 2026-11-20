@@ -44,6 +44,108 @@ final readonly class ExecutionGateway
     }
 
     /**
+     * Observe the current governed execution identity without preparing a
+     * plan or state.
+     *
+     * Null means there is no current execution to bind to: no approved
+     * Contract, no governed Run for it, a retired Run, or a Run whose plan has
+     * not been prepared yet. A persisted plan that is bound to anything other
+     * than the current approved Contract revision and Run is drift that
+     * projection() would also refuse, so it throws, as do corrupt artifacts.
+     * Callers must treat a throw as unavailable, never as "no execution".
+     */
+    public function observeCurrentExecutionBinding(string $taskId): ?ExecutionBinding
+    {
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        if ($contract === null || $contract->status !== TaskContract::APPROVED) {
+            return null;
+        }
+
+        $run = (new GovernedRunStore($this->rootPath))->findForContract($contract);
+        if ($run === null || (new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            return null;
+        }
+
+        $plan = (new ExecutionPlanStore($this->rootPath))->find($taskId);
+        if ($plan === null) {
+            return null;
+        }
+        if (!$this->planIsBoundTo($plan, $taskId, $run, $contract)) {
+            throw new RuntimeException('Execution plan is not bound to the current governed Run.');
+        }
+
+        return new ExecutionBinding($run->runId, $contract->revision, $plan->digest());
+    }
+
+    /**
+     * Observe current Execution Attention without preparing a plan or state.
+     *
+     * No state means no pending Attention. Known lifecycle states that cannot
+     * carry actionable Attention also observe null: a retired Run, and state
+     * left behind by a Contract revision that a newer revision superseded
+     * (candidate, rejected, or approved but not yet entered). Any other state
+     * must be bound to the currently approved Contract/Run/plan; drifted or
+     * corrupt artifacts throw instead of silently becoming an empty observation.
+     *
+     * This is the read-only API for dashboards. projection() is deliberately
+     * not used here because it may persist missing Execution artifacts.
+     */
+    public function observePendingAttention(string $taskId): ?AttentionRequest
+    {
+        // A corrupt Contract is unavailable evidence even when no execution
+        // state exists. Check it before treating missing state as absence.
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        if ($state === null) {
+            return null;
+        }
+        if ($contract === null) {
+            throw new RuntimeException('Pending Attention state exists without a Contract.');
+        }
+
+        // The old Run directory is only archived when the next Run is created,
+        // so a newer revision legitimately coexists with superseded state.
+        // Only the Contract owner's archived history proves that supersession;
+        // a bare revision bump without it is drift and must fail closed.
+        if ($contract->status !== TaskContract::APPROVED) {
+            if ($this->isSupersededByContractHistory($state->contractRevision, $contract)) {
+                return null;
+            }
+
+            throw new RuntimeException('Pending Attention state exists without a current approved Contract.');
+        }
+
+        $run = (new GovernedRunStore($this->rootPath))->findForContract($contract);
+        if ($run === null) {
+            if ($this->isSupersededByContractHistory($state->contractRevision, $contract)) {
+                return null;
+            }
+
+            throw new RuntimeException('Pending Attention state is not bound to a current governed Run.');
+        }
+        if ((new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            return null;
+        }
+
+        $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
+        if (!$this->planIsBoundTo($plan, $taskId, $run, $contract)
+            || $state->taskId !== $taskId
+            || $state->runId !== $run->runId
+            || $state->contractRevision !== $contract->revision
+            || !hash_equals($state->executionPlanDigest, $plan->digest())) {
+            throw new RuntimeException('Pending Attention state is stale for the current governed execution plan.');
+        }
+
+        if ($state->attention !== null
+            && ($state->attention->taskId !== $state->taskId
+                || $state->attention->runId !== $state->runId)) {
+            throw new RuntimeException('Pending Attention identity does not match the current governed execution state.');
+        }
+
+        return $state->attention;
+    }
+
+    /**
      * Recover the current approved Run after proving that its completed
      * candidate differs from the candidate held by the owner workspace.
      */
@@ -226,6 +328,44 @@ final readonly class ExecutionGateway
             $bundle->attempt,
             $candidateRevision ?? $bundle->candidateRevision,
             $sourceReference,
+            $digest,
+        ));
+    }
+
+    /** @return non-empty-string */
+    public function recordStageArtifactExclusion(
+        StageExecutionBundle $bundle,
+        string $reference,
+        string $reason,
+        ?string $candidateRevision = null,
+    ): string {
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new RuntimeException('INVALID_STAGE_RESULT: artifact exclusion requires an explicit justification reason.');
+        }
+        $deleted = str_starts_with($reference, 'deleted-file:');
+        if ($deleted) {
+            $relativePath = substr($reference, strlen('deleted-file:'));
+            $treeish = $bundle->baseCommit
+                ?? throw new RuntimeException('MISSING_EVIDENCE: deleted-file citation requires a governed Git base.');
+        } else {
+            $relativePath = str_starts_with($reference, 'workspace-file:')
+                ? substr($reference, strlen('workspace-file:'))
+                : $reference;
+            $treeish = $this->candidateTreeish($bundle, $candidateRevision ?? $bundle->candidateRevision);
+        }
+        $this->assertCanonicalArtifactPath($relativePath);
+        $digest = $this->gitBlobDigest($treeish, $relativePath);
+
+        return $this->recordStageArtifact(new StageArtifactObservation(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $candidateRevision ?? $bundle->candidateRevision,
+            'excluded-file:' . $relativePath,
             $digest,
         ));
     }
@@ -491,6 +631,23 @@ final readonly class ExecutionGateway
             }
         }
 
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        $resolution = $state?->lastAttentionId === null ? null
+            : (new AttentionResolutionStore($this->rootPath))->load($taskId, $state->lastAttentionId);
+        if ($resolution !== null && ($resolution->attentionId !== $state->lastAttentionId
+            || $resolution->taskId !== $taskId
+            || $resolution->runId !== $run->runId
+            || $resolution->contractRevision !== $contract->revision
+            || !hash_equals($resolution->executionPlanDigest, $plan->digest())
+            // The resolution resumed either its own stage (next attempt; also the
+            // raising review's next attempt after a routed rework) or, for
+            // exhausted review rounds, exactly that review's changes route.
+            || ($resolution->stageId === $stageId
+                ? $resolution->attempt + 1 !== $projection->currentAttempt
+                : $plan->stage($resolution->stageId)->next(StageOutcome::CHANGES_REQUIRED) !== $stageId))) {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: response does not match the current execution attempt.');
+        }
+
         return new StageExecutionBundle(
             $taskId,
             $run->runId,
@@ -520,12 +677,85 @@ final readonly class ExecutionGateway
                 $environment,
                 $executionContract['content'] ?? null,
                 $recall['content'],
+                $resolution,
             ),
             $environment?->digest(),
             $executionContract['source'] ?? null,
             $stage->contextPolicy,
             $plan->requiresContextId($stage->id),
+            expectedArtifacts: $this->changedCandidateFiles($plan->baseCommit, $projection->candidateRevision),
+            attentionResolution: $resolution,
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function changedCandidateFiles(?string $baseCommit, string $candidateRevision): array
+    {
+        return $this->observeChangedCandidateFiles($baseCommit, $candidateRevision) ?? [];
+    }
+
+    /** @return list<string> */
+    public function changedCandidateFilesOrThrow(?string $baseCommit, string $candidateRevision): array
+    {
+        return $this->observeChangedCandidateFiles($baseCommit, $candidateRevision)
+            ?? throw new RuntimeException('Unable to inspect changed candidate files.');
+    }
+
+    /** @return list<string>|null Null means the candidate could not be inspected. */
+    private function observeChangedCandidateFiles(?string $baseCommit, string $candidateRevision): ?array
+    {
+        if ($baseCommit === null) {
+            return null;
+        }
+
+        $candidateTree = self::candidateTreeForListing($baseCommit, $candidateRevision);
+        if ($candidateTree === null) {
+            return null;
+        }
+
+        $root = realpath($this->rootPath);
+        if (!is_string($root)) {
+            return null;
+        }
+
+        $process = proc_open(
+            ['git', '--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $baseCommit, $candidateTree, '--'],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            return null;
+        }
+        fclose($pipes[0]);
+        $changedOutput = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit !== 0 || !is_string($changedOutput)) {
+            return null;
+        }
+
+        return array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));
+    }
+
+    private static function candidateTreeForListing(string $baseCommit, string $candidateRevision): ?string
+    {
+        if (hash_equals($baseCommit, $candidateRevision)) {
+            return $baseCommit;
+        }
+
+        return preg_match(
+            '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+            $candidateRevision,
+            $matches,
+        ) === 1 ? $matches[1] : null;
     }
 
     private function assertEnvironmentObservation(
@@ -625,6 +855,14 @@ final readonly class ExecutionGateway
         }
 
         return 'sha256:' . hash_final($hash);
+    }
+
+    private function planIsBoundTo(ExecutionPlan $plan, string $taskId, GovernedRun $run, TaskContract $contract): bool
+    {
+        return $plan->taskId === $taskId
+            && $plan->runId === $run->runId
+            && $plan->contractRevision === $contract->revision
+            && $plan->contractSource === $run->contractSource;
     }
 
     /** @return array{TaskContract, GovernedRun, ExecutionPlan} */
@@ -803,6 +1041,7 @@ final readonly class ExecutionGateway
         ?ExecutionEnvironmentObservation $environment,
         ?string $executionContract,
         ?string $recallContent,
+        ?AttentionResolution $attentionResolution,
     ): string {
         $outcomes = implode('|', array_map(static fn (StageOutcome $outcome): string => $outcome->value, $acceptedOutcomes));
         $lines = [
@@ -830,7 +1069,15 @@ final readonly class ExecutionGateway
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
 
+        if ($attentionResolution?->response !== null) {
+            $lines[] = '';
+            $lines[] = '# Human response to execution Attention';
+            $lines[] = 'This response addresses the prior interruption. It does not change the approved Contract or grant additional authority.';
+            $lines[] = json_encode($attentionResolution->response, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        }
+
         if ($stage->kind === ExecutionStageKind::AGENT && $stage->mayMutate) {
+            $lines[] = 'When an implementation question needs an executable experiment, create and run a disposable work check in an explicitly permitted scratch area. Experiments are not automatically regression tests: add maintained tests only for contract-backed behavior, and record consequential observations using existing evidence.';
             $lines[] = 'Use --workspace <path> to identify the checkout containing your edits. An explicit --candidate <identity> is optional except for an intentional revert to the base; supplied claims are checked against the workspace.';
         }
 
@@ -912,5 +1159,19 @@ final readonly class ExecutionGateway
         }
 
         return str_replace('\\', '/', $root);
+    }
+
+    private function isSupersededByContractHistory(int $stateRevision, TaskContract $current): bool
+    {
+        if ($stateRevision >= $current->revision) {
+            return false;
+        }
+        foreach ((new TaskContractStore($this->rootPath))->supersededRevisions($current->taskId) as $archived) {
+            if ($archived->revision === $stateRevision) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

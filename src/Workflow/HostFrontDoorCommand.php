@@ -174,10 +174,10 @@ final readonly class HostFrontDoorCommand
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $preparationFailure = null;
-        $preparationWarning = null;
+        $preparationResult = null;
         if ($this->needsPreparation($manifest)) {
             try {
-                $preparationWarning = $this->prepareApprovedRun($taskId->value);
+                $preparationResult = $this->prepareApprovedRun($taskId->value);
             } catch (Throwable $exception) {
                 if ($format !== 'json') {
                     throw $exception;
@@ -201,11 +201,21 @@ final readonly class HostFrontDoorCommand
         $discovery = $request !== null && $this->isPlanTemplate($policy)
             ? (new WorkflowPrePlanDiscoveryProjector($this->rootPath))->project($request)
             : null;
-        $warnings = $preparationWarning === null ? [] : [[
-            'code' => 'enter.ranked_search_unavailable',
-            'owner' => 'agent-map',
-            'message' => $preparationWarning,
-        ]];
+        $warnings = [];
+        if ($preparationResult?->searchWarning !== null) {
+            $warnings[] = [
+                'code' => 'enter.ranked_search_unavailable',
+                'owner' => 'agent-map',
+                'message' => $preparationResult->searchWarning,
+            ];
+        }
+        if ($preparationResult?->kanbanWarning !== null) {
+            $warnings[] = [
+                'code' => 'enter.kanban_sync_failed',
+                'owner' => 'agent-kanban',
+                'message' => $preparationResult->kanbanWarning,
+            ];
+        }
 
         $hookResults = [];
         if ($preparationFailure === null && $policy->mutationAllowed) {
@@ -236,6 +246,10 @@ final readonly class HostFrontDoorCommand
         if ($discovery !== null) {
             $payload['references'] = ['discovery' => $discovery];
         }
+        $learningPrecedents = (new WorkflowLearningPrecedentProjector($this->rootPath))->project($taskId->value);
+        if ($learningPrecedents !== null) {
+            $payload['learning_precedents'] = $learningPrecedents;
+        }
         if ($hookResults !== []) {
             $payload['hooks'] = $hookResults;
         }
@@ -256,6 +270,9 @@ final readonly class HostFrontDoorCommand
             echo 'State: ' . $policy->state . "\n";
             echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
             $this->printHumanDecision($taskId->value, $policy, $showDecisionPresentation);
+            if ($learningPrecedents !== null) {
+                echo (new WorkflowLearningPrecedentProjector($this->rootPath))->renderText($learningPrecedents);
+            }
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
             if ($discovery !== null) {
@@ -334,6 +351,23 @@ final readonly class HostFrontDoorCommand
             $policy->nextActionKind,
         );
         if ($decision === null) {
+            $projection = (new WorkflowHumanDecisionProjector($this->rootPath))->project(
+                $taskId,
+                $policy->nextAction,
+                $policy->nextActionKind,
+                $policy->blockers,
+            );
+            if ($projection !== null) {
+                $recommendation = $projection['recommendation'] ?? null;
+                if (is_array($recommendation)) {
+                    $choice = $recommendation['suggested_choice'] ?? null;
+                    echo "\nDecision required: " . $projection['type'] . "\n";
+                    echo "Advisory recommendation: " . (is_string($choice) ? $choice : 'abstain') . "\n";
+                    echo "Reason: " . (string) ($recommendation['reason'] ?? 'Human judgment required.') . "\n";
+                    echo "Only the human can authorize this decision.\n";
+                }
+            }
+
             return;
         }
 
@@ -363,7 +397,7 @@ final readonly class HostFrontDoorCommand
 
         if ($policy->state !== 'complete') {
             try {
-                if ($policy->mutationAllowed || $this->needsValidationReconciliation($manifest)) {
+                if (($policy->mutationAllowed || $this->needsValidationReconciliation($manifest)) && !$this->hasCurrentFailedValidation($manifest)) {
                     [$contract, $run, $session] = $this->currentRunContext($taskId->value);
                     (new WorkflowValidationRunner($this->rootPath))->run($contract, $run, $session);
                     $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
@@ -389,29 +423,36 @@ final readonly class HostFrontDoorCommand
 
                     if (in_array('fast_path', $contract->tags, true)) {
                         $diff = (new HumanReviewDiffCollector($this->rootPath))->collect($contract);
-                        if ($diff->available) {
-                            $unexpected = $this->unexpectedFastPathTouchedFiles($contract, $diff);
-                            if ($unexpected !== []) {
-                                throw new RuntimeException(sprintf(
-                                    'Fast-path scope violated: modified undeclared file(s): %s. Escalate to standard contract.',
-                                    implode(', ', $unexpected),
-                                ));
+                        if (!$diff->available) {
+                            // The scope and line ceilings are what make auto-review
+                            // and auto-close safe; unverifiable evidence must not
+                            // pass as a clean micro-task.
+                            throw new RuntimeException(sprintf(
+                                'Fast-path auto-close requires diff evidence: %s Escalate to standard contract.',
+                                $diff->unavailableReason ?? 'Git diff is unavailable.',
+                            ));
+                        }
+                        $unexpected = $this->unexpectedFastPathTouchedFiles($contract, $diff);
+                        if ($unexpected !== []) {
+                            throw new RuntimeException(sprintf(
+                                'Fast-path scope violated: modified undeclared file(s): %s. Escalate to standard contract.',
+                                implode(', ', $unexpected),
+                            ));
+                        }
+                        $lineCount = 0;
+                        foreach (explode("\n", $diff->patch) as $patchLine) {
+                            if (str_starts_with($patchLine, '+++') || str_starts_with($patchLine, '---')) {
+                                continue;
                             }
-                            $lineCount = 0;
-                            foreach (explode("\n", $diff->patch) as $patchLine) {
-                                if (str_starts_with($patchLine, '+++') || str_starts_with($patchLine, '---')) {
-                                    continue;
-                                }
-                                if (str_starts_with($patchLine, '+') || str_starts_with($patchLine, '-')) {
-                                    ++$lineCount;
-                                }
+                            if (str_starts_with($patchLine, '+') || str_starts_with($patchLine, '-')) {
+                                ++$lineCount;
                             }
-                            if ($lineCount > 60) {
-                                throw new RuntimeException(sprintf(
-                                    'Fast-path line limit exceeded: %d modified lines (limit: 60). Escalate to standard contract.',
-                                    $lineCount,
-                                ));
-                            }
+                        }
+                        if ($lineCount > 60) {
+                            throw new RuntimeException(sprintf(
+                                'Fast-path line limit exceeded: %d modified lines (limit: 60). Escalate to standard contract.',
+                                $lineCount,
+                            ));
                         }
 
                         if ($this->validationComplete($boundary) && $reviewSha256 !== null && !$review['invalid'] && in_array($review['report_status'], ['ok', 'warn'], true)) {
@@ -468,6 +509,9 @@ final readonly class HostFrontDoorCommand
                     }
 
                     if ($options['learning'] !== null) {
+                        if (!$this->validationComplete($boundary)) {
+                            throw new RuntimeException('Learning disposition requires passing current validation evidence.');
+                        }
                         if ($options['by'] === null) {
                             throw new RuntimeException('A learning decision requires --by <actor>.');
                         }
@@ -654,9 +698,36 @@ final readonly class HostFrontDoorCommand
 
         $verification = $manifest->references['verification'] ?? [];
 
-        return ($verification['state'] ?? null) === 'blocked'
-            && ($verification['gate'] ?? null) === 'validation'
-            && ($verification['validation_failed'] ?? false) !== true;
+        if (($verification['state'] ?? null) !== 'blocked') {
+            return false;
+        }
+        if (($verification['gate'] ?? null) === 'validation') {
+            return ($verification['validation_failed'] ?? false) !== true;
+        }
+        if (($verification['gate'] ?? null) !== 'integrity') {
+            return false;
+        }
+
+        [$contract, , $session] = $this->currentRunContext($manifest->taskId);
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+        return $boundary->staleValidationCommands !== []
+            || ($boundary->review['exists'] && !$boundary->review['invalid'] && $boundary->reviewEvidenceSha256() === null);
+    }
+
+    private function hasCurrentFailedValidation(RunManifest $manifest): bool
+    {
+        if (!$this->hasCurrentFinishBoundary($manifest)) {
+            return false;
+        }
+        [$contract, , $session] = $this->currentRunContext($manifest->taskId);
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+        foreach ($boundary->validationEvidence as $evidence) {
+            if ($evidence !== null && $evidence->status !== ValidationStatus::PASSED) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function needsPreparation(RunManifest $manifest): bool
@@ -683,7 +754,7 @@ final readonly class HostFrontDoorCommand
             || ($manifest->references['recall']['state'] ?? null) !== 'compiled';
     }
 
-    private function prepareApprovedRun(string $taskId): ?string
+    private function prepareApprovedRun(string $taskId): WorkflowRunPreparationResult
     {
         $contract = (new TaskContractStore($this->rootPath))->load($taskId);
         if ($contract->status !== TaskContract::APPROVED) {
@@ -696,7 +767,7 @@ final readonly class HostFrontDoorCommand
 
         $this->captureFastPathScopeBaseline($contract);
 
-        return $result->searchWarning;
+        return $result;
     }
 
     /** @return list<string> */
@@ -1289,15 +1360,25 @@ final readonly class HostFrontDoorCommand
             $actor,
         );
 
-        $preparationWarning = $this->prepareApprovedRun($taskId->value);
+        $preparationResult = $this->prepareApprovedRun($taskId->value);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
-        $warnings = $preparationWarning === null ? [] : [[
-            'code' => 'quick.ranked_search_unavailable',
-            'owner' => 'agent-map',
-            'message' => $preparationWarning,
-        ]];
+        $warnings = [];
+        if ($preparationResult->searchWarning !== null) {
+            $warnings[] = [
+                'code' => 'quick.ranked_search_unavailable',
+                'owner' => 'agent-map',
+                'message' => $preparationResult->searchWarning,
+            ];
+        }
+        if ($preparationResult->kanbanWarning !== null) {
+            $warnings[] = [
+                'code' => 'quick.kanban_sync_failed',
+                'owner' => 'agent-kanban',
+                'message' => $preparationResult->kanbanWarning,
+            ];
+        }
 
         $nextAction = 'Apply surgical edit within declared scope and run agent-loop finish ' . $taskId->value;
         $payload = [

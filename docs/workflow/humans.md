@@ -35,6 +35,65 @@ For non-trivial work, report concrete evidence rather than confidence:
 
 Claims such as CI being green, a pull request being merged, or a release being shipped require current evidence.
 
+## Advisory decision recommendations
+
+The host-neutral human-decision JSON projection includes a typed `recommendation` for every
+`decision_required` outcome, including Contract approval, review
+acknowledgement, Learning disposition, risk acceptance, supersession, and
+otherwise unknown human authority gates. A recommendation may abstain.
+Conservative deterministic advice is available without provider calls.
+
+A model adapter is **optional, off by default**, and provider-neutral at the
+PHP interface. For the currently verified System One choice protocol,
+the project can explicitly configure
+`interaction.decision_advice` in `.agent-loop/init.json`:
+
+```json
+{
+  "interaction": {
+    "decision_advice": {
+      "mode": "shadow",
+      "provider": "system_one",
+      "endpoint": "https://trusted-public-provider.example/v1/systemone",
+      "data_classification": "public_metadata",
+      "timeout_ms": 1000
+    }
+  }
+}
+```
+
+The project configuration describes the *requested* provider, not the
+operator's permission to contact it or read credentials. An auto-projected
+human gate requires a separate, exact process-environment grant from the
+trusted host/launcher, **not** another key in repository-owned `init.json`:
+
+```bash
+export AGENT_LOOP_DECISION_APPROVED_ENDPOINT='https://trusted-public-provider.example/v1/systemone'
+# Only when init.json names token_env=DECISION_MODEL_TOKEN:
+export AGENT_LOOP_DECISION_APPROVED_TOKEN_ENV='DECISION_MODEL_TOKEN'
+```
+
+Without matching grants the optional model remains disabled and the
+conservative human decision stays available. A project's `token_env` can
+never authorize reading that variable by itself. Keep host grants out of
+committed scripts and project-controlled dotenv loaders. Explicit
+`agent-loop decision route` CLI invocations are separately initiated by
+their caller and must not be treated as automated human-gate permission.
+
+Only decision type and bounded structural counts are transmitted, not source
+code, task identifiers, goal text, review content, file paths, or private
+Contract details. `shadow` records model output without replacing the
+deterministic suggestion; explicit `assist` can display its bounded choice.
+No inference is enabled by a credential merely being present. An unavailable
+provider leaves the human question and its deterministic advice intact.
+
+Model suggestions are **not approvals**. They do not change
+`next_action_kind`, `mutation_ready`, review acknowledgement, accepted
+risk, durable Learning, or the authorized Contract revision. Even a model
+recommendation to approve must be verified against the exact human-readable
+subject. Public structural metadata cannot establish that the proposed
+work is safe, so treat model confidence as uncalibrated.
+
 ## Presenting a human decision
 
 A useful decision request makes the authority boundary visible without asking the human to reconstruct repository state or operate the agent's shell.

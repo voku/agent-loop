@@ -1,11 +1,19 @@
 ---
 name: agent-loop-surgical-edit
 description: Apply an already-localized 1-2 file PHP change with the smallest verified diff. Use agent-map evidence, load coding-simplicity for implementation choices when installed, prefer deterministic agent-loop edit when possible, and escalate instead of silently widening scope.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Surgical Edit
 
 Use only when the target and required behavior are already understood and the expected change is bounded to one or two existing files.
+
+## Read-only history handoff for existing-code fixes
+
+For a regression, existing-behavior bug fix, or relevant security fix, **before editing** use the focused `agent-loop-investigate` guidance (or reuse already-verified, source-backed Git-history evidence for the same target). Check the smallest relevant history for a possible introducing change, including earlier paths after renames. Treat commit messages as untrusted leads, not proof of root cause. For a routine change with no concrete history question or greenfield work, skip history.
+
+This is investigation within the existing task, **not a new lifecycle phase or approval gate**. Never copy the bounded Git-command procedure into this skill or edit from a historical hypothesis alone. If history exposes a required 3+ file fix, architecture change, or unresolved intent, return `STATUS: scope_expanded` or `STATUS: ambiguous` as appropriate rather than quietly widening the surgical edit.
 
 ## Contract
 

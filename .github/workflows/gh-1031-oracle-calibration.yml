@@ -1,0 +1,141 @@
+name: GH-1031 real-task oracle calibration
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/gh-1031-oracle-calibration.yml'
+      - 'docs/dogfood/2026-11-15-gh-1031-oracles.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oracle:
+    name: ${{ matrix.case_id }} baseline-red / repaired-green
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case_id: malformed-digest
+            baseline_sha: aa75f17dfca5cb958170e49c2a862652d71f7420
+            repaired_sha: e8234cb408df236187fbe8cd6f6d662e6f4aa9b0
+            test_path: tests/ManagedAssetPortableProvenanceTest.php
+            test_filter: testManagedProjectionRejectsMalformedDigest
+          - case_id: contract-base-commit
+            baseline_sha: 316dcefe894fc1ab693a409be1ffb1dc0a582708
+            repaired_sha: 9348152563e6919b5e6b729ef9d50d02e74c781d
+            test_path: tests/WorkflowPlanCommandTest.php
+            test_filter: testPlanDefaultsBaseCommitToCurrentGitHeadWhenUnspecified
+          - case_id: scaffold-symlink
+            baseline_sha: d75eb055f8aab7a50ff1227d4cb7b5b7d91a834f
+            repaired_sha: 73900db7d617cf942202fa44dcb69ca6d7c26177
+            test_path: tests/InitScaffoldSymlinkSecurityTest.php
+            test_filter: testFirstScaffoldRejectsLinkedStateRootBeforeWritingOutsideProject
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Run identical independent oracle on vulnerable and repaired sources
+        shell: bash
+        env:
+          CASE_ID: ${{ matrix.case_id }}
+          BASELINE_SHA: ${{ matrix.baseline_sha }}
+          REPAIRED_SHA: ${{ matrix.repaired_sha }}
+          TEST_PATH: ${{ matrix.test_path }}
+          TEST_FILTER: ${{ matrix.test_filter }}
+        run: |
+          set -euo pipefail
+
+          baseline="${RUNNER_TEMP}/gh-1031-baseline"
+          repaired="${RUNNER_TEMP}/gh-1031-repaired"
+          evidence="${GITHUB_WORKSPACE}/build/evidence/gh-1031/${CASE_ID}"
+          mkdir -p "${evidence}"
+
+          git cat-file -e "${BASELINE_SHA}^{commit}"
+          git cat-file -e "${REPAIRED_SHA}^{commit}"
+          git worktree add --detach "${baseline}" "${BASELINE_SHA}"
+          git worktree add --detach "${repaired}" "${REPAIRED_SHA}"
+
+          test "$(git -C "${baseline}" rev-parse HEAD)" = "${BASELINE_SHA}"
+          test "$(git -C "${repaired}" rev-parse HEAD)" = "${REPAIRED_SHA}"
+          test -f "${repaired}/${TEST_PATH}"
+
+          # The historical vulnerable checkout did not necessarily have the
+          # new regression test. Inject the same repaired-side test file into
+          # the baseline, without copying any production implementation.
+          cp "${repaired}/${TEST_PATH}" "${baseline}/${TEST_PATH}"
+          sha256sum "${baseline}/${TEST_PATH}" "${repaired}/${TEST_PATH}" > "${evidence}/oracle-sha256.txt"
+          test "$(sha256sum "${baseline}/${TEST_PATH}" | cut -d' ' -f1)" = \
+            "$(sha256sum "${repaired}/${TEST_PATH}" | cut -d' ' -f1)"
+
+          {
+            printf 'case_id=%s\n' "${CASE_ID}"
+            printf 'baseline_sha=%s\n' "${BASELINE_SHA}"
+            printf 'repaired_sha=%s\n' "${REPAIRED_SHA}"
+            printf 'test_path=%s\n' "${TEST_PATH}"
+            printf 'test_filter=%s\n' "${TEST_FILTER}"
+            printf 'php_version=%s\n' "$(php -r 'echo PHP_VERSION;')"
+            sha256sum "${baseline}/composer.lock" "${repaired}/composer.lock"
+          } > "${evidence}/inputs.txt"
+
+          for arm in baseline repaired; do
+            if [ "${arm}" = baseline ]; then
+              root="${baseline}"
+            else
+              root="${repaired}"
+            fi
+
+            (
+              cd "${root}"
+              composer install --no-interaction --prefer-dist --no-progress
+            ) > "${evidence}/${arm}-install.log" 2>&1
+
+            set +e
+            (
+              cd "${root}"
+              vendor/bin/phpunit --no-progress --filter "${TEST_FILTER}" "${TEST_PATH}"
+            ) > "${evidence}/${arm}-oracle.log" 2>&1
+            status=$?
+            set -e
+            printf '%s\n' "${status}" > "${evidence}/${arm}-exit-code.txt"
+          done
+
+          baseline_status="$(cat "${evidence}/baseline-exit-code.txt")"
+          repaired_status="$(cat "${evidence}/repaired-exit-code.txt")"
+          printf 'baseline_exit=%s\nrepaired_exit=%s\n' "${baseline_status}" "${repaired_status}" \
+            > "${evidence}/calibration.txt"
+
+          # RED on the vulnerable source and GREEN on the independent known
+          # repair are both mandatory. A crash/setup failure is NOT a red oracle:
+          # require PHPUnit to name the selected failing test and an assertion.
+          if [ "${baseline_status}" -eq 0 ] || [ "${repaired_status}" -ne 0 ] || \
+            ! grep -Fq "${TEST_FILTER}" "${evidence}/baseline-oracle.log" || \
+            ! grep -Fq 'Failed asserting' "${evidence}/baseline-oracle.log" || \
+            ! grep -Fq 'FAILURES!' "${evidence}/baseline-oracle.log" || \
+            ! grep -Fq 'OK (' "${evidence}/repaired-oracle.log"; then
+            cat "${evidence}/calibration.txt"
+            cat "${evidence}/baseline-oracle.log"
+            cat "${evidence}/repaired-oracle.log"
+            exit 1
+          fi
+          cat "${evidence}/calibration.txt"
+
+      - name: Retain raw calibration evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gh-1031-oracle-${{ matrix.case_id }}
+          path: build/evidence/gh-1031/${{ matrix.case_id }}/
+          if-no-files-found: warn

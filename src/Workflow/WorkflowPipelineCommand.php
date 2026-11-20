@@ -162,6 +162,10 @@ final readonly class WorkflowPipelineCommand
             $nextAction = "agent-loop pipeline run " . $taskId;
         }
 
+        $contextGuidance = $contextPolicy === "fresh_required" && $projection->attention === null
+            ? "Run this stage in a separate host context from its predecessor; submit its distinct context ID. Use host-native delegation or an available execution consumer; agent-loop does not start one."
+            : null;
+
         $payload = [
             "schema_version" => "1.0",
             "command" => "pipeline status",
@@ -175,6 +179,7 @@ final readonly class WorkflowPipelineCommand
             "may_mutate" => $mayMutate,
             "context_policy" => $contextPolicy,
             "context_id_required" => $contextIdRequired,
+            "context_guidance" => $contextGuidance,
             "attempt" => $projection->currentAttempt,
             "candidate_revision" => $projection->candidateRevision,
             "attention" => $projection->attention?->toArray(),
@@ -196,6 +201,9 @@ final readonly class WorkflowPipelineCommand
                 echo "Stage role: " . ($currentRole ?? "none") . " (mutation: " . ($mayMutate ? "allowed" : "read-only") . ")\n";
                 echo "Context policy: " . $contextPolicy . "\n";
                 echo "Context identity required: " . ($contextIdRequired ? "yes" : "no") . "\n";
+            }
+            if ($contextGuidance !== null) {
+                echo "Context guidance: " . $contextGuidance . "\n";
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
@@ -271,6 +279,7 @@ final readonly class WorkflowPipelineCommand
             "context_id_required" => $bundle->contextIdRequired,
             "allowed_scope" => $bundle->allowedScope,
             "required_validation" => $bundle->requiredValidation,
+            "expected_artifacts" => $bundle->expectedArtifacts,
             "accepted_outcomes" => $acceptedOutcomes,
             "prior_handoff" => $bundle->priorHandoff?->toArray(),
             "completion_marker" => $bundle->completionMarker,
@@ -303,6 +312,8 @@ final readonly class WorkflowPipelineCommand
 
     /**
      * @param list<string> $tokens
+     *
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     private function submit(string $taskIdString, array $tokens, string $format): int
     {
@@ -322,6 +333,33 @@ final readonly class WorkflowPipelineCommand
         $candidate = OptionTokens::value($tokens, "candidate");
         $contextId = OptionTokens::value($tokens, "context-id");
         $artifactPaths = OptionTokens::values($tokens, "artifact");
+        $artifactsFile = OptionTokens::value($tokens, "artifacts-file");
+        if ($artifactsFile !== null && trim($artifactsFile) !== '') {
+            $realArtifactsFile = realpath($artifactsFile) ?: realpath($this->rootPath . '/' . ltrim($artifactsFile, '/'));
+            if ($realArtifactsFile === false || !is_file($realArtifactsFile)) {
+                throw new RuntimeException("Artifacts file not found: " . $artifactsFile);
+            }
+            $fileContent = file_get_contents($realArtifactsFile);
+            if (!is_string($fileContent)) {
+                throw new RuntimeException("Unable to read artifacts file: " . $artifactsFile);
+            }
+            $decoded = json_decode($fileContent, true);
+            if (is_array($decoded) && array_is_list($decoded)) {
+                foreach ($decoded as $item) {
+                    if (is_string($item) && trim($item) !== '') {
+                        $artifactPaths[] = trim($item);
+                    }
+                }
+            } else {
+                foreach (explode("\n", $fileContent) as $line) {
+                    $line = trim($line);
+                    if ($line !== '' && !str_starts_with($line, '#')) {
+                        $artifactPaths[] = $line;
+                    }
+                }
+            }
+        }
+        $excludedArtifacts = OptionTokens::values($tokens, "exclude-artifact");
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
         $candidateWorkspace = OptionTokens::value($tokens, "workspace");
 
@@ -352,6 +390,7 @@ final readonly class WorkflowPipelineCommand
             // record is idempotent, so retrying after a later refusal is safe.
             $gateway->recordObservedCandidate($bundle, $effectiveCandidate);
         }
+        /** @var list<non-empty-string> $artifactReferences */
         $artifactReferences = [];
         foreach ($artifactPaths as $artifactPath) {
             foreach (explode(',', $artifactPath) as $path) {
@@ -360,6 +399,19 @@ final readonly class WorkflowPipelineCommand
                     $artifactReferences[] = $gateway->recordStageArtifactPath($bundle, $path, $effectiveCandidate);
                 }
             }
+        }
+        foreach ($excludedArtifacts as $pair) {
+            $pair = trim($pair);
+            if ($pair === '') {
+                continue;
+            }
+            $parts = explode('=', $pair, 2);
+            $path = trim($parts[0]);
+            $reason = trim($parts[1] ?? '');
+            if ($path === '' || $reason === '') {
+                throw new RuntimeException("Option --exclude-artifact expects <path>=<justification reason>, got: " . $pair);
+            }
+            $artifactReferences[] = $gateway->recordStageArtifactExclusion($bundle, $path, $reason, $effectiveCandidate);
         }
 
         $submissionId = sprintf(
@@ -396,7 +448,16 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        return $this->renderTransition($taskId, $newProjection, $format);
+        $candidateFiles = null;
+        if ($completing && $bundle->mayMutate && $newProjection->currentStageId !== null && $newProjection->attention === null) {
+            try {
+                $candidateFiles = $gateway->changedCandidateFilesOrThrow($bundle->baseCommit, $effectiveCandidate);
+            } catch (RuntimeException $exception) {
+                fwrite(STDERR, "NOTE: stage submission succeeded, but candidate file listing is unavailable: " . $exception->getMessage() . "\nInspect the next stage before review.\n");
+            }
+        }
+
+        return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles);
     }
 
     /**
@@ -482,7 +543,8 @@ final readonly class WorkflowPipelineCommand
         return $this->renderTransition($taskId, $projection, $format);
     }
 
-    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format): int
+    /** @param list<string>|null $candidateFiles */
+    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null): int
     {
         $isComplete = $projection->complete();
         $currentStage = $projection->currentStageId;
@@ -525,25 +587,42 @@ final readonly class WorkflowPipelineCommand
             "next_action_kind" => $nextActionKind,
         ];
 
+        if ($candidateFiles !== null) {
+            $payload["candidate_changed_files"] = $candidateFiles;
+            $payload["candidate_scope_notice"] = "These are all changed files in the accepted candidate; pre-existing scoped changes are included and ownership is not inferred.";
+        }
+
         if ($format === "json") {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
         } else {
-            if ($isComplete) {
-                echo "[OK] Pipeline execution complete for " . $taskId . ".\n";
-                echo "Next: " . $nextAction . "\n";
-            } elseif ($projection->attention !== null) {
-                echo "[WAIT] Pipeline requires attention: " . $projection->attention->message . "\n";
-                echo "Attention ID: " . $projection->attention->id . "\n";
-                echo "Resolve: " . $nextAction . "\n";
-            } else {
-                echo "Pipeline active: " . $taskId . "\n";
-                echo "Profile: " . $projection->profile->value . "\n";
-                echo "Stage: " . ($currentStage ?? "none") . " (Attempt " . $projection->currentAttempt . ")\n";
-                echo "Next: " . $nextAction . "\n";
-            }
+            $this->renderTransitionText($taskId, $projection, $nextAction, $candidateFiles);
         }
 
         return $projection->attention !== null ? 1 : 0;
+    }
+
+    /** @param list<string>|null $candidateFiles */
+    private function renderTransitionText(string $taskId, ExecutionProjection $projection, string $nextAction, ?array $candidateFiles): void
+    {
+        if ($candidateFiles !== null) {
+            echo "Accepted candidate changed files (including any pre-existing scoped changes; ownership not inferred):\n";
+            foreach ($candidateFiles as $file) {
+                echo "  " . $file . "\n";
+            }
+        }
+        if ($projection->complete()) {
+            echo "[OK] Pipeline execution complete for " . $taskId . ".\n";
+            echo "Next: " . $nextAction . "\n";
+        } elseif ($projection->attention !== null) {
+            echo "[WAIT] Pipeline requires attention: " . $projection->attention->message . "\n";
+            echo "Attention ID: " . $projection->attention->id . "\n";
+            echo "Resolve: " . $nextAction . "\n";
+        } else {
+            echo "Pipeline active: " . $taskId . "\n";
+            echo "Profile: " . $projection->profile->value . "\n";
+            echo "Stage: " . ($projection->currentStageId ?? "none") . " (Attempt " . $projection->currentAttempt . ")\n";
+            echo "Next: " . $nextAction . "\n";
+        }
     }
 
     private function printHelp(): void
@@ -553,7 +632,7 @@ Usage:
   agent-loop pipeline status <task-id> [--format text|json]
   agent-loop pipeline stage <task-id> [--format text|json]
   agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--workspace <path>] [--auto-verify] [--format text|json]
-  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--auto-verify] [--workspace <path>] [--format text|json]
+  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--artifacts-file <path>] [--exclude-artifact <path>=<reason>] [--auto-verify] [--workspace <path>] [--format text|json]
   agent-loop pipeline recover <task-id> --candidate <content-addressed-revision> [--workspace <path>] [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.

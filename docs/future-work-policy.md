@@ -21,6 +21,10 @@ Task-level reflection can return an unfinished task to review. Project-level
 future-work reflection is available only after the current task is complete,
 and its output is not authorization to create or execute follow-up work.
 
+## Explicitly requested new local cards
+
+The mode restricts **unsolicited** future-work preparation. It does not change how to assign IDs to cards a developer explicitly requests. For a local Kanban board without an externally assigned ticket ID, select the intended board and its configured creation lane, then create a card with `agent-loop board card create --generate-id --title "<descriptive title>" --lane=<configured-lane> --format=json` (add `--board=<configured-board-id>` for a non-default board), and use the returned `card` ID unchanged as the task identity. Never calculate a next sequential number from a branch-local board. External tracker IDs remain authoritative when supplied.
+
 ## Modes
 
 ### `focus`

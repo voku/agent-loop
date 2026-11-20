@@ -1,6 +1,8 @@
 ---
 name: agent-loop-solution-triage
 description: Determine whether existing repository code, helpers, UI, or tests already satisfy a requirement, ticket, or bug report before writing duplicate code.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Solution Triage

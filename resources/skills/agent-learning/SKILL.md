@@ -1,6 +1,8 @@
 ---
 name: agent-learning
 description: Capture reusable lessons about agent-loop workflow, validation, migration, evidence integrity, discipline dogfood, and package ownership before promoting durable guidance.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Learning

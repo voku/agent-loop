@@ -26,6 +26,7 @@ final readonly class AttentionResolution
         public int $attempt,
         string $actor,
         string $resolvedAt,
+        public ?string $response = null,
     ) {
         $this->attentionId = trim($attentionId);
         $this->taskId = trim($taskId);
@@ -41,12 +42,15 @@ final readonly class AttentionResolution
         if ($this->contractRevision < 1 || $this->attempt < 1) {
             throw new InvalidArgumentException('Attention resolution requires positive Contract revision and attempt.');
         }
+        if ($response !== null && (trim($response) === '' || strlen($response) > 4000)) {
+            throw new InvalidArgumentException('Attention response must be non-empty and at most 4000 bytes.');
+        }
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $this->executionPlanDigest) !== 1) {
             throw new InvalidArgumentException('Attention resolution requires an execution-plan sha256 digest.');
         }
     }
 
-    /** @return array<string, int|string> */
+    /** @return array<string, int|string|null> */
     public function toArray(): array
     {
         return [
@@ -61,6 +65,7 @@ final readonly class AttentionResolution
             'attempt' => $this->attempt,
             'actor' => $this->actor,
             'resolved_at' => $this->resolvedAt,
+            'response' => $this->response,
         ];
     }
 }

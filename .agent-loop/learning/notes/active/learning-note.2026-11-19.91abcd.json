@@ -1,0 +1,59 @@
+{
+    "schema_version": "1.0",
+    "id": "learning-note.2026-11-19.91abcd",
+    "pattern_key": "process.runner.selects.host.wrapper",
+    "status": "active",
+    "scope": [
+        ".github/workflows/acceptance-criteria-candidate.yml",
+        ".github/workflows/prompt-primitives-candidate.yml",
+        "composer.json",
+        "resources/githooks/lib/agent-loop-hooks.sh",
+        "tests/AgentFacingPathGuidanceTest.php",
+        "tests/GitWorkTreeDetectionTest.php",
+        "tests/ProcessRunnerTest.php",
+        "tests/RecallEditBriefingCompilerOwnerBoundaryTest.php",
+        "tools/Dogfood/ProcessRunner.php"
+    ],
+    "tags": [
+        "portability",
+        "process",
+        "tooling"
+    ],
+    "source_findings": [
+        "finding.2026-09-13.df7c73"
+    ],
+    "source_proposals": [
+        "proposal.2026-09-20.02e8eb"
+    ],
+    "validation_case": {
+        "given": "a Composer bin directory containing both an extensionless executable and a Windows .bat wrapper",
+        "when": "a Linux process runner selects the first existing candidate without checking host compatibility",
+        "then": "proc_open can fail with Exec format error, so the runner selects the host-appropriate executable before invoking it"
+    },
+    "repository_evidence": [
+        {
+            "source_ref": "tests/ProcessRunnerTest.php",
+            "sha256": "8728119aefacf0a3f945bbd16aecc99b19b997a9d108b333bc2573e8a434c9eb"
+        },
+        {
+            "source_ref": "tools/Dogfood/ProcessRunner.php",
+            "sha256": "209ed38be00bb9944b4bf48b97924bdbd79d4f9ce8476e9ba22392c708ea467a"
+        }
+    ],
+    "content": {
+        "title": "Select the host's Composer wrapper before invoking a vendor binary",
+        "context": "Composer installs both an extensionless wrapper and a Windows `.bat` file in vendor/bin. On Linux, ProcessRunner once chose `vendor/bin/phpstan.bat` first, so proc_open failed with `Exec format error` and the deterministic project PHPStan gate could not run.",
+        "guidance": "Resolve a Composer-provided binary for the current platform before invoking it: on Windows prefer `<name>.bat`, elsewhere use only the extensionless wrapper. Keep that decision in one place (currently `ProcessRunner::vendorBinary()`), not in each caller.",
+        "why_it_works": "A file that exists is not necessarily executable on this host; deciding by platform first means the first existing candidate is also a runnable one.",
+        "when_to_apply": "When code launches a package binary from vendor/bin through proc_open or a similar API on more than one operating system.",
+        "when_not_to_apply": "For commands run through a shell that already resolves the platform wrapper, or for third-party executables outside Composer's vendor/bin layout.",
+        "verification": "vendor/bin/phpunit --filter ProcessRunnerTest (testVendorBinaryUsesTheCurrentPlatformsComposerWrapper).",
+        "symptoms": "A process runner that works on Windows fails on Linux (or the reverse) with an exec-format or not-executable error, although the file it picked exists.",
+        "failed_approaches": [],
+        "root_cause": "Candidate selection checked only that a file exists, not that it is executable on the current host.",
+        "examples": []
+    },
+    "created_at": "2026-11-19T19:34:49+00:00",
+    "updated_at": "2026-11-19T19:34:49+00:00",
+    "retired_reason": null
+}

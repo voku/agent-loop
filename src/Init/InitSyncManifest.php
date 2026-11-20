@@ -448,7 +448,9 @@ final class InitSyncManifest
             if (!is_bool($adopted)) {
                 throw new InvalidArgumentException('Sync manifest adopted flag must be boolean: ' . $path);
             }
-            if (!str_starts_with($sourceSha, 'sha256:') || !str_starts_with($representationSha, 'sha256:')) {
+            if (preg_match('/^sha256:[a-f0-9]{64}$/D', $sourceSha) !== 1
+                || preg_match('/^sha256:[a-f0-9]{64}$/D', $representationSha) !== 1
+            ) {
                 throw new InvalidArgumentException('Sync manifest projection digests must use sha256: identities: ' . $path);
             }
             if (isset($entries[$target])) {

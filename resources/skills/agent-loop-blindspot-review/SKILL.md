@@ -1,6 +1,8 @@
 ---
 name: agent-loop-blindspot-review
 description: Stress-test proposed changes, execution plans, or open diffs with evidence-first blind-spot review, failure-mode analysis, and clear verdicts.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Blindspot Review

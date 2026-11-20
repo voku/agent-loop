@@ -78,15 +78,26 @@ final class RunRetirementTest extends TestCase
         self::assertSame('incomplete', $beforeSuccessor->state, 'Approved successor must be preparable through enter.');
         self::assertSame('retired', $beforeSuccessor->references['retirement']['state'], 'Previous Run remains retired.');
 
-        (new GovernedRunStore($this->root))->prepare(
+        $successorRun = (new GovernedRunStore($this->root))->prepare(
             $revised,
             $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars'),
             $this->root . '/.agent-loop/learning',
         );
 
-        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        $successorManifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertNotSame('retired', $successorManifest->state);
 
-        self::assertNotSame('retired', $manifest->state);
+        (new RunRetirementStore($this->root))->record($successorRun, 'abandoned', 'Second attempt stopped.', 'lars');
+        $archivedRunId = trim((string) preg_replace('/[^A-Za-z0-9._-]+/', '-', $run->runId), '-');
+        $archivedRetirementPath = (new \voku\AgentLoop\ProjectLayout($this->root))->runHistoryRoot('ABC-123')
+            . '/' . $archivedRunId . '/retirement.json';
+        self::assertFileExists($archivedRetirementPath, 'Superseding the current Run must preserve its retirement history.');
+        $archivedRetirement = json_decode((string) file_get_contents($archivedRetirementPath), true, 8, JSON_THROW_ON_ERROR);
+        self::assertSame($run->runId, $archivedRetirement['run_id'] ?? null);
+        self::assertSame($successorRun->runId, (new RunRetirementStore($this->root))->find('ABC-123')?->runId);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertSame('retired', $manifest->state);
     }
 
     public function testRetirementRejectsCloseAndExecutionWithoutWritingCompletionEvidence(): void
@@ -116,6 +127,33 @@ final class RunRetirementTest extends TestCase
         (new ExecutionGateway($this->root))->prepareStage('ABC-123', 'build');
     }
 
+    public function testRetirementRejectsLateVerificationReceiptBeforeWriting(): void
+    {
+        $run = $this->preparedRun();
+        (new RunRetirementStore($this->root))->record($run, 'abandoned', 'No acceptable outcome.', 'lars');
+        $contract = (new TaskContractStore($this->root))->load('ABC-123');
+        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', $run->sessionId);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Verification receipt refused: governed Run is retired.');
+
+        (new RunVerificationReceiptStore($this->root))->record(
+            $run,
+            $contract,
+            $session,
+            'sha256:' . str_repeat('a', 64),
+            'satisfied',
+            [[
+                'command' => 'vendor/bin/phpunit',
+                'status' => 'passed',
+                'exit_code' => 0,
+                'executed_at' => '2026-11-15T00:00:00+00:00',
+                'recorded_by' => 'lars',
+                'duration_ms' => 1,
+            ]],
+        );
+    }
+
     public function testRetirementNeedsAReasonAndAnActor(): void
     {
         $run = $this->preparedRun();
@@ -123,6 +161,42 @@ final class RunRetirementTest extends TestCase
         $this->expectException(RuntimeException::class);
 
         (new RunRetirementStore($this->root))->record($run, 'abandoned', '  ', 'lars');
+    }
+
+    public function testRetirementRejectsReservedActorWithoutWritingAndAcceptsNamedActor(): void
+    {
+        $run = $this->preparedRun();
+        $store = new RunRetirementStore($this->root);
+
+        try {
+            $store->record($run, 'abandoned', 'Stopped.', ' standing:spoof ');
+            self::fail('Reserved standing actor was accepted.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('standing:', $exception->getMessage());
+        }
+        self::assertNull($store->findForRun($run));
+
+        $retirement = $store->record($run, 'abandoned', 'Stopped.', ' operator-1 ');
+        self::assertSame('operator-1', $retirement->retiredBy);
+    }
+
+    public function testLegacyReservedRetirementDoesNotRetireRunAndCanBeReplaced(): void
+    {
+        $run = $this->preparedRun();
+        $store = new RunRetirementStore($this->root);
+        $store->record($run, 'abandoned', 'Legacy record.', 'lars');
+        $path = (new \voku\AgentLoop\ProjectLayout($this->root))->runChildFile('ABC-123', 'retirement.json');
+        $artifact = json_decode((string) file_get_contents($path), true, 8, JSON_THROW_ON_ERROR);
+        $artifact['retired_by'] = ' standing:legacy-spoof ';
+        file_put_contents($path, json_encode($artifact, JSON_THROW_ON_ERROR));
+
+        self::assertNull($store->findForRun($run));
+        self::assertNotSame('retired', (new RunManifestProjector($this->root))->project('ABC-123')->state);
+
+        $replacement = $store->record($run, 'abandoned', 'Confirmed by an operator.', 'operator-1');
+        self::assertSame('operator-1', $replacement->retiredBy);
+        $persisted = json_decode((string) file_get_contents($path), true, 8, JSON_THROW_ON_ERROR);
+        self::assertSame('operator-1', $persisted['retired_by'] ?? null);
     }
 
     public function testRunWithFinalVerificationEvidenceCannotBeRetired(): void
@@ -141,6 +215,35 @@ final class RunRetirementTest extends TestCase
         $this->expectExceptionMessage('final verification evidence');
 
         (new RunRetirementStore($this->root))->record($run, 'abandoned', 'Gave up.', 'lars');
+    }
+
+    public function testVerificationReceiptRejectsReservedRecordedByWithoutWriting(): void
+    {
+        $run = $this->preparedRun();
+        $contracts = new TaskContractStore($this->root);
+        $contract = $contracts->load('ABC-123');
+        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', $run->sessionId);
+        $store = new RunVerificationReceiptStore($this->root);
+        $obligations = [[
+            'command' => 'vendor/bin/phpunit',
+            'status' => 'passed',
+            'exit_code' => 0,
+            'executed_at' => '2026-11-15T00:00:00+00:00',
+            'recorded_by' => ' standing:spoof ',
+            'duration_ms' => 1,
+        ]];
+
+        try {
+            $store->record($run, $contract, $session, 'sha256:' . str_repeat('a', 64), 'satisfied', $obligations);
+            self::fail('Reserved standing actor was accepted as verification evidence attribution.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('standing:', $exception->getMessage());
+        }
+        self::assertNull($store->find('ABC-123'));
+
+        $obligations[0]['recorded_by'] = ' operator-1 ';
+        $receipt = $store->record($run, $contract, $session, 'sha256:' . str_repeat('a', 64), 'satisfied', $obligations);
+        self::assertSame('operator-1', $receipt->obligations[0]['recorded_by']);
     }
 
     public function testOnlyAbandonedAndSupersededAreAccepted(): void

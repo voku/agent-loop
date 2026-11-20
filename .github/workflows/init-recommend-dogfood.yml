@@ -1,0 +1,153 @@
+name: Project-aware init dogfood
+
+on:
+  pull_request:
+    paths:
+      - 'src/Init/**'
+      - 'tests/InitRecommendCommandTest.php'
+      - 'tests/InitPlanCommandTest.php'
+      - 'tests/InitApplyCommandTest.php'
+      - 'tests/InitSyncToolsCommandTest.php'
+      - 'tests/InitConfigLoaderTest.php'
+      - 'tests/InitCliTest.php'
+      - 'resources/tools/**'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'bin/agent-loop'
+      - 'src/PackageResources.php'
+      - 'tools/init-recommend-dogfood.sh'
+      - '.github/workflows/init-recommend-dogfood.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-setup:
+    name: Real-project setup recommendations and escape regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A PR merge ref can be green while the exact reviewed head differs.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies without scripts
+        run: composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
+      - name: Verify syntax and focused PHPUnit coverage
+        run: |
+          php -l src/Init/InitRecommendCommand.php
+          php -l src/Init/InitPlanCommand.php
+          php -l src/Init/InitApplyCommand.php
+          php -l src/Init/InitLanguageConfigWriter.php
+          php -l tests/InitRecommendCommandTest.php
+          php -l tests/InitPlanCommandTest.php
+          php -l tests/InitApplyCommandTest.php
+          php vendor/bin/phpunit tests/InitApplyCommandTest.php tests/InitRecommendCommandTest.php tests/InitPlanCommandTest.php tests/InitSyncToolsCommandTest.php tests/InitConfigLoaderTest.php tests/InitCliTest.php
+      - name: Exercise actual CLI against isolated projects
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash tools/init-recommend-dogfood.sh
+      - name: Checkout pinned real PHP library
+        uses: actions/checkout@v7
+        with:
+          repository: voku/portable-utf8
+          ref: 28cb685c22cd829aba819406295c0763204c5c09
+          path: build/init-recommend-real-php/portable-utf8
+          persist-credentials: false
+      - name: Checkout pinned security-sensitive PHP project
+        uses: actions/checkout@v7
+        with:
+          repository: voku/anti-xss
+          ref: 7fd0ba5171ccf26ec60cca7ca9de492992dd0bcb
+          path: build/init-recommend-real-php/anti-xss
+          persist-credentials: false
+      - name: Prove actual PHPStan scope in pinned real repositories without project execution
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/build/init-recommend-dogfood"
+          mkdir -p "$proof"
+          check_real_php() {
+            local name="$1" expected_sha="$2"
+            local project="$GITHUB_WORKSPACE/build/init-recommend-real-php/$name"
+            test "$(git -C "$project" rev-parse HEAD)" = "$expected_sha"
+            test -z "$(git -C "$project" status --porcelain)"
+            (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" init recommend --format=json) > "$proof/real-$name.json"
+            (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" init plan --format=json) > "$proof/real-$name-plan.json"
+            (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" init plan --format=json --language=fr-FR) > "$proof/real-$name-language.json"
+            jq -e '.mode == "read_only" and .file_changes == [] and .review_diffs[0].pointer == "/prompting/language" and .review_diffs[0].after == "fr-fr" and .review_diffs[0].execution == "not_authorized"' "$proof/real-$name-language.json" > /dev/null
+            jq -e '
+              .schema_version == 1
+              and .mode == "read_only"
+              and (.evidence_sha256 | test("^[a-f0-9]{64}$"))
+              and .file_changes == []
+              and (.proposals | any(.id == "map.scope" and .source == "phpstan.neon" and .proposed == "vendor/bin/agent-loop map build --paths=src"))
+              and (.proposals | all(.requires_confirmation == true and .execution == "not_authorized"))
+              and .review.applied == false
+            ' "$proof/real-$name-plan.json" > /dev/null
+            jq -e '
+              .schema_version == 1
+              and .sources.phpstan == "phpstan.neon"
+              and .sources.composer == "composer.json"
+              and .map.paths == ["src"]
+              and .map.source == "phpstan.neon"
+              and .map.command == "vendor/bin/agent-loop map build --paths=src"
+              and .map.requires_confirmation == true
+              and .review.human_attention_every_changes_required == 3
+              and .review.configurable_by_setup == false
+              and .warnings == []
+            ' "$proof/real-$name.json" > /dev/null
+            test -z "$(git -C "$project" status --porcelain)"
+          }
+          check_real_php portable-utf8 28cb685c22cd829aba819406295c0763204c5c09
+          check_real_php anti-xss 7fd0ba5171ccf26ec60cca7ca9de492992dd0bcb
+          jq -n --arg head "$EXPECTED_HEAD_SHA" '{
+            schema_version: 1,
+            agent_loop_head: $head,
+            pinned_php_projects: {
+              "voku/portable-utf8": "28cb685c22cd829aba819406295c0763204c5c09",
+              "voku/anti-xss": "7fd0ba5171ccf26ec60cca7ca9de492992dd0bcb"
+            },
+            phpstan_scope_provenance: "passed",
+            repository_trees_unchanged: true,
+            project_php_not_executed: true,
+            result: "passed"
+          }' > "$proof/real-php-proof.json"
+      - name: Verify evidence is for the exact checked-out source
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          jq -e --arg head "$EXPECTED_HEAD_SHA" '
+            .result == "passed"
+            and .exact_head == $head
+            and (.cases | length == 10)
+            and (.cases | index("dev-only-composer-scope-without-project-execution") != null)
+            and (.cases | index("finder-only-no-project-php-execution") != null)
+            and (.cases | index("empty-project-no-invented-setup") != null)
+            and (.cases | index("slop-policy-evidence-without-cross-tool-projection") != null)
+            and (.cases | index("slop-json-container-shapes-fail-closed") != null)
+          ' build/init-recommend-dogfood/proof.json
+      - name: Upload proof and JSON reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: init-recommend-dogfood-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: build/init-recommend-dogfood/

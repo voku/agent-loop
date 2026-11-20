@@ -28,6 +28,7 @@ final readonly class InitScaffoldCommand
 /sessions/
 /edit/
 /runs/*/*.lock
+/.init-language.lock
 /tool-inventory.json
 GITIGNORE;
 
@@ -56,6 +57,33 @@ GITIGNORE;
         $vcsPolicyPath = $stateRoot . '/.gitignore';
         $sessionsRoot = $stateRoot . '/sessions';
         $learningRoot = $stateRoot . '/learning';
+
+        // Reject unsafe destinations before *any* scaffold mutation, including
+        // a first run when init.json does not yet exist. is_link also catches
+        // dangling symlinks, unlike is_file/is_dir.
+        $targets = [
+            $stateRoot,
+            $configPath,
+            $vcsPolicyPath,
+            $stateRoot . '/tasks',
+            $sessionsRoot,
+            $learningRoot,
+            $learningRoot . '/findings',
+            $stateRoot . '/todo',
+        ];
+        if ($demo) {
+            $targets[] = $stateRoot . '/tasks/DEMO-1.md';
+        }
+        foreach ($targets as $target) {
+            if (is_link($target)) {
+                fwrite(
+                    STDERR,
+                    '[FAIL] init scaffold: refusing symlinked target ' . $this->relative($root, $target) . "\n",
+                );
+
+                return 1;
+            }
+        }
 
         $this->ensureDirectory($stateRoot, '.agent-loop', $dryRun);
         if (!is_file($configPath)) {
@@ -296,6 +324,9 @@ MD
 
     private function ensureDirectory(string $path, string $displayPath, bool $dryRun): void
     {
+        if (is_link($path)) {
+            throw new \RuntimeException('Refusing symlinked scaffold directory: ' . $displayPath);
+        }
         if (is_dir($path)) {
             echo '[SKIP] ' . $displayPath . '/ already exists' . "\n";
 
@@ -317,6 +348,9 @@ MD
 
     private function ensureFile(string $path, string $displayPath, string $content, bool $dryRun): void
     {
+        if (is_link($path)) {
+            throw new \RuntimeException('Refusing symlinked scaffold file: ' . $displayPath);
+        }
         if (is_file($path)) {
             echo '[SKIP] ' . $displayPath . ' already exists' . "\n";
 

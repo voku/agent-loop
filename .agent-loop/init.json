@@ -9,8 +9,7 @@
   },
   "workflow": {
     "future_work": {
-      "mode": "discover",
-      "max_follow_up_slices": 2
+      "mode": "discover"
     }
   },
   "recall": {

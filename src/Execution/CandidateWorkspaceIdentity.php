@@ -209,9 +209,13 @@ final readonly class CandidateWorkspaceIdentity
     /** @param list<string> $scopePaths */
     private function tree(string $workspace, string $baseCommit, ?string $excludedStatePath, array $scopePaths = []): string
     {
+        // The candidate is the workspace's files laid over the governed base, so
+        // it does not depend on HEAD: committing the work yields the same tree as
+        // leaving it uncommitted. HEAD must still descend from the base, so a
+        // workspace on another line of history is never mistaken for this Run's.
         $head = $this->git($workspace, ['rev-parse', '--verify', 'HEAD']);
         if (!hash_equals($baseCommit, $head)) {
-            throw new RuntimeException(sprintf('STALE_CANDIDATE: verify workspace HEAD is %s, not the governed base %s.', $head, $baseCommit));
+            $this->assertDescendsFrom($workspace, $head, $baseCommit);
         }
         $this->assertSafeScope($scopePaths);
 
@@ -239,6 +243,20 @@ final readonly class CandidateWorkspaceIdentity
             if (is_file($index)) {
                 unlink($index);
             }
+        }
+    }
+
+    private function assertDescendsFrom(string $workspace, string $head, string $baseCommit): void
+    {
+        $refusal = sprintf('STALE_CANDIDATE: verify workspace HEAD %s does not descend from the governed base %s.', $head, $baseCommit);
+        try {
+            $mergeBase = $this->git($workspace, ['merge-base', $baseCommit, $head]);
+        } catch (RuntimeException $exception) {
+            // No common history at all (e.g. an orphan branch).
+            throw new RuntimeException($refusal, previous: $exception);
+        }
+        if (!hash_equals($baseCommit, $mergeBase)) {
+            throw new RuntimeException($refusal);
         }
     }
 

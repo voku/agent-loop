@@ -231,10 +231,25 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
             raise SystemExit(
                 f"{phase}: expected exactly one child request with selected agent-loop-investigator instructions, observed {len(selected)}"
             )
+        required_history_markers = (
+            "git log --follow --find-renames --name-status",
+            "history_incomplete=true",
+            "skip greenfield",
+        )
+        missing_history = [
+            marker for marker in required_history_markers
+            if marker not in selected[0][2]
+        ]
+        if missing_history:
+            raise SystemExit(
+                f"{phase}: selected investigator child lacks bounded history guidance: {missing_history}"
+            )
         observations["subagent_runtime"][phase] = {
             "discovery_request": discovery[0].name,
             "selection_request": selected[0][0].name,
             "subagent": "agent-loop-investigator",
+            "bounded_history_guidance_loaded": True,
+            "history_incomplete_guard_loaded": True,
             "status": "observed",
         }
 

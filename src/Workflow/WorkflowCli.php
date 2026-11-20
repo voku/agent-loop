@@ -23,6 +23,8 @@ final readonly class WorkflowCli
             'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($rest),
             'plan' => self::isHelpRequest($rest) ? $this->printHelp() : (new WorkflowPlanCommand($this->rootPath))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath))->run($rest),
+            'interaction' => (new WorkflowInteractionCommand())->run($rest),
+            'reject' => (new WorkflowRejectCommand($this->rootPath))->run($rest),
             'execution-profile' => (new WorkflowExecutionProfileCommand($this->rootPath))->run($rest),
             'attention' => (new WorkflowAttentionCommand($this->rootPath))->run($rest),
             'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
@@ -30,6 +32,7 @@ final readonly class WorkflowCli
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
+            'retention' => (new WorkflowRetentionCommand($this->rootPath))->run($rest),
             'transparency' => (new WorkflowTransparencyCommand($this->rootPath))->run($rest),
             'review' => (new WorkflowHumanReviewCommand($this->rootPath))->run($rest),
             'reflect' => (new WorkflowReflectCommand($this->rootPath))->run($rest),
@@ -47,15 +50,19 @@ final readonly class WorkflowCli
 Usage:
   agent-loop workflow help
   agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] [--acceptance-observation <json> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>] [--supersede]
-  agent-loop workflow approve <task-id> --revision <current-revision> --by <actor>
+  agent-loop workflow plan <task-id> --by <actor> --supersede --add-scope <path> [--add-scope <path> ...] [--format=json]
+  agent-loop workflow approve <task-id> --revision <current-revision> --by <actor> [--head <reviewed-commit>]
+  agent-loop workflow interaction <host-session-id> <collaborative|autonomous> [task-id]
+  agent-loop workflow reject <task-id> --revision <current-revision> --by <actor> --reason <text> [--head <reviewed-commit>]
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]
-  agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor>
+  agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor> [--response <text>]
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
   agent-loop workflow status <task-id> [--format text|json|toon] [--expect blocked|experiment|incomplete|ready_to_close|complete|retired]
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json]
   agent-loop workflow report <task-id> [--format text|json] [--changed-file <path> ...]
+  agent-loop workflow retention report [--older-than-days=90] [--format=text|json]
   agent-loop workflow transparency <task-id> [--format text|json]
   agent-loop workflow review <task-id>
   agent-loop workflow reflect <task-id> [--scope project|task]
@@ -74,6 +81,7 @@ Commands:
   manifest           Inspect or atomically persist the cross-package Run projection.
   context            Render bounded read-only context from the durable Contract and current owner artifacts.
   report             Show an auditable task/Run completion report.
+  retention          Read-only inventory of current and superseded Run evidence; never authorizes archival.
   transparency       Show the read-only task-transparency projection: approved boundary, Contract-based repository observation, implementation identity, context skipped/omitted facts and exact review findings, each labelled with its authority class.
   review             Write a self-contained human review workbench from the existing audit projection. The HTML is non-authoritative and cannot acknowledge a review.
   reflect            Emit a context-light future-work prompt; task scope requires ready_to_close or complete, project scope requires complete; never mutates workflow state.

@@ -1,4 +1,321 @@
-## Unreleased
+## [Unreleased]
+
+## [0.20.101] - 2026-11-20
+
+### Added
+
+- `workflow plan` and `enter` now name the LearningNotes Recall selects for the task (`learning_precedents` in JSON, a "Learning precedent" block in text). For a candidate Contract, Recall's new `LearningPrecedentPreview` runs over the candidate scope, so the planning agent and the approving human see the precedent before the design is approved. Once approved, `enter` lists the notes the compiled briefing renders. Missing note evidence shows as `status: blocked` already at planning, instead of first blocking at compilation. The projection is historical precedent, not an instruction, and changes no lifecycle state. In the round-2 learning-effect experiment, all three governed agents fixed their design before Recall compiled the matching note, and none of them opened it (#1091).
+
+### Dependencies
+
+- Require `voku/agent-edit ^0.8.1` (was `^0.8.0`; locked 0.8.1) and lock `voku/agent-map` 0.24.1 (was 0.24.0). Before agent-edit 0.8.1, every safe `method_rename_plan` for an interface or overridden method was refused at apply ("not bound to the declared target identity"), so Loop's governed `method-rename` runner could not rename an interface method at all. agent-map 0.24.1 no longer blocks or downgrades family renames that pass through nullsafe calls, first-class callables or anonymous implementations. Both defects were found while preparing agent-edit route-experiment Run 2. `MethodRenameEditRunnerTest::testInterfaceMethodFamilyRenameAppliesThroughTheGovernedRunner` renames an interface method, its implementation and typed calls through the runner and leaves an unrelated same-named method alone. It fails against agent-edit 0.8.0 with that exact error.
+- Require `voku/agent-recall-compiler ^0.29.4` (was `^0.29.0`; locked 0.29.4, was 0.29.2) for `LearningPrecedentPreview`, `CompiledRecallOutput::renderedLearningPrecedents()` and `hasFinalLearningPrecedentSelection()`, which the precedent projection below uses. The candidate dogfood workflows that pin the Recall minimum now check out `0.29.4`.
+- Require `voku/agent-map ^0.24.2` (was `^0.22.3 || ^0.23.0 || ^0.24.0`; locked 0.24.2, was 0.24.1). 0.24.2 also takes anonymous implementations into parameter rename families. With the raised minimum, the installed refactor and edit-lifecycle dogfood workflows now check out and pin agent-map `0.24.2` (commit `2963a6a`) instead of 0.22.3.
+
+### Development
+
+- Learning-effect holdout H1 (`docs/dogfood/2026-11-20-learning-effect-holdout-h1.md` and its `.results.jsonl` ledger). PR #612's task was replayed with the system-written note `a5fcbe`. Every agent's own tests caught an override-branch mutant (B 3/3, C′ 3/3), so the result is a ceiling, not a learning effect. Two findings: with its real scope, the note is not selected for this task, because it is scoped to the incident's files, not the decision's home; and the backport missed `workflow plan --format=json`, so 2 of 3 C′ runs never saw the precedent before approval.
+- Round 3 of the learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-round2.md`). The same C1 task was rerun with the precedent projection from this change, backported into the baseline. All three governed agents read the precedent during planning and revised their Contract to sibling bundles. The fix was correct 3/3 on the historical tests with realistic bundle fixtures (2/3 with the exact message relaxed, 0/3 strict on message wording), against 0/6 for the runs without a visible precedent.
+
+## [0.20.100] - 2026-11-19
+
+### Dependencies
+
+- Allow `voku/phpstan-agent-format ^0.4.0` alongside `^0.3.1` (locked 0.4.0, was 0.3.1). 0.4.0 carries PHPStan 2.3.5+ `fixable: true` evidence into agent reports as an optional field and registers `ArchitectureNoticeBuilder` explicitly for PHPStan 2.1 DI compatibility; Loop's `agentFormat` configuration is unchanged.
+- Require `voku/agent-edit ^0.8.0` (was `^0.6.1`; locked 0.8.0, was 0.6.4), `voku/agent-map ^0.22.3 || ^0.23.0 || ^0.24.0` (locked 0.24.0, was 0.23.0) and lock `voku/agent-recall-compiler` 0.29.2 (was 0.29.1; the declared `^0.29.0` minimum is unchanged, because the candidate dogfood workflows pin that minimum release). The agent-edit API Loop uses (`EditEngine::apply()`, `ApplyCommand`, `VerifyCommand`, `WorkingTreeSnapshot(ter)`) is unchanged; 0.7.0 only adds `EditEngine::recover()`.
+  - **agent-edit 0.7.0:** a write-ahead publication journal makes an interrupted apply recoverable (`agent-edit recover`, failure code `recovery_required`).
+  - **agent-edit 0.8.0:** adds `instructions --format=text` and an opt-in requirement for read-time source digests.
+  - **agent-map 0.24.0:** indexes `.phtml` templates and no longer blocks a rename when two same-named calls share a line. Call relations carry their byte range in their ID, so relation IDs differ from 0.23 maps.
+
+### Tests
+
+- Codex runtime proof: assert that the managed project-instruction router reaches an ordinary `codex exec` provider request exactly once without explicit skill selection (baseline without `AGENTS.md`: zero), against a local Responses-compatible mock provider. This is transport evidence only; it proves no model compliance, lifecycle behavior or token savings (#875, refresh of #877).
+
+### Fixed
+
+- Fast-path `finish` fails closed when the Git diff evidence is unavailable (no Contract base commit, base commit missing from the checkout, or Git unable to derive the diff). Previously the undeclared-file and 60-line ceilings were silently skipped and the micro-task still auto-acknowledged its review and auto-closed its Learning decision, so an out-of-scope change could close unchecked. It now refuses with `Fast-path auto-close requires diff evidence: <reason> Escalate to standard contract.`
+- A `fresh_required` execution stage now rejects the context of any accepted mutating stage, not only of its direct predecessor (`CONTEXT_REUSE_FORBIDDEN`). In the standard and hardened profiles a blind-spot or architecture review could previously reuse the builder's context because only the adjacent review was compared. Declared context ids remain declared separation, not proof of provider-level isolation.
+
+### Development
+
+- Round 2 of the learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-round2.md` and its `.results.jsonl` ledger). The worktree-hooks lesson hit the same ceiling as Run 1 (governed arm B correct). On the multi-plan close-gate lesson, governed arm B failed 3 of 3: every agent assumed nested per-plan bundles where the incident had sibling `<task>-*` bundles. C′ also failed 3 of 3, but no C′ agent saw the precedent: Recall compiled the LearningNote in every C′ workspace only after Contract approval, when the design was already fixed, and `enter` does not name delivered precedents. So the run shows no learning effect, and it says nothing about the lesson's value until precedents reach planning.
+- Run 1 of the pipefail learning-effect experiment (3 cases × A/B/C′, one repetition each, in-session agents; results in `docs/dogfood/2026-11-19-learning-effect-pipefail.md` and its `.results.jsonl` ledger). All 9 runs were correct and none repeated the mistake: a ceiling effect, with the cause diagnosed before Recall could deliver the precedent. Governed arms cost about 2.2× the tokens and 3× the tool calls of the native arm. Unmodified, the cross-repository LearningNote blocks Recall compilation, because its evidence exists only in agent-loop.
+- The learning-effect runner (`tools/learning-effect/run-arm.sh`) now runs every session under a versioned Bash sandbox (`sandbox-settings.json`): no outbound network for Bash and its children, fail closed when the sandbox is unavailable, no unsandboxed fallback. Before each arm, a probe session must fail to reach github.com, judged only from the Bash tool result; otherwise the arm is refused. The protocol now requires one disposable container per arm, because the Read tool can read the whole disk, including the case clones with the historical repairs.
+
+## [0.20.99] - 2026-11-19
+
+### Dependencies
+
+- Require `voku/agent-learning ^0.20.1`: the committed Proposal is now the canonical approval record, so `proposal-mark-applied` works from a fresh clone, where `history/` (gitignored here) is absent, and never manufactures an approval. Rejections keep the Proposal's own rationale as `proposal_reason`.
+
+### Learning
+
+- Learning backlog review (decision by voku, recorded by Claude Code). Each of the 50 validated findings was reviewed individually against `main`. 35 are closed: 34 archived because a named test, rule, CI job or owner check now enforces them, or because they are obsolete or out of scope, and `2026-09-14.481001` marked superseded. Each archive reason cites its evidence. Proposal `2026-09-21.11d3a8` (UPDATE_SKILL) is rejected as superseded by #680, which consolidates `ed98de`. The 12 findings that need new checks, cross-owner work or a human decision stay `validated` and are tracked in a GitHub issue.
+- Two lessons are now enforced by tests instead of notes:
+  - `tests/MemoryCanonicalHomesResolveTest.php` requires every `MEMORY.md` canonical home (path, file name, class, `Class::method()`) to resolve (finding `100138`). It found two stale homes, `WorkflowStartCommand` (removed) and `WorkflowCloseCommand::checkReviewGate()` (moved to `WorkflowCloseReadinessInspector`), which are corrected. The two applied `MEMORY.md` guidance proofs are re-anchored with `proposal-reanchor --auto`.
+  - The post-edit map refresh now names the index it read and the index it wrote, pinned in `MapRefresherTest` (finding `3db1d5`).
+- Complete applied-pending Proposal `2026-08-20.c2a001` with `proposal-mark-applied` against its 2026-11-19 revalidation evidence. Its release-set dogfood job and constraint files are unchanged since that evidence's commit, `6c16f68`. The applied record keeps the original approval (Lars, 2026-08-20) and records `voku` as the applier. Source findings `049f83` and `82221f` are consolidated.
+
+- Allow `voku/agent-map ^0.23.0` alongside `^0.22.3` (and lock 0.23.0 with `voku/agent-recall-compiler` 0.29.1 and `voku/agent-edit` 0.6.4, the first releases of those owners that accept it). agent-map 0.23.0 only adds pluggable template dialects, an experimental Smarty evidence API and Smarty/Blade template-reference fixes; Loop uses none of the changed scanner/template APIs directly, and the experimental Smarty API is not consumed.
+
+### Development
+
+- Prepare the pipefail learning-effect experiment (`docs/dogfood/2026-11-19-learning-effect-pipefail.md`): does the same governed agent repeat a known mistake less often with the learned precedent (LearningNote `54b941`) than without it? `tools/learning-effect/` builds isolated A (native), B (governed, no precedent) and C (governed, with precedent) starting states from three real sibling-repository baselines that repeated the mistake, runs one arm headless and grades it against the hidden historical oracle. The CI calibration workflow proves the oracle separates baseline from repair and that B and C differ only by the precedent. No model run yet; dev-only, outside production autoload.
+
+## [0.20.98] - 2026-11-19
+
+### Added
+
+- Typed read-only `ExecutionGateway::observeCurrentExecutionBinding(string $taskId): ?ExecutionBinding` (`runId`, `contractRevision`, `executionPlanDigest`) so observers such as `voku/agent-ui` can tell whether a Runner journal attempt belongs to the current governed execution without rebuilding Loop's binding rules. It never prepares or persists a plan or state. No approved Contract, no Run, a retired Run or an unprepared plan observe `null`; a corrupt artifact or a plan bound to another Run throws and must be shown as unavailable. The plan binding check is shared with `observePendingAttention()` (#1062, #1063).
+
+### Tests
+
+- Pin the read-only Attention supersession guards (`>=` revision guard, exact archived-revision match) that previously survived mutation, and the explicit decisions that a retired Run's leftover plan is not inspected and that unreadable Contract history fails closed (#1061).
+
+### Dependencies
+
+- Require `voku/agent-learning ^0.20.0`: `finding-classify --from-proposal` copies the triage that consolidation recorded on a candidate Proposal onto the cited Finding, so an `ADD_LEARNING_NOTE` candidate can reach `agent-learning-note prepare` without retyping `pattern_key` and `validation_case`.
+
+### Learning
+
+- Classify findings `2026-09-13.df7c73`, `2026-09-15.17c7c3` and `2026-09-19.95209d` from their consolidation Proposals (`02e8eb`, `0ecd79`, `cbcf82`, each `learning_decision: ADD_LEARNING_NOTE`) and publish them as LearningNotes `learning-note.2026-11-19.91abcd` (host Composer wrapper), `.1b47ed` (checkout-local hook environment) and `.54b941` (capture before matching under pipefail). Each lesson is already enforced by an existing test, so they are precedent, not active Memory. The three Memory Proposals stay `candidate` for a named human decision (reject as Memory).
+- Reject Memory Proposals `02e8eb`, `0ecd79` and `cbcf82` (decision by voku) as superseded by those LearningNotes. The lessons stay valid; they are precedent, not active Memory. The `finding-reconcile` dry run then reports nothing left to reconcile, and findings `df7c73`, `17c7c3`, `95209d`, `2c3f55` and `457001` are `consolidated`.
+- Re-ground LearningNote `learning-note.2026-09-12.457001` against the current `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` and `tools/execution-contract-dogfood.php` (evidence state `current`) before consolidating `457001`.
+- Revalidate applied-pending Proposal `2026-08-20.c2a001` against `6c16f68` from scratch: the release-set dogfood job is still registered in `.github/workflows/ci.yml` and passed on that commit, recorded in `validation/proposal.2026-08-20.c2a001.revalidated-2026-11-19.json` next to the original evidence. It stays `approved`: `proposal-mark-applied` requires the approval in `history/decisions.jsonl`, and `history/` is gitignored, so the 2026-08-20 approval is not in this checkout and is not recreated here.
+
+## [0.20.97] - 2026-11-18
+
+### Added
+
+- Typed read-only `ExecutionGateway::observePendingAttention(string $taskId): ?AttentionRequest` for presentation consumers such as `voku/agent-ui`. It never prepares ExecutionPlan or ExecutionState and leaves existing execution files unchanged. Missing state, a retired Run, or state whose Contract revision is proven superseded yields no pending Attention; stale, corrupt or drifted existing state throws and must be shown as unavailable, never inferred absent. `projection()` and host mutation flow are unchanged (#1040).
+- Pipeline status marks stages that require a fresh review context (text and JSON), and mutating build submissions can list all changed files inside the approved scope, including pre-existing changes in a shared checkout; failure to inspect changed files now warns instead of blocking the submission (#1035, #1036).
+
+### Dependencies
+
+- Development tooling only: PHPStan 2.3.6 (#1053), PHP-CS-Fixer 3.95.32 (#1058), PHPUnit 12.5.44 (#1034) and the Composer 2.11.2 Docker base image (#1017). Runtime requirements are unchanged.
+
+## [0.20.96] - 2026-11-16
+
+### Added
+
+- Persist host session interaction preferences (`collaborative` / `autonomous`), task-specific overrides, reset and SessionStart binding with task-context guidance (#1052, #1054). These preferences control conversational behavior only; they do not grant mutation, approval, review, merge or deployment authority.
+- Add optional, provider-neutral advisory decision recommendations and a bounded local decision-route integration. Human decisions and Contract checks remain authoritative (#646, #1044).
+- Add reproducible PHP task-oracle calibration fixtures for native-versus-governed agent experiments; the fixtures do not prove real model behavior (#1031, #1046).
+
+### Fixed
+
+- Reject unprojectable host session identities before writing preferences, so SessionStart cannot silently disregard an apparently saved mode (#1054).
+- Avoid PHP 8.5 null array-offset deprecations when execution recovery history is empty (#1051, #1055).
+- Reject reserved `standing:` pseudo-actors at persisted attribution boundaries and refuse verification receipts for retired runs (#1047, #1048).
+- Include `pcntl` in the provided Agent Loop CLI Docker image, with a fork/wait smoke check (#1049).
+
+### Dependencies
+
+- Require the stable `voku/agent-decision` `^0.1.0` package for the optional decision adapter (#1044).
+
+### Verification
+
+- PHP 8.3/8.4/8.5 Composer CI, PHPStan, style and repository dogfood were successful for the merged changes; the integrated real Codex autonomous review/repair cycle remains unverified. This release intentionally does not include draft standing-grant PRs #1030 or #1050.
+
+## [0.20.95] - 2026-11-15
+
+### Changed
+
+- Reduce the always-on `agent-loop` workflow router in generated `AGENTS.md`, keeping CLI lifecycle routing, human-decision authority, evidence requirements and project-owned instructions intact (#1041).
+
+### Tests
+
+- Align the case-sensitive router projection assertion with the generated wording (#1041).
+- Validate canonical agent-loop skills with pinned NVIDIA SkillEvaluator 0.9.0 in CI.
+
+## [0.20.94] - 2026-11-13
+
+### Added
+
+- `agent-loop workflow retention report [--older-than-days=90] [--format=text|json]`: read-only inventory of current and superseded Run evidence. It changes no artifacts and reports every retention decision as blocked, so it never authorizes archival (#1029).
+
+### Removed
+
+- Duplicated always-on Codelight mnemonic from `AGENTS.md`; lifecycle and approval guidance is unchanged (#1032).
+
+### Dependencies
+
+- Require `voku/agent-recall-compiler` `^0.29.0`. Recall no longer computes implicit repository-wide `architecture_discovery` facts for tasks without explicit files/targets. That fact was never part of the `system.md` that Loop delivers, so governed runs lose no delivered context and skip the discovery cost (agent-recall-compiler#273, #1031). Candidate workflows pin the 0.29.0 release commit.
+
+## [0.20.93] - 2026-11-11
+
+### Added
+
+- Synchronize Kanban card lane with actual governed work start (`agent-loop enter` / `WorkflowRunPreparer::prepare`) via typed `voku/agent-kanban` API, safely handling intermediate topology (`BACKLOG -> READY -> DOING`), satisfying `taskBrief` from Contract goal when required, and guarding against claim conflicts and invalid transitions without halting workflow preparation (#1023).
+- Flag `board.backlog_with_governed_run` disagreement in RunManifestProjector when an approved governed Run is in progress while its associated Kanban card remains in `BACKLOG` (#1023).
+- Transition Kanban card to `DONE` upon workflow close when the board configuration supports a `DONE` lane (#1023).
+
+## [0.20.92] - 2026-11-11
+
+### Fixed
+
+- Resolving a `review_changes_required` Attention (review rounds exhausted) now resumes at the review stage's changes-required route, e.g. build, with its next attempt, so a fix made after the Attention becomes the next candidate instead of the old candidate being reviewed again. The capped review's findings are that stage's prior handoff, and the human response reaches both the resumed stage and the next attempt of the review (e.g. to accept a request as out of scope). Other Attention kinds still resume the stage that raised them.
+- Candidate workspaces may hold commits on top of the governed base: the content-addressed candidate is the same as for the equivalent uncommitted workspace, while a HEAD that does not descend from the base is still refused with `STALE_CANDIDATE`. Commits are tolerated, not required; stage prompts still ask agents not to commit.
+
+## [0.20.91] - 2026-11-11
+
+### Added
+
+- Typed human-decision API for agent-ui and the CLI (`WorkflowHumanDecisionService`):
+  - Reject a candidate Contract revision with actor and reason (`workflow reject`); a rejected revision never authorizes work and routes the task to a new revision.
+  - Approve/reject accept the reviewed repository HEAD and fail closed when it moved.
+  - `pendingAttention()` projects the reviewed Attention identity (Contract revision, scope, plan digest, attempt, candidate, HEAD); `attentionResolutions()` lists recorded resolutions.
+  - `resolveAttention()` records an optional human response (`workflow attention --response`) that reaches the resumed stage prompt, refuses stale reviewed state and reserved `standing:` actors, and completes an interrupted transition with the already recorded decision.
+  - `WorkflowHumanReviewCommand::render()` returns the non-authoritative human review HTML.
+
+## [0.20.90] - 2026-11-10
+
+### Added
+
+- Default a new Contract's base commit to the current Git HEAD when omitted, while retaining the existing base across revisions (#1004).
+
+### Fixed
+
+- Include the complete approval subject immediately after PLAN and fail closed when it is missing or stale (#1003).
+- Allow explicitly superseding an approved Contract to add scope without restating unchanged intent (#1002).
+- Reject malformed managed-provenance SHA-256 digests during initialization (#938).
+
+### Dependencies
+
+- Update the agent-ui Docker consumer constraint to `^0.19.0` (#1006).
+
+## [0.20.89] - 2026-11-09
+
+### Added
+
+- Automate review artifact coverage bookkeeping with justified exclusions (#1005). Automatically populates expected changed candidate files in `StageExecutionBundle`, verifies that all candidate artifacts are either inspected or explicitly excluded, and fails closed on unreviewed files.
+- Support `--exclude-artifact <path>=<justification>` in workflow pipeline review submissions, with anti-forgery blob existence and digest validation against the candidate tree.
+
+### Dependencies
+
+- Upgrade `voku/agent-recall-compiler` to `^0.28.0` with task-scoped intermediate bundle pruning (#457, #264).
+- Upgrade `voku/agent-learning` to `^0.19.0` with automated proof re-anchoring (`proposal-reanchor --auto`) and fail-closed pre-policy protection (#192).
+
+### Tests
+
+- Add unit and integration coverage for candidate artifact tracking, justified exclusion submission, comma-delimited reason parsing, and forged exclusion rejection. Update release workflow pins to verified 0.28.0 Recall release.
+
+## [0.20.88] - 2026-11-09
+
+### Fixed
+
+- Reject direct, nested, and dangling symlinked `.agent-loop` scaffold destinations before creating project state, including configuration, tasks, sessions, board and learning paths; recheck link targets at mutation helpers to avoid accidental writes outside the selected project (#999).
+- Guide PHP onboarding to stop rather than bypass symlink safety checks in the canonical setup skill (#999).
+
+### Tests
+
+- Cover root symlinks, dangling configuration links, nested learning findings, board/task and demo paths, read-only dry runs, and no-outside-project-write regressions across the PHP 8.3/8.4/8.5 exact-head CI and installed CLI dogfood (#999).
+- This fix addresses direct symlink redirection; it does not claim race-free filesystem operations against an adversarial concurrent writer.
+
+## [0.20.87] - 2026-11-09
+
+### Fixed
+
+- Use the developer's explicitly selected language consistently in the PHP project setup plan and evidence-bound apply instructions; `de-DE` is illustrative, never an assumed preference (#995).
+
+## [0.20.86] - 2026-11-08
+
+### Added
+
+- Report the existing Slop Scan policy as read-only, owner-sourced project setup evidence, including path filters and rule overrides without mutating scanner configuration (#981).
+
+### Fixed
+
+- Distinguish genuine historical human Contract approvals from incomplete or reserved `standing:` pseudo-actor metadata when selecting and displaying the revision comparison baseline. Preserve current approval authorization boundaries and suppress false human attribution (#986).
+- Require explicitly approved PHP project scaffolding before generating and reviewing the final language-specific setup plan, so `init apply` cannot use stale pre-scaffold evidence (#990).
+- Preserve Slop Scan JSON object-versus-array policy shapes and reject malformed nested or explicitly null values with warnings, without writing project configuration (#988).
+
+### Changed
+
+- Clarify prerequisites for source-linked PHPStan notice guidance in the owned ITP context skill (#936).
+
+### Tests
+
+- Cover archived named approval, legacy pseudo-actors, missing approval metadata and rendered CLI decision evidence; check Slop Scan policy projection and installed project recommendations (#986, #981).
+- Verify existing source-linked ITP context in CI dogfood without changing its runtime authorization (#930).
+- Add malformed Slop JSON shape/null regressions and a tenth exact-head project-init installed CLI dogfood case (#988).
+
+## [0.20.85] - 2026-11-08
+
+### Added
+
+- Investigate bounded, read-only Git history before changing existing code, including historical intent and likely regression origins (#974).
+- Extend project-aware PHP initialization to discover Composer `autoload-dev` scope and apply explicitly approved language with evidence checks (#970, #977).
+- Offer a safe manual `agent-ui` launch command when its status probe reports a verified non-ready state; the CLI remains usable and no service is started automatically (#976).
+
+### Fixed
+
+- Compare Contract approval revisions against the latest genuine human-approved revision, not an intervening unapproved draft, and expose changes in goal, scope, non-goals, acceptance, validation, behavior anchors, operating-prompt manifest, prompt arguments, and prompt order (#922).
+- Preserve bounded history investigation during fast regression and surgical-edit workflows (#979).
+- Reject inconsistent `agent-ui status` exit codes before suggesting a launch command, without relaxing human approval boundaries (#976).
+
+### Changed
+
+- Update the `voku/agent-kanban` dependency to 0.4.8 and refresh Docker image pins (#975, #895, #886).
+
+### Tests
+
+- Verify history guidance reaches Codex and Claude runtimes and exercise Finder-only and empty PHP consumers in real installed CLI dogfood (#978, #980).
+- Cover cumulative approval deltas, latest named approval, legacy `standing:` actors, prompt order, and safe launch-status handling across PHP 8.3/8.4/8.5, with downstream `agent-ui` candidate browser proof.
+
+## [0.20.84] - 2026-11-07
+
+### Fixed
+
+- Route explicitly requested new local work through the Kanban owner's generated card IDs, independent of `future_work.mode`; select the intended configured board and lane (including required fields), fail closed when no task authority exists, and retain externally assigned IDs and governed approval boundaries. Verify generated IDs via delegated board CLI tests and prevent sequential local ID examples.
+
+## [0.20.83] - 2026-11-07
+
+### Added
+
+- Provide `agent-loop init plan --format=json`, a typed read-only proposal with source-linked map and Composer script candidates, bounded SHA-256 provenance, explicit confirmation requirements, and no configuration writes or implicit execution (#963).
+
+### Fixed
+
+- Emit Composer-installed `vendor/bin/agent-loop` paths in project-aware PHP onboarding recommendations and prove their read-only dry-run behavior in a real installed PHP consumer (#961).
+- Ignore nested, unrelated PHPStan `paths` keys when reading project analysis scope; only direct `parameters.paths` is used for project-aware setup recommendations, with installed-consumer regression coverage (#959).
+- Align both candidate dogfood workflow pins and immutable release-commit proofs with `voku/agent-recall-compiler` 0.27.0; keep the release-contract tests and approval boundaries intact (#958).
+
+### Changed
+
+- Update released `voku/agent-map` to 0.22.6 and `voku/agent-edit` to 0.6.2 for improved PHPStan exclusion preservation and safer refactor-plan interoperability (#945, #946).
+- Update `voku/agent-recall-compiler` to 0.27.0, exposing its explicit, non-mutating exploration capability without implicit model routing or task execution authority (#958).
+- Refresh development dependencies `phpstan/phpstan` to 2.3.5, `friendsofphp/php-cs-fixer` to 3.95.29, and `composer/semver` to 3.6.0 (#939, #943, #883).
+- Update runtime dependency `helgesverre/toon` to 3.3.0 while retaining its previously selected default wire-format behavior (#955).
+
+### Tests
+
+- Validate the installed Composer PHP setup recommendations, matching release-pinned Recall candidate dogfood, real-project guidance, refactor lifecycles, and PHP 8.3/8.4/8.5 CI on exact release-candidate commits before publishing the release marker.
+
+## [0.20.82] - 2026-11-07
+
+### Added
+
+- Expose read-only, project-aware PHP setup evidence with `agent-loop init recommend --format=json`. Detect literal PHPStan paths and exclusions, Composer autoload, existing Slop Scan ignores, and PHP-CS-Fixer configuration without running project scripts or PHP configuration (#948).
+- Ship the `agent-loop-php-setup` coding-host skill for evidence-based proposals, dry runs, and explicitly approved configuration changes. The skill does not introduce another model client or bypass human review (#951).
+- Report syntactically safe Composer quality-script names as untrusted setup evidence, without executing or trusting script bodies (#953).
+- Integrate the released `voku/agent-recall-compiler` 0.26.0 bounded-choice validation API, with installed-consumer regression coverage. Workflow selection remains opt-in and advisory; there is no implicit model routing (#952).
+
+### Changed
+
+- Remove an unused follow-up budget setting from the discover-only project configuration while retaining the existing no-automatic-follow-up boundary (#931).
+- Update development dependency `symfony/yaml` to the 7.4.23 security release (#944).
+
+### Tests
+
+- Cover project-aware setup boundaries, malformed and hostile tooling configuration, installed PHP-consumer skill projection, safe Composer script-name discovery, and the optional Recall bounded-choice API (#948, #951, #952, #953).
+- Require exact-head PHP 8.3/8.4/8.5 `composer ci` and relevant installed-consumer GitHub Actions dogfood before tagging this release.
+
+## [0.20.81] - 2026-11-04
+
+### Fixed
+
+- Reconcile stale validation and review evidence during `finish` while preserving current failures and refusing Learning until validation passes.
 
 ## [0.20.80] - 2026-11-02
 

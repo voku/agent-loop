@@ -59,6 +59,41 @@ final class ExecutionContractStoreTest extends TestCase
         }
     }
 
+    public function testExecutionContractWritersRejectReservedActorWithoutPersistingMetadata(): void
+    {
+        $root = $this->root('reserved-actor');
+
+        try {
+            $this->fixture($root, 'TASK-RESERVED', level: 2);
+            $store = new ExecutionContractStore($root);
+            foreach ([
+                fn () => $store->writeReady('TASK-RESERVED', ' standing:spoof ', $this->contract()),
+                static fn () => $store->writeStopped(
+                    'TASK-RESERVED',
+                    ExecutionContractStatus::BLOCKED,
+                    'standing:spoof',
+                    'Blocked.',
+                    ['The required command is absent.'],
+                    'Verification',
+                    'Revise the Contract.',
+                ),
+            ] as $write) {
+                try {
+                    $write();
+                    self::fail('Reserved standing actor was accepted.');
+                } catch (RuntimeException $exception) {
+                    self::assertStringContainsString('standing:', $exception->getMessage());
+                }
+            }
+            self::assertFileDoesNotExist($root . '/.agent-loop/recall/TASK-RESERVED/execution-contract.json');
+
+            $store->writeReady('TASK-RESERVED', 'operator-1', $this->contract());
+            self::assertSame('operator-1', $store->inspect('TASK-RESERVED')['created_by']);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testChangedRecallMakesExistingContractStale(): void
     {
         $root = $this->root('stale');

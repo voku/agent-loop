@@ -30,13 +30,154 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
             $service = new WorkflowHumanDecisionService($root);
 
             $available = $service->availableActions('UI-1');
-            self::assertSame([WorkflowHumanDecisionProjection::APPROVE_CONTRACT], $available->actions);
+            self::assertSame([WorkflowHumanDecisionProjection::APPROVE_CONTRACT, WorkflowHumanDecisionProjection::REJECT_CONTRACT], $available->actions);
 
             $approved = $service->approveContract('UI-1', 'lars', 1);
 
             self::assertSame(TaskContract::APPROVED, $approved->status);
             self::assertSame('lars', $approved->approvedBy);
             self::assertSame(TaskContract::APPROVED, $contracts->load('UI-1')->status);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testRejectionPreservesReasonAndRequiresNewRevision(): void
+    {
+        $root = $this->root('reject');
+        try {
+            $contracts = new TaskContractStore($root);
+            $contracts->create('UI-9', 'Original goal', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'planner');
+            $service = new WorkflowHumanDecisionService($root);
+            foreach (['approve', 'reject'] as $action) {
+                try {
+                    if ($action === 'approve') {
+                        $service->approveContract('UI-9', 'lars', 1, str_repeat('a', 40));
+                    } else {
+                        $service->rejectContract('UI-9', 'lars', 1, 'Wrong scope', str_repeat('a', 40));
+                    }
+                    self::fail('A decision based on an unavailable HEAD must fail closed.');
+                } catch (RuntimeException $exception) {
+                    self::assertStringContainsString('HEAD changed', $exception->getMessage());
+                }
+            }
+            try {
+                $service->rejectContract('UI-9', 'lars', 2, 'Wrong scope');
+                self::fail('A stale revision must not be rejected.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('revision changed', $exception->getMessage());
+            }
+            $rejected = $service->rejectContract('UI-9', 'lars', 1, 'Wrong scope');
+            self::assertSame(TaskContract::REJECTED, $rejected->status);
+            self::assertSame('lars', $contracts->load('UI-9')->rejectedBy);
+            self::assertSame('Wrong scope', $contracts->load('UI-9')->rejectionReason);
+            self::assertSame([], $service->availableActions('UI-9')->actions);
+            foreach (['approve', 'reject'] as $action) {
+                try {
+                    if ($action === 'approve') {
+                        $service->approveContract('UI-9', 'lars', 1);
+                    } else {
+                        $service->rejectContract('UI-9', 'lars', 1, 'Another reason');
+                    }
+                    self::fail('A rejected Contract cannot be approved or rejected again.');
+                } catch (RuntimeException $exception) {
+                    self::assertStringContainsString('not a currently available human action', $exception->getMessage());
+                }
+            }
+            $revision = $contracts->revise('UI-9', 'Revised goal', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'planner');
+            self::assertSame(2, $revision->revision);
+            self::assertSame('Wrong scope', $contracts->supersededRevisions('UI-9')[0]->rejectionReason);
+            self::assertSame(TaskContract::APPROVED, $service->approveContract('UI-9', 'lars', 2)->status);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testCliRejectionRoutesToRevision(): void
+    {
+        $root = $this->root('reject-cli');
+        try {
+            (new TaskContractStore($root))->create('UI-10', 'Goal', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'planner');
+            [$exit, , $error] = $this->invokeCli($root, ['workflow', 'reject', 'UI-10', '--revision', '1', '--by', 'lars', '--reason', 'Scope needs revision']);
+            self::assertSame(0, $exit, is_string($error) ? $error : '');
+            [$status, $output] = $this->invokeCli($root, ['workflow', 'status', 'UI-10', '--format=json']);
+            self::assertSame(0, $status);
+            self::assertIsString($output);
+            $projection = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('rejected', $projection['manifest']['references']['contract']['state']);
+            self::assertSame('Scope needs revision', $projection['manifest']['references']['contract']['rejection_reason']);
+            self::assertStringContainsString('workflow plan UI-10 --supersede', $projection['policy']['next_action']);
+            [$replay] = $this->invokeCli($root, ['workflow', 'reject', 'UI-10', '--revision', '1', '--by', 'lars', '--reason', 'Scope needs revision']);
+            self::assertSame(1, $replay);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testConcurrentApprovalAndRejectionCannotBothSucceed(): void
+    {
+        $root = $this->root('decision-race');
+        try {
+            $contracts = new TaskContractStore($root);
+            $contracts->create('UI-11', 'Goal', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'planner');
+            $binary = dirname(__DIR__) . '/bin/agent-loop';
+            $commands = [
+                [PHP_BINARY, $binary, 'workflow', 'approve', 'UI-11', '--revision', '1', '--by', 'alice'],
+                [PHP_BINARY, $binary, 'workflow', 'reject', 'UI-11', '--revision', '1', '--by', 'bob', '--reason', 'Change scope'],
+            ];
+            $processes = [];
+            foreach ($commands as $command) {
+                $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root);
+                self::assertIsResource($process);
+                fclose($pipes[0]);
+                $processes[] = [$process, $pipes];
+            }
+            $exits = [];
+            foreach ($processes as [$process, $pipes]) {
+                stream_get_contents($pipes[1]);
+                stream_get_contents($pipes[2]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                $exits[] = proc_close($process);
+            }
+            sort($exits);
+            self::assertSame([0, 1], $exits);
+            self::assertContains($contracts->load('UI-11')->status, [TaskContract::APPROVED, TaskContract::REJECTED]);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testChangedHeadInvalidatesReviewedContractDecision(): void
+    {
+        $root = $this->root('decision-head');
+        try {
+            $git = 'git -C ' . escapeshellarg($root);
+            exec("$git init -q && $git config user.email test@example.invalid && $git config user.name Tester && $git commit --allow-empty -qm first", $output, $exit);
+            self::assertSame(0, $exit);
+            $head = trim((string) shell_exec("$git rev-parse HEAD"));
+            $contracts = new TaskContractStore($root);
+            $contracts->create('UI-12', 'Goal', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'planner');
+            exec("$git commit --allow-empty -qm second", $output, $exit);
+            self::assertSame(0, $exit);
+            [$approveExit] = $this->invokeCli($root, ['workflow', 'approve', 'UI-12', '--revision', '1', '--by', 'lars', '--head', $head]);
+            [$rejectExit] = $this->invokeCli($root, ['workflow', 'reject', 'UI-12', '--revision', '1', '--by', 'lars', '--reason', 'Change scope', '--head', $head]);
+            self::assertSame(1, $approveExit);
+            self::assertSame(1, $rejectExit);
+            $service = new WorkflowHumanDecisionService($root);
+            foreach (['approve', 'reject'] as $action) {
+                try {
+                    if ($action === 'approve') {
+                        $service->approveContract('UI-12', 'lars', 1, $head);
+                    } else {
+                        $service->rejectContract('UI-12', 'lars', 1, 'Change scope', $head);
+                    }
+                    self::fail('A stale HEAD must prevent either Contract decision.');
+                } catch (RuntimeException $exception) {
+                    self::assertStringContainsString('HEAD changed', $exception->getMessage());
+                }
+            }
+            self::assertSame(TaskContract::CANDIDATE, $contracts->load('UI-12')->status);
         } finally {
             $this->removeDirectory($root);
         }
@@ -121,6 +262,20 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
             $this->expectExceptionMessage('sha256:<64 lowercase hex>');
 
             (new WorkflowHumanDecisionService($root))->acknowledgeReview('UI-1', 'not-a-digest', 'lars');
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testAttentionResolutionRefusesReservedStandingActorBeforeLookingForRunState(): void
+    {
+        $root = $this->root('attention-standing-actor');
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('standing:');
+
+            (new WorkflowHumanDecisionService($root))->resolveAttention('UI-1', 'attention-1', '  standing:forged ');
         } finally {
             $this->removeDirectory($root);
         }
@@ -232,6 +387,23 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @return array{int, string|false, string|false}
+     */
+    private function invokeCli(string $root, array $arguments): array
+    {
+        $process = proc_open([PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', ...$arguments], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root);
+        self::assertIsResource($process);
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return [proc_close($process), $out, $err];
     }
 
     private function root(string $suffix): string

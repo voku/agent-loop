@@ -1,6 +1,8 @@
 ---
 name: agent-loop-review-close
 description: Review and close a governed agent-loop task through the canonical finish front door while preserving explicit review and Learning inputs.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Review Close

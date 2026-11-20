@@ -8,6 +8,7 @@ final readonly class TaskContract
 {
     public const string CANDIDATE = 'candidate';
     public const string APPROVED = 'approved';
+    public const string REJECTED = 'rejected';
     public const string SUPERSEDED = 'superseded';
 
     /**
@@ -43,7 +44,28 @@ final readonly class TaskContract
         public ?string $approvedAt = null,
         public array $acceptanceCriteria = [],
         public array $acceptanceObservations = [],
+        public ?string $rejectedBy = null,
+        public ?string $rejectedAt = null,
+        public ?string $rejectionReason = null,
     ) {
+    }
+
+    /**
+     * Classify recorded approval metadata independently of the current status.
+     *
+     * Archived, formerly approved revisions have status SUPERSEDED. This
+     * classification is evidence for display, not current authorization.
+     * A reserved pseudo-actor is never evidence of human approval.
+     */
+    public function hasRecordedNonReservedApproval(): bool
+    {
+        $actor = $this->approvedBy === null ? null : trim($this->approvedBy);
+
+        return $actor !== null
+            && $actor !== ''
+            && $this->approvedAt !== null
+            && trim($this->approvedAt) !== ''
+            && !str_starts_with($actor, 'standing:');
     }
 
     /**
@@ -54,9 +76,7 @@ final readonly class TaskContract
     public function hasNonReservedApproval(): bool
     {
         return $this->status === self::APPROVED
-            && $this->approvedBy !== null
-            && $this->approvedAt !== null
-            && !str_starts_with(trim($this->approvedBy), 'standing:');
+            && $this->hasRecordedNonReservedApproval();
     }
 
     /** @return list<string> */
@@ -96,6 +116,9 @@ final readonly class TaskContract
             'base_commit' => $this->baseCommit,
             'approved_by' => $this->approvedBy,
             'approved_at' => $this->approvedAt,
+            'rejected_by' => $this->rejectedBy,
+            'rejected_at' => $this->rejectedAt,
+            'rejection_reason' => $this->rejectionReason,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

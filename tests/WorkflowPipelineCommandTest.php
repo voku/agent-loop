@@ -33,7 +33,9 @@ final class WorkflowPipelineCommandTest extends TestCase
         $this->root = sys_get_temp_dir() . "/agent-loop-pipeline-" . bin2hex(random_bytes(5));
         mkdir($this->root . "/.agent-loop/learning", 0o775, true);
         mkdir($this->root . "/src", 0o775, true);
+        mkdir($this->root . "/docs", 0o775, true);
         file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo {}\n");
+        file_put_contents($this->root . "/docs/CHANGELOG.md", "# Changelog\n");
         // A real base commit: the deterministic verify stage validates the governed candidate held by the checkout.
         file_put_contents($this->root . "/.gitignore", "/.agent-loop/\n");
         $git = "git -C " . escapeshellarg($this->root);
@@ -73,6 +75,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame("in_progress", $status["status"]);
         self::assertSame("investigate", $status["current_stage"]);
         self::assertSame("investigator", $status["role"]);
+        self::assertNull($status["context_guidance"]);
         self::assertFalse($status["may_mutate"]);
         self::assertSame(1, $status["attempt"]);
         self::assertFalse($status["complete"]);
@@ -100,6 +103,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertFalse($investigate["may_mutate"]);
         self::assertStringNotContainsString("--workspace", $investigate["next_action"]);
         self::assertStringNotContainsString('Use --workspace <path> to identify the checkout containing your edits.', $investigate["prompt"]);
+        self::assertStringNotContainsString('Experiments are not automatically regression tests', $investigate["prompt"]);
 
         $submitted = $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed"]);
         self::assertSame(0, $submitted["exit"]);
@@ -110,6 +114,9 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertTrue($build["may_mutate"]);
         self::assertStringContainsString('--workspace "<workspace-with-edits>"', $build["next_action"]);
         self::assertStringContainsString('--workspace <path>', $build["prompt"]);
+        self::assertStringContainsString('When an implementation question needs an executable experiment', $build["prompt"]);
+        self::assertStringContainsString('Experiments are not automatically regression tests', $build["prompt"]);
+        self::assertStringContainsString('record consequential observations using existing evidence', $build["prompt"]);
         self::assertStringContainsString('--candidate <identity>', $build["prompt"]);
         self::assertStringContainsString('optional except for an intentional revert to the base', $build["prompt"]);
         self::assertStringContainsString('checked against the workspace', $build["prompt"]);
@@ -141,6 +148,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertTrue($briefing["may_mutate"]);
         self::assertStringNotContainsString("--workspace", $briefing["next_action"]);
         self::assertStringNotContainsString("Use --workspace <path>", $briefing["prompt"]);
+        self::assertStringNotContainsString('Experiments are not automatically regression tests', $briefing["prompt"]);
     }
 
     /** Persist a valid plan and its bound state with a deterministic stage marked mutating. */
@@ -183,6 +191,36 @@ final class WorkflowPipelineCommandTest extends TestCase
             $originalState->recoveryHistory,
         );
         self::assertNotFalse(file_put_contents($stateStore->path($taskId), json_encode($state->toArray(), JSON_THROW_ON_ERROR)));
+    }
+
+    public function testReviewGuidanceAndCandidateFileVisibilityInSharedCheckout(): void
+    {
+        $this->prepareSurgicalRun("PIPE-VISIBILITY", files: ["src"]);
+        $command = new WorkflowPipelineCommand($this->root);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=completed"])["exit"]);
+
+        file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { }\n");
+        file_put_contents($this->root . "/src/Existing.php", "<?php\nfinal class Existing { }\n");
+        file_put_contents($this->root . "/docs/CHANGELOG.md", "outside scope\n");
+        $result = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=completed", "--context-id=builder", "--format=json"]);
+        self::assertSame(0, $result["exit"]);
+        $transition = json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(["src/Existing.php", "src/Foo.php"], $transition["candidate_changed_files"]);
+        self::assertStringContainsString("pre-existing scoped changes", $transition["candidate_scope_notice"]);
+
+        $status = $this->captureRun($command, ["status", "PIPE-VISIBILITY", "--format=json"]);
+        $projection = json_decode($status["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame("fresh_required", $projection["context_policy"]);
+        self::assertStringContainsString("separate host context", $projection["context_guidance"]);
+        self::assertStringContainsString("agent-loop does not start one", $projection["context_guidance"]);
+        $textStatus = $this->captureRun($command, ["status", "PIPE-VISIBILITY"]);
+        self::assertStringContainsString("Context guidance: Run this stage in a separate host context", $textStatus["stdout"]);
+        $reused = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=pass", "--context-id=builder", "--format=json"]);
+        self::assertNotSame(0, $reused["exit"]);
+        $rejection = json_decode($reused["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertStringContainsString("CONTEXT_REUSE_FORBIDDEN", $rejection["message"]);
+        $unchanged = $this->captureRun($command, ["status", "PIPE-VISIBILITY", "--format=json"]);
+        self::assertSame("review", json_decode($unchanged["stdout"], true, 512, JSON_THROW_ON_ERROR)["current_stage"]);
     }
 
     public function testPipelineProgressionWithReviewFeedbackLoop(): void
@@ -256,6 +294,51 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame(0, $res5["exit"]);
         $p5 = json_decode($res5["stdout"], true, 512, JSON_THROW_ON_ERROR);
         self::assertSame("verify", $p5["current_stage"]);
+    }
+
+    public function testPipelineSubmitReviewPassWithExclusionReasonContainingComma(): void
+    {
+        $this->prepareSurgicalRun("PIPE-EXCLUDE-1", files: ["src/Foo.php", "docs/CHANGELOG.md"]);
+
+        $command = new WorkflowPipelineCommand($this->root);
+
+        // 1. Submit investigate -> advances to build
+        $res1 = $this->captureRun($command, [
+            "submit", "PIPE-EXCLUDE-1",
+            "--outcome=completed",
+            "--summary=Investigation complete.",
+            "--format=json",
+        ]);
+        self::assertSame(0, $res1["exit"]);
+
+        // Modify src/Foo.php and docs/CHANGELOG.md in candidate
+        file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { public string \$val = '1'; }\n");
+        file_put_contents($this->root . "/docs/CHANGELOG.md", "# Changelog\n- Item\n");
+        exec("git -C " . escapeshellarg($this->root) . " add src/Foo.php docs/CHANGELOG.md");
+
+        // 2. Submit build -> advances to review
+        $res2 = $this->captureRun($command, [
+            "submit", "PIPE-EXCLUDE-1",
+            "--outcome=completed",
+            "--summary=Updated Foo.php.",
+            "--context-id=ctx:build-1",
+            "--format=json",
+        ]);
+        self::assertSame(0, $res2["exit"]);
+
+        // 3. Reviewer submits pass with --exclude-artifact having comma in justification
+        $res3 = $this->captureRun($command, [
+            "submit", "PIPE-EXCLUDE-1",
+            "--outcome=pass",
+            "--summary=Review pass with excluded changelog.",
+            "--artifact=src/Foo.php",
+            "--exclude-artifact=docs/CHANGELOG.md=docs only, no behavior change, verified safe",
+            "--context-id=ctx:review-1",
+            "--format=json",
+        ]);
+        self::assertSame(0, $res3["exit"], $res3["stdout"] . ' ' . $res3["stderr"]);
+        $p3 = json_decode($res3["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame("verify", $p3["current_stage"]);
     }
 
     public function testPipelineRunCompletesDeterministicVerification(): void
@@ -406,14 +489,17 @@ final class WorkflowPipelineCommandTest extends TestCase
         return ["exit" => $exit, "stdout" => $stdout, "stderr" => $stdout];
     }
 
-    /** @param list<string> $validation */
-    private function prepareSurgicalRun(string $taskId, array $validation = ["php -l src/Foo.php"]): void
+    /**
+     * @param list<string> $validation
+     * @param list<string> $files
+     */
+    private function prepareSurgicalRun(string $taskId, array $validation = ["php -l src/Foo.php"], array $files = ["src/Foo.php"]): void
     {
         ob_start();
         (new WorkflowPlanCommand($this->root))->run([
             $taskId,
             "--by", "lars",
-            "--file", "src/Foo.php",
+            ...array_merge(...array_map(static fn (string $f): array => ["--file", $f], $files)),
             "--goal", "Pipeline execution test.",
             ...array_merge(...array_map(static fn (string $command): array => ["--validation", $command], $validation)),
             "--base-commit", $this->baseCommit,

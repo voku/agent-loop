@@ -1,0 +1,150 @@
+name: PHP project onboarding skill dogfood
+
+on:
+  pull_request:
+    paths:
+      - 'resources/skills/agent-loop-php-setup/**'
+      - 'src/Init/**'
+      - 'tests/InitInstallAssetsCommandTest.php'
+      - 'tests/FirstPartyWorkflowAssetsInitTest.php'
+      - 'docs/reference/php-project-onboarding.md'
+      - '.github/workflows/php-setup-skill-dogfood.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php-setup:
+    name: Existing PHP consumer discovery and skill projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact-head checkout
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Verify installed-consumer recommendations cannot execute config and project the onboarding skill
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/build/php-setup-skill-proof"
+          mkdir -p "$proof"
+          consumer="$(mktemp -d)"
+          trap 'rm -rf "$consumer"' EXIT
+          mkdir -p "$consumer/src" "$consumer/tests" "$consumer/.agent-loop"
+          jq -n --arg root "$GITHUB_WORKSPACE" '{
+            name: "acme/php-onboarding-consumer",
+            type: "project",
+            require: {"php": "^8.3"},
+            "require-dev": {"voku/agent-loop": "dev-main"},
+            repositories: [{
+              type: "path",
+              url: $root,
+              options: {symlink: false, versions: {"voku/agent-loop": "dev-main"}}
+            }],
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            autoload: {"psr-4": {"Acme\\\\": "src/"}},
+            scripts: {test: "echo original-project-test-script"},
+            config: {"allow-plugins": false}
+          }' > "$consumer/composer.json"
+          cat > "$consumer/phpstan.neon.dist" <<'NEON'
+          parameters:
+            customSettings:
+              paths:
+                - vendor
+            paths:
+              - src
+              - tests
+            excludePaths:
+              analyse:
+                - tests/fixtures/*
+          NEON
+          cat > "$consumer/.php-cs-fixer.dist.php" <<'PHP'
+          <?php
+          file_put_contents(__DIR__ . '/UNEXPECTED_EXECUTION', 'invalid side effect');
+          return null;
+          PHP
+          printf '{"ignores":["**/vendor/**"]}\n' > "$consumer/slop-scan.config.json"
+          printf '{"version":1,"prompting":{"language":"de-DE"}}\n' > "$consumer/.agent-loop/init.json"
+          # Install the current checked-out package into an independent PHP project.
+          composer update --working-dir="$consumer" --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress > "$proof/composer-install.log"
+          test -f "$consumer/vendor/voku/agent-loop/resources/skills/agent-loop-php-setup/SKILL.md"
+          cmp "$GITHUB_WORKSPACE/resources/skills/agent-loop-php-setup/SKILL.md" "$consumer/vendor/voku/agent-loop/resources/skills/agent-loop-php-setup/SKILL.md"
+          (cd "$consumer" && find . -path ./vendor -prune -o -type f -print0 | sort -z | xargs -0 sha256sum) > "$proof/before.sha256"
+          (
+            cd "$consumer"
+            php vendor/bin/agent-loop init recommend --format=json > "$proof/recommend.json"
+          )
+          jq -e '
+            .schema_version == 1
+            and (.map.paths == ["src","tests"])
+            and (.map.command == "vendor/bin/agent-loop map build --paths=src,tests")
+            and (.next_actions[0] == "vendor/bin/agent-loop init sync-tools --dry-run")
+            and (.map.requires_confirmation == true)
+            and (.sources.php_cs_fixer == ".php-cs-fixer.dist.php")
+            and (.exclusions.phpstan == ["tests/fixtures/*"])
+            and (.exclusions.slop == ["**/vendor/**"])
+            and (.quality.source == "composer.json")
+            and (.quality.composer_scripts == ["test"])
+            and (.quality.requires_confirmation == true)
+            and (.prompting.language == "de-de")
+            and (.review.configurable_by_setup == false)
+          ' "$proof/recommend.json" >/dev/null
+          (
+            cd "$consumer"
+            php vendor/bin/agent-loop init install-assets --agent=codex --dry-run > "$proof/install-preview.log"
+          )
+          grep -F 'install agent-loop-php-setup' "$proof/install-preview.log"
+          # Exercise the output in the installed PHP consumer without a global CLI.
+          recommendation="$(jq -r '.next_actions[0]' "$proof/recommend.json")"
+          test "$recommendation" = 'vendor/bin/agent-loop init sync-tools --dry-run'
+          (cd "$consumer" && bash -c "$recommendation") > "$proof/recommended-preview.log"
+          test -s "$proof/recommended-preview.log"
+          test ! -e "$consumer/tools/slop-scan/composer.json"
+          test ! -e "$consumer/.codex"
+          test ! -e "$consumer/UNEXPECTED_EXECUTION"
+          (cd "$consumer" && find . -path ./vendor -prune -o -type f -print0 | sort -z | xargs -0 sha256sum) > "$proof/after-preview.sha256"
+          diff -u "$proof/before.sha256" "$proof/after-preview.sha256"
+          (
+            cd "$consumer"
+            php vendor/bin/agent-loop init install-assets --agent=codex > "$proof/install.log"
+          )
+          test -f "$consumer/.codex/skills/agent-loop-php-setup/SKILL.md"
+          cmp "$consumer/vendor/voku/agent-loop/resources/skills/agent-loop-php-setup/SKILL.md" "$consumer/.codex/skills/agent-loop-php-setup/SKILL.md"
+          test ! -e "$consumer/UNEXPECTED_EXECUTION"
+          test ! -e "$consumer/.codex/hooks.json"
+          test ! -e "$consumer/tools/slop-scan/vendor"
+          jq -n --arg sha "$EXPECTED_HEAD_SHA" '{
+            schema_version: 1,
+            checked_head: $sha,
+            scenario: "composer_installed_php_project",
+            composer_installed_package: true,
+            read_only_discovery: "passed",
+            unchanged_project_config_before_install: true,
+            php_cs_fixer_not_executed: true,
+            installed_skill_matches_package_source: true,
+            executable_host_hooks_not_installed: true,
+            result: "passed"
+          }' > "$proof/proof.json"
+      - name: Upload exact-head PHP setup evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: php-setup-skill-dogfood-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: build/php-setup-skill-proof/

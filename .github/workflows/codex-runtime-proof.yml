@@ -9,6 +9,7 @@ on:
       - 'resources/skills/**'
       - 'resources/subagents/**'
       - 'tools/Dogfood/Routing/**'
+      - 'tools/Dogfood/codex-implicit-router-provider-proof.py'
       - 'resources/hooks/codex/**'
   workflow_dispatch:
 
@@ -206,6 +207,25 @@ jobs:
                   f"{counts['before_reinstall']} != {counts['after_reinstall']}"
               )
           PY
+
+      - name: Prove implicit managed router reaches an ordinary Codex provider request
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/Dogfood/codex-implicit-router-provider-proof.py
+          python3 tools/Dogfood/codex-implicit-router-provider-proof.py \
+            --source-root="${PROOF_ROOT}" \
+            --evidence-root="${EVIDENCE_ROOT}" \
+            --repository-head="$(cat "${EVIDENCE_ROOT}/repository-head-sha.txt")" \
+            --codex-version="$(codex --version)"
+          jq -e '.evidence_class == "host_runtime_provider_request" and .status == "observed"
+            and .arms.baseline.router_marker_count == 0
+            and .arms.treatment.router_marker_count == 1
+            and .arms.baseline.managed_policy_sha256 == .arms.treatment.managed_policy_sha256' \
+            "${EVIDENCE_ROOT}/implicit-router-provider-proof.json" >/dev/null
 
       - name: Prove projected rules auto-load and block live shell command
         shell: bash
@@ -1319,6 +1339,11 @@ jobs:
           done
           test -n "${child_request}"
           cp "${child_request}" "${EVIDENCE_ROOT}/selected-investigator-child-request.json"
+          # Assert effective child-provider content, not merely installed source files.
+          # The scripted provider does not establish autonomous agent decisions.
+          grep -Fq 'git log --follow --find-renames --name-status' "${child_request}"
+          grep -Fq 'history_incomplete=true' "${child_request}"
+          grep -Fq 'skip greenfield' "${child_request}"
 
           parent_write_result=""
           for request in "${request_prefix}"-*.json; do
@@ -1687,7 +1712,28 @@ jobs:
 
           export ROUTING_FIXTURE_ID="${fixture_id}"
           export ROUTING_TASK_PROMPT="${task_prompt}"
-          export ROUTING_BASE_SHA="${base_sha}"
+          export ROUTING_BASE_SHA="$base_sha"
+
+          # Use the new real CLI -> localhost decision model HTTP path, then feed only
+          # its bounded advisory output into the already existing Codex proof.
+          decision_model_port="$(php -r '$s=stream_socket_server("tcp://127.0.0.1:0", $e, $m); if (!$s) { exit(1); } echo (int) substr(strrchr(stream_socket_get_name($s, false), ":"), 1); fclose($s);')"
+          php -S "127.0.0.1:$decision_model_port" tools/Dogfood/Routing/decision-model-localhost.php > /dev/null 2>&1 &
+          decision_model_pid=$!
+          trap 'kill "$decision_model_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if php -r '$c=@fsockopen("127.0.0.1", (int)$argv[1], $e, $s, 0.1); if ($c) { fclose($c); exit(0); } exit(1);' "$decision_model_port"; then break; fi
+            sleep 0.1
+          done
+          php bin/agent-loop decision route --mode=assist --data-classification=public \
+            --public-state="$task_prompt" \
+            "--endpoint=http://127.0.0.1:$decision_model_port/v1/systemone" --allow-loopback \
+            --format=json > "$EVIDENCE_ROOT/routing-0a-cli-advice.json"
+          jq -e '.disposition == "suggest" and .routing_hint.candidate_id == "agent-loop-investigator"
+            and .routing_hint.authority == "advisory" and .lifecycle_mutation == false' \
+            "$EVIDENCE_ROOT/routing-0a-cli-advice.json" >/dev/null
+          kill "$decision_model_pid" 2>/dev/null || true
+          wait "$decision_model_pid" 2>/dev/null || true
+          trap - EXIT
 
           php <<'PHP'
           <?php
@@ -1704,12 +1750,22 @@ jobs:
           }
 
           $baseline = RoutingExperimentFixture::baseline($root, $fixtureId, $taskPrompt);
+          $advice = json_decode(
+              (string) file_get_contents($evidence . '/routing-0a-cli-advice.json'),
+              true,
+              512,
+              JSON_THROW_ON_ERROR,
+          );
+          $hint = $advice['routing_hint'] ?? null;
+          if (!is_array($hint) || !is_string($hint['candidate_id'] ?? null) || !is_numeric($hint['answer_probability'] ?? null)) {
+              throw new RuntimeException('CLI decision model advice did not produce a bounded hint.');
+          }
           $hinted = RoutingExperimentFixture::hinted(
               $root,
               $fixtureId,
               $taskPrompt,
-              'agent-loop-investigator',
-              0.82,
+              $hint['candidate_id'],
+              (float) $hint['answer_probability'],
           );
 
           file_put_contents($evidence . '/routing-0a-candidate-ids.json', json_encode(
@@ -1989,14 +2045,32 @@ jobs:
               throw new RuntimeException('Missing routing receipt environment.');
           }
 
+          $advice = json_decode(
+              (string) file_get_contents($evidence . '/routing-0a-cli-advice.json'),
+              true,
+              512,
+              JSON_THROW_ON_ERROR,
+          );
+          $hint = $advice['routing_hint'] ?? null;
+          $probability = is_array($hint) ? ($hint['answer_probability'] ?? null) : null;
+          if (!is_array($hint)
+              || !is_string($hint['candidate_id'] ?? null)
+              || (!is_float($probability) && !is_int($probability))
+              || !is_finite((float) $probability)
+              || $probability < 0
+              || $probability > 1
+          ) {
+              throw new RuntimeException('Exact CLI recommendation missing from routing receipt.');
+          }
+
           $fixtures = [
               'baseline' => RoutingExperimentFixture::baseline($root, $fixtureId, $taskPrompt),
               'hinted' => RoutingExperimentFixture::hinted(
                   $root,
                   $fixtureId,
                   $taskPrompt,
-                  'agent-loop-investigator',
-                  0.82,
+                  $hint['candidate_id'],
+                  (float) $probability,
               ),
           ];
 
@@ -2019,8 +2093,9 @@ jobs:
 
           jq -e '.arm == "baseline" and .hint == null and .selected_candidate_id == "agent-loop-code-reviewer" and .spawn_observed and .child_started and .wait_completed' \
             "${EVIDENCE_ROOT}/routing-0a-baseline-receipt.json" >/dev/null
-          jq -e '.arm == "hinted"
-            and .hint == {"candidate_id":"agent-loop-investigator","probability":0.82}
+          jq -e --slurpfile advice "${EVIDENCE_ROOT}/routing-0a-cli-advice.json" '.arm == "hinted"
+            and .hint.candidate_id == $advice[0].routing_hint.candidate_id
+            and .hint.probability == $advice[0].routing_hint.answer_probability
             and (.hint | has("authority") | not)
             and (.hint | has("host_retains_final_selection") | not)' \
             "${EVIDENCE_ROOT}/routing-0a-hinted-receipt.json" >/dev/null
@@ -2189,7 +2264,7 @@ jobs:
                   projected_role: "agent-loop-investigator",
                   child_fingerprint: "Locate. Verify. Report. Stop.",
                   status: "observed",
-                  boundary: "The selected child request contains the projected role developer instructions."
+                  boundary: "The real Codex selected child provider request contains rename-aware bounded Git history guidance, shallow-history limitations and greenfield opt-out. The provider is scripted; no autonomous LLM choice is claimed."
                 },
                 subagent_read_only_authority: {
                   evidence_class: "runtime_authority",

@@ -68,6 +68,13 @@ final class CommandCatalog
                 usage: 'agent-loop edit CLASS::METHOD [options] -- INSTRUCTION',
             ),
             new CommandDescriptor(
+                id: CommandId::Decision,
+                group: CommandGroup::Inspection,
+                owner: CommandOwner::Loop,
+                summary: 'Optional, disabled-by-default bounded specialist advice for direct Codex CLI use; never changes workflow authority.',
+                usage: 'agent-loop decision route [--mode=off|rules|shadow|assist] [options] --format=json',
+            ),
+            new CommandDescriptor(
                 id: CommandId::Board,
                 group: CommandGroup::Inspection,
                 owner: CommandOwner::Kanban,

@@ -1,6 +1,8 @@
 ---
 name: agent-loop-dream
 description: Review Dream/Learning guidance candidates and audit stale or conflicting prompts, memory and agent instructions across coding-agent hosts; propose evidence-backed edits without changing durable guidance.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Dream
@@ -47,7 +49,7 @@ Present one table row per proposal: `id | status action | target | signals | tak
 
 A Learning backlog that nobody works grows until the hint is ignored. Work it in the same pass as the proposal queue.
 
-1. `learn finding-reconcile --dry-run`, then with `--by` once the human agrees: it consolidates validated findings whose proposals all reached a terminal decision. Proposal transitions do this themselves now, so a non-empty list means a root decided by an older package. Do this first; it shrinks the backlog without any judgement.
+1. `learn finding-reconcile --dry-run`, then with `--by` once the human agrees: it consolidates validated findings whose proposals all reached a terminal decision. Proposal transitions do this themselves now, so a non-empty list means a root decided by an older package. Do this first; it shrinks the backlog by reconciling existing terminal decisions, without making any new approval or rejection decision.
 2. `learn finding-queue --probe <repo guidance file>` lists what is really open. It is read-only and states facts only: proposals citing the finding, unresolved scope paths, how much of the conclusion already exists in the probe files, the transitions the lifecycle accepts.
 3. Present one table per bucket with a take and a reason per row, each take grounded in a signal or an inspected repository fact. The buckets are advice, not a taxonomy the tool enforces:
    - **resolved in code or tooling**: archive, naming the file that now carries the fix;

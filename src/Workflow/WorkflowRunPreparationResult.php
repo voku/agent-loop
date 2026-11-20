@@ -16,6 +16,7 @@ final readonly class WorkflowRunPreparationResult
         public string $preparedManifestPath,
         public string $compiledManifestPath,
         public ?string $searchWarning,
+        public ?string $kanbanWarning = null,
     ) {
     }
 }

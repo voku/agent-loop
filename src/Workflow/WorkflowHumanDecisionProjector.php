@@ -100,7 +100,15 @@ final readonly class WorkflowHumanDecisionProjector
         $history = $contracts->supersededRevisions($taskId);
         $previous = $history === [] ? null : $history[count($history) - 1];
 
-        return new WorkflowContractApprovalPresentation($contract, $previous, $nextAction);
+        // Intermediate drafts must not hide changes since the last genuine approval.
+        // When no approved baseline exists, compare to the latest draft instead.
+        foreach ($history as $revision) {
+            if ($revision->hasRecordedNonReservedApproval()) {
+                $previous = $revision;
+            }
+        }
+
+        return new WorkflowContractApprovalPresentation($contract, $previous, $nextAction, \voku\AgentLoop\GitWorkTree::headCommit($this->rootPath));
     }
 
     /** @return array<string, mixed> */
@@ -237,6 +245,7 @@ final readonly class WorkflowHumanDecisionProjector
             'task_id' => $taskId,
             'action' => $nextAction,
             'subject' => $subject,
+            'recommendation' => (new WorkflowDecisionAdvisor($this->rootPath))->advise($type, $subject),
         ];
     }
 }

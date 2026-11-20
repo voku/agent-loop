@@ -505,7 +505,7 @@ jobs:
                   mechanism: "Agent type listing in effective request plus deterministic native Agent selection and selected owned subagent body in the child provider request",
                   observations: ($runtime_observations.subagent_runtime // null),
                   status: (if $runtime_observations == null then "unverified" else "observed" end),
-                  boundary: "Proves discovery and selection of projected agent-loop-investigator before and after reinstall; it does not prove read-only enforcement or arbitrary subagent behavior."
+                  boundary: "Proves discovery, selection and effective child request consumption of bounded Git history guidance before and after reinstall. The scripted provider does not prove autonomous LLM behavior."
                 },
                 reinstall_convergence: {
                   evidence_class: "installed_projection",

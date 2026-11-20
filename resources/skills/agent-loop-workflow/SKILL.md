@@ -1,6 +1,8 @@
 ---
 name: agent-loop-workflow
 description: Operate a governed agent-loop task end to end, including implementation requests, by routing through enter/finish and obeying the lifecycle kernel's structured next step instead of reproducing workflow policy in host prose.
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Workflow
@@ -18,11 +20,48 @@ Obey `next_action_kind` / `next_action` from that result. `AGENTS.md` already de
 
 A task router may choose a specialist skill, never a lifecycle phase. Only the current result routes task start/progress, Recall or repair, Learning, review, and close.
 
+### Human-decision recommendations
+
+Every current `next_action_kind=decision_required` question now includes a separate
+`human_decision.recommendation`. Treat its `suggested_choice`, `reason`, and
+`evidence_keys` as **advice, never authorization**. Show the recommendation
+alongside the exact approval subject and supported choices; do not execute
+`approve`, `accept-risk`, review acknowledgement, supersession, or Learning
+on its behalf. An `abstain` means the available evidence cannot support a
+recommendation, not that the human gate can be skipped.
+
+Without explicitly configured inference, recommendations are conservative
+local rules. When a project explicitly sets
+`interaction.decision_advice.mode=assist` with
+`provider=system_one`, an endpoint, and
+`data_classification=public_metadata`, the optional model can advise at
+the existing human gate. `shadow` records its selected option without
+changing the visible recommendation; `off` makes no network request.
+The adapter receives **only counts and decision category**, never Contract
+goals, paths, tasks, reviews, or private text. It does not know enough to
+verify human approval. Provider failure falls back to deterministic advice.
+Repository `init.json` is **not trusted operator consent**. Automated human-gate
+provider calls additionally require the trusted launcher to set an exact
+`AGENT_LOOP_DECISION_APPROVED_ENDPOINT`, and, if a token environment variable
+is configured, an exact `AGENT_LOOP_DECISION_APPROVED_TOKEN_ENV`. Never
+supply grants through repository-controlled files or load credentials solely
+because `token_env` appears in a project configuration.
+
+### Optional host-neutral specialist hint
+
+After `enter`, only when specialist selection could materially change the first investigation, a developer may explicitly request read-only advice:
+
+```bash
+vendor/bin/agent-loop decision route --mode=assist --task-id=<task-id> --contract-revision=<approved-revision> --data-classification=public --public-state="<public-only short task summary>" --endpoint="https://<explicit trusted host>/v1/systemone" --token-env=DECISION_MODEL_TOKEN --format=json
+```
+
+`off` is the default and makes no network request. `rules` leaves existing host routing unchanged; `shadow` records an observed decision-model choice without surfacing it as a hint. Use only public task text, never automatically forward Contract, Session or Recall contents. A non-null `routing_hint` in `assist` is optional advisory input to the invoking host, not a command to call the specialist. The host retains final selection and must obey the unchanged `enter` result. If the provider abstains or fails, continue without a hint. Never interpret a routing receipt as approval, mutation authority, or lifecycle state.
+
 ## End-to-End Implementation Front Door
 
 When this skill is invoked for an end-to-end implementation request, keep the request ergonomic without creating a second workflow:
 
-- use the supplied stable task id with `enter`; if no stable id exists, obtain one through the repository's task owner rather than inventing lifecycle state in chat;
+- use a supplied stable task id with `enter`. When a developer explicitly requests new local implementation work and **no stable task id was supplied**, first resolve the intended local board; for multiple configured boards, do not silently choose the default when the requested board is different or ambiguous. Create a Kanban card through its owner using `vendor/bin/agent-loop board card create --generate-id --title "<descriptive task title>" --lane=<configured-lane> --format=json` and pass `--board=<configured-board-id>` when selecting a non-default board (also pass any status, brief, or other fields required by that board's configured creation lane). Use the returned `card` ID unchanged for `enter`, Contract, Run, and Session. Never calculate `highest number + 1` or invent `PREFIX-NUMBER` in a host; preserve IDs actually supplied by an external ticket authority. If no local board is configured, use the actual external task owner when available; otherwise stop and request a stable task ID or a configured board instead of inventing one;
 - treat the user's request as intent to drive the governed task, not as authority to skip approval, verification, review, Learning, or any other gate the current result requires;
 - do not predeclare a private sequence such as branch -> specs -> code -> PR -> merge; the current lifecycle result decides the next governed action;
 - continue through `enter`, host work, and `finish` until the result reports completion or a real `decision_required` boundary.
@@ -56,6 +95,10 @@ Before asking for any `decision_required` action, present the smallest complete 
 Apply this contract only when the current owner result says `decision_required`. Follow `command`, `command_template`, and `host_work` without turning them into confirmation questions. Ordinary review acknowledgement and Learning disposition remain agent work unless the owner explicitly marks a human decision as required.
 
 The message must make the human's choice clear:
+
+**Approval briefing first, details second.** Before any approval question, give a short, plain-language decision card grounded in the current `human_decision` projection (or equivalent owner evidence), not a generic progress summary. Cover: **what exact revision/digest is being approved and why now; what will be allowed to change; what remains explicitly out of scope; what proof exists versus what is unverified; what approving, requesting changes, or declining actually does**. For a revision, summarize changes relative to the last genuinely approved baseline when owner evidence provides one. If a required fact is unavailable, mark it unknown rather than inventing it. Never say tests passed when only a validation plan exists. Brevity removes filler, not conditions, unresolved risks or identity anchors.
+
+Keep the card readable at a glance; offer the full typed Contract/review evidence immediately below it or through existing owner-backed links. If `control_plane_presentation.status=ready`, include its exact task URL as an optional rich view. If it is `unreachable` and a `start_command` exists, show that command as an explicit **manual** option; do not auto-start a service, assume a URL is live, or treat viewing the UI as approval. For `wrong_project`, `wrong_service`, `probe_failed`, or missing UI, retain the CLI/JSON evidence and do not fabricate a clickable task URL. Never replace an exact Contract or review record with a compressed paraphrase.
 
 - Name the action and exact current subject from the owner projection, including the revision or digest where relevant.
 - Explain what each available choice changes or authorizes and its practical consequences. List only choices supported by current owner state or the user's stated intent; never invent an owner action. If there is no supported alternative, say what decision is required without manufacturing one.

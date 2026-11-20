@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -15,6 +17,7 @@ use voku\AgentLoop\Init\ManagedAssetSource;
 
 /**
  * @internal
+ * @SuppressWarnings("PHPMD.StaticAccess")
  */
 final class ManagedAssetPortableProvenanceTest extends TestCase
 {
@@ -162,6 +165,50 @@ final class ManagedAssetPortableProvenanceTest extends TestCase
         self::assertNull(ManagedAssetSource::resolvePersistedPath('voku/agent-loop', '../src/Init/ManagedAssetSource.php', null));
         self::assertNull(ManagedAssetSource::resolvePersistedPath('voku/agent-loop', '/tmp/ManagedAssetSource.php', null));
         self::assertNull(ManagedAssetSource::resolvePersistedPath('project', 'src/Init/ManagedAssetSource.php', null));
+    }
+
+    #[DataProvider('malformedDigestProvider')]
+    public function testManagedProjectionRejectsMalformedDigest(string $field, string $invalidDigest): void
+    {
+        $targetRoot = $this->root . '/.claude/skills';
+        self::assertTrue(mkdir($targetRoot, 0o775, true));
+
+        $record = [
+            'target' => 'managed-source.php',
+            'source_id' => 'voku/agent-loop:skill:managed-source',
+            'semantic_owner' => 'voku/agent-loop',
+            'source_path' => null,
+            'source_reference' => 'src/Init/ManagedAssetSource.php',
+            'source_sha256' => 'sha256:' . str_repeat('0', 64),
+            'representation_sha256' => 'sha256:' . str_repeat('a', 64),
+            'adopted' => false,
+        ];
+        $record[$field] = $invalidDigest;
+
+        $manifestPath = $targetRoot . '/' . InitSyncManifest::fileName();
+        $written = file_put_contents($manifestPath, json_encode([
+            'version' => 3,
+            'kind' => 'skills',
+            'agent' => 'claude',
+            'required_capabilities' => ['skill-projection'],
+            'entries' => [$record],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        self::assertNotFalse($written);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Sync manifest projection digests must use sha256: identities');
+        InitSyncManifest::load($targetRoot, 'skills', 'claude');
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function malformedDigestProvider(): iterable
+    {
+        foreach (['source_sha256', 'representation_sha256'] as $field) {
+            yield $field . ': missing hash' => [$field, 'sha256:'];
+            yield $field . ': truncated hash' => [$field, 'sha256:' . str_repeat('f', 63)];
+            yield $field . ': non-hex hash' => [$field, 'sha256:' . str_repeat('g', 64)];
+            yield $field . ': uppercase hash' => [$field, 'sha256:' . str_repeat('A', 64)];
+        }
     }
 
     private function removeDirectory(string $directory): void

@@ -1,0 +1,146 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop\Workflow;
+
+use DateTimeImmutable;
+use InvalidArgumentException;
+use RuntimeException;
+use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Workflow\Transparency\ApprovedScope;
+
+/**
+ * An explicit, exact-Contract task-autonomy *request*, not proof of the
+ * grantor's identity. Only an authenticated owner may promote this to
+ * execution authority. In particular, --by is attribution, not identity.
+ */
+final readonly class TaskAutonomyGrant
+{
+    /** @var non-empty-list<'implement'|'validate'|'review'|'repair'> */
+    public const array OPERATIONS = ['implement', 'validate', 'review', 'repair'];
+
+    public function __construct(
+        public string $taskId,
+        public int $contractRevision,
+        public string $contractDigest,
+        public string $requestedBy,
+        public DateTimeImmutable $issuedAt,
+        public DateTimeImmutable $expiresAt,
+        public ?DateTimeImmutable $revokedAt = null,
+    ) {
+        new WorkflowTaskId($taskId);
+        if ($contractRevision < 1 || preg_match('/\Asha256:[a-f0-9]{64}\z/D', $contractDigest) !== 1) {
+            throw new InvalidArgumentException('Task autonomy requires an exact Contract revision and SHA-256 digest.');
+        }
+
+        if (trim($requestedBy) === '' || str_starts_with(trim($requestedBy), 'standing:')) {
+            throw new InvalidArgumentException('Task autonomy requires a named, non-reserved requester.');
+        }
+
+        if ($expiresAt <= $issuedAt || ($expiresAt->getTimestamp() - $issuedAt->getTimestamp()) > 86400) {
+            throw new InvalidArgumentException('Task autonomy expiry must be after issuance and at most 24 hours later.');
+        }
+
+        if ($revokedAt !== null && $revokedAt < $issuedAt) {
+            throw new InvalidArgumentException('Task autonomy revocation cannot predate issuance.');
+        }
+    }
+
+    public static function request(TaskContract $contract, string $by, DateTimeImmutable $now, DateTimeImmutable $until): self
+    {
+        if (!$contract->hasNonReservedApproval()) {
+            throw new RuntimeException('Task autonomy requires a currently human-approved Contract.');
+        }
+
+        if ($contract->approvedAt === null || $now < new DateTimeImmutable($contract->approvedAt)) {
+            throw new RuntimeException('Task autonomy cannot predate the recorded Contract approval.');
+        }
+
+        return new self(
+            $contract->taskId,
+            $contract->revision,
+            self::contractDigest($contract),
+            $by,
+            $now,
+            $until,
+        );
+    }
+
+    /**
+     * Returns a locally revoked snapshot. Real revocation requires the future
+     * trusted owner store; an old object must never be treated as authority.
+     */
+    public function revoke(DateTimeImmutable $now): self
+    {
+        if ($now < $this->issuedAt) {
+            throw new InvalidArgumentException('Task autonomy cannot be revoked before issuance.');
+        }
+
+        return new self(
+            $this->taskId,
+            $this->contractRevision,
+            $this->contractDigest,
+            $this->requestedBy,
+            $this->issuedAt,
+            $this->expiresAt,
+            $this->revokedAt ?? $now,
+        );
+    }
+
+    /**
+     * Policy eligibility only: this is not proof of an authenticated grant.
+     * Human-owned decisions, independent review and Learning are never covered.
+     *
+     * Mutating operations MUST name each actual repository-relative target.
+     * Candidate re-observation and authorization still belong to the owner.
+     *
+     * @param list<string> $targetPaths
+     */
+    public function isEligibleFor(
+        TaskContract $current,
+        string $operation,
+        DateTimeImmutable $now,
+        array $targetPaths = [],
+    ): bool {
+        if (!in_array($operation, self::OPERATIONS, true)
+            || $this->revokedAt !== null
+            || $now < $this->issuedAt
+            || $now >= $this->expiresAt
+            || !$current->hasNonReservedApproval()
+            || $current->taskId !== $this->taskId
+            || $current->revision !== $this->contractRevision
+            || !hash_equals($this->contractDigest, self::contractDigest($current))) {
+            return false;
+        }
+
+        if ($operation !== 'implement' && $operation !== 'repair') {
+            return true;
+        }
+
+        if ($targetPaths === []) {
+            return false;
+        }
+
+        $scope = ApprovedScope::fromContract($current);
+        foreach ($targetPaths as $path) {
+            if ($path === ''
+                || str_starts_with($path, '/')
+                || str_contains($path, '\\')
+                || str_contains($path, '//')
+                || preg_match('/[\\x00-\\x1f\\x7f]/', $path) === 1
+                || preg_match('~(?:\\A|/)\\.{1,2}(?:/|\\z)~D', $path) === 1
+                || preg_match('/\\A[A-Za-z]:/', $path) === 1
+                || !$scope->contains($path)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static function contractDigest(TaskContract $contract): string
+    {
+        return 'sha256:' . hash('sha256', CanonicalJson::pretty($contract->toArray()));
+    }
+}

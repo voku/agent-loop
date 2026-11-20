@@ -1,6 +1,8 @@
 ---
 name: agent-loop-discipline
 description: "Minimal governed bootstrap: persisted workflow routing, evidence integrity, and bounded workflow output."
+metadata:
+  author: Lars Moelleken <lars@moelleken.org>
 ---
 
 # Agent Loop Discipline

@@ -215,17 +215,35 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         self::assertSame($this->base, $this->projection()->candidateRevision);
     }
 
-    public function testCompletingFromAWorkspaceWhoseHeadMovedIsRefused(): void
+    public function testCommittedWorkOnTopOfTheBaseIsTheSameCandidateAsUncommittedWork(): void
     {
         $this->changeWorkspace();
+        $uncommitted = $this->observedCandidate();
         $this->git($this->workspace, 'config', 'user.email', 'x@y.test');
         $this->git($this->workspace, 'config', 'user.name', 'X');
         $this->git($this->workspace, 'commit', '-aqm', 'builder committed');
 
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
 
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame($uncommitted, $this->projection()->candidateRevision, 'Committing must not change the content-addressed candidate.');
+    }
+
+    public function testCompletingFromAWorkspaceOnAnotherLineOfHistoryIsRefused(): void
+    {
+        $this->git($this->workspace, 'config', 'user.email', 'x@y.test');
+        $this->git($this->workspace, 'config', 'user.name', 'X');
+        $this->git($this->workspace, 'checkout', '-q', '--orphan', 'unrelated');
+        $this->changeWorkspace();
+        $this->git($this->workspace, 'add', '-A');
+        $this->git($this->workspace, 'commit', '-qm', 'unrelated history');
+
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
+
         self::assertNotSame(0, $exit);
         self::assertStringContainsString('STALE_CANDIDATE', (string) ($payload->message ?? ''));
+        self::assertStringContainsString('does not descend from the governed base', (string) ($payload->message ?? ''));
         self::assertSame('build', $this->projection()->currentStageId);
     }
 

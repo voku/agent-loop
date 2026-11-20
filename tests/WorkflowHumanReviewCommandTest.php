@@ -80,6 +80,9 @@ final class WorkflowHumanReviewCommandTest extends TestCase
         (new ReviewReportWriter($root))->write($report, $outputDirectory);
 
         $command = new WorkflowHumanReviewCommand($root);
+        $rendered = $command->render('REVIEW-1');
+        self::assertFileDoesNotExist($command->path('REVIEW-1'));
+        self::assertNull((new ReviewAcknowledgementStore($root))->find('REVIEW-1'));
         ob_start();
         $firstExit = $command->run(['REVIEW-1']);
         $firstOutput = (string) ob_get_clean();
@@ -90,6 +93,7 @@ final class WorkflowHumanReviewCommandTest extends TestCase
         self::assertFileExists($path);
         $firstHtml = file_get_contents($path);
         self::assertIsString($firstHtml);
+        self::assertSame($rendered, $firstHtml);
         self::assertStringContainsString('review.boundary', $firstHtml);
         self::assertStringContainsString('&lt;changed&gt;', $firstHtml);
         self::assertStringContainsString('unacknowledged', $firstHtml);
