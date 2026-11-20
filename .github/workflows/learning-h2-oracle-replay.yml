@@ -1,0 +1,61 @@
+name: Research - H2 historical hidden-oracle replay
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - '.github/workflows/learning-h2-oracle-replay.yml'
+      - 'tools/learning-effect/replay-h2-oracles.py'
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Historical oracle ${{ matrix.case }} (baseline fails, repair passes)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        case: ['H2a', 'H2b']
+
+    steps:
+      - name: Checkout exact candidate SHA with complete source history
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up historical PHP runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: json, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+          tools: composer:v2
+
+      - name: Replay baseline and repaired source against the same hidden oracle
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          CASE: ${{ matrix.case }}
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/learning-effect/replay-h2-oracles.py
+          python3 tools/learning-effect/replay-h2-oracles.py \
+            --case "$CASE" \
+            --output "build/h2-oracle-replay/$CASE"
+          jq -e '.status == "PASS" and .evidence_class == "HISTORICAL_ORACLE_CALIBRATION_NOT_AGENT_OUTCOME"' \
+            "build/h2-oracle-replay/$CASE/report.json"
+
+      - name: Retain exact-head replay report and diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: h2-oracle-replay-${{ matrix.case }}-${{ github.event.pull_request.head.sha }}
+          path: build/h2-oracle-replay/${{ matrix.case }}/
+          if-no-files-found: warn
+          retention-days: 30
