@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.20.101] - 2026-11-20
+
 ### Added
 
 - `workflow plan` and `enter` now name the LearningNotes Recall selects for the task (`learning_precedents` in JSON, a "Learning precedent" block in text). For a candidate Contract, Recall's new `LearningPrecedentPreview` runs over the candidate scope, so the planning agent and the approving human see the precedent before the design is approved. Once approved, `enter` lists the notes the compiled briefing renders. Missing note evidence shows as `status: blocked` already at planning, instead of first blocking at compilation. The projection is historical precedent, not an instruction, and changes no lifecycle state. In the round-2 learning-effect experiment, all three governed agents fixed their design before Recall compiled the matching note, and none of them opened it (#1091).
