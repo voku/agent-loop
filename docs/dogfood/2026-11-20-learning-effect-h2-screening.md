@@ -71,8 +71,53 @@ If this holds, two things follow:
 - The current store has none left that predates a later recurrence.
 - #457 stays open: there is still no positive behavioural comparison for a note the system wrote itself.
 
+## Follow-up: coding-simplicity pilot on H2b
+
+**Why this pilot.** A review afterwards found avoidable logic in H2b-B1:
+- Its rule matches any ancestor in the `PHPStan\Testing` namespace instead of `PHPStanTestCase`, "so a new PHPStan testing base is covered without a rule change".
+- That wrongly rejects `PHPStan\Testing\LevelsTestCase` subclasses. Those run PHPStan through `exec()` out of process, which is exactly the pattern the rule allows.
+- A fixture confirms it: the agent's rule flags it, the historical rule does not.
+- The hidden oracle cannot see this.
+
+agent-loop already adapts Ponytail's implementation rules as `voku/agent-skills` `coding-simplicity` (see [`upstream-capability-matrix.md`](../architecture/upstream-capability-matrix.md)). None of the screening workspaces had it installed.
+
+**Design:**
+- Six fresh H2b workspaces with the same baseline, lesson removal and prompt as H2b-B1.
+- Both arms get one extra neutral line in the prompt: "repository-projected agent skills, if any, are under `.claude/skills/`".
+- **S arm:** has the skill at the agent-loop pin `c9e3b296`, placed at `.claude/skills/coding-simplicity/SKILL.md`.
+- **B arm:** has no skills.
+- **Scoring:** the hidden oracle (5 expected locations), the `LevelsTestCase` false-positive probe, a classification of the detection design, and line counts.
+
+| Run | Skill | Detection design | Surface the task did not need | Rule code lines* | Oracle | `LevelsTestCase` false positive | Production + / test + |
+| --- | --- | --- | --- | ---: | --- | --- | --- |
+| H2b-B1 (screening) | no | `PHPStan\Testing` namespace prefix | prefix detection, declared-parent fallback | 42 | pass | **yes** | 46 / 124 |
+| P-B1 | no | exact `PHPStanTestCase` ancestor | namespace scan to name the base in the message | 38 | pass | no | 41 / 36 |
+| P-B2 | no | exact ancestor plus an explicit class list | list, declared-parent fallback | 42 | pass | no | 58 / 56 |
+| P-B3 | no | exact `PHPStanTestCase` ancestor | none | 29 | pass | no | 39 / 52 |
+| P-S1 | read | exact `PHPStanTestCase` ancestor | none | 27 | pass | no | 22 / 42 |
+| P-S2 | read | exact `PHPStanTestCase` ancestor | none | 27 | pass | no | 33 / 109 |
+| P-S3 | read | `PHPStanTestCaseTrait` ancestor | none | 29 | pass | no | 31 / 62 |
+
+\* Non-comment, non-blank lines of the final rule file. The historical fix is a single ancestor check.
+
+**What this shows:**
+- **Correctness is identical.** All six pilot runs pass the oracle, and none reproduces the false positive. The screening run's defect occurred 1 time in 4 runs without the skill. That is too rare to test whether the skill prevents it.
+- **The skill arm produced only minimal designs.** All three S runs read the skill and chose a single exact-ancestor (or container-trait) check. In 2 of 3 B runs, and in the screening run, the agent added detection or naming surface the task did not need.
+- **Production code was smaller with the skill:** 22–33 added lines, against 39–58 without. The rule files themselves: 27–29 code lines, against 29–42.
+- **Test lines went the other way:** 42–109 with the skill, against 36–56 without. This fits the skill's verification floor, but with n=3 it may be noise.
+- **Cost:** tokens are the same, about 225k per run in both arms.
+- **Reading:** this is a small, consistent signal (n=3 per arm, one task, one model) that the existing skill reduces speculative surface. It supports the `ADAPT` decision for `coding-simplicity`. It does not justify a new prompt, gate or benchmark, and it shows no correctness gain.
+
+**Not measured:** whether real hosts load `coding-simplicity` in governed runs, outside this explicit pointer. The capability matrix tracks per-host skill consumption as `DEFER`.
+
 ## Confounds and deviations
 
 - **Vendor:** both workspaces use the round-2/H1 runtime vendor plus PHPUnit, with lock drift against the baselines. H2b additionally has PHPStan 2.3.6 linked in, because the runtime vendor has no PHPStan; the oracle needs it. The vendors are hardlinked.
 - **Model:** the agents are the same model as the operator session.
 - **H2a prompt:** it omits the candidate list's optional clause about keeping the mismatch reporting for genuinely inconsistent Runs, because that clause hints at the trap.
+- **Pilot deviations:**
+  - The S arm got the skill by file placement plus the neutral pointer line, not by `init` projection.
+  - Approvals were given as submitted, one per run; each agent's side questions were left unanswered.
+  - Several agents wrote temporary logs to the session scratchpad. P-B3 used `/dev/shm`.
+  - The transcript audit found no network use and no reads of other runs, the candidate list or the real repositories.
+  - No run reached a complete `finish`, because `composer ci` cannot pass with the offline vendor.
