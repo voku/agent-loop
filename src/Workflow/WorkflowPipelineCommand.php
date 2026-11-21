@@ -141,7 +141,10 @@ final readonly class WorkflowPipelineCommand
             static fn ($h) => $h->toArray(),
             $projection->handoffs,
         );
-        $observations = (new ExecutionStateStore($this->rootPath))->find($taskId)?->reviewObservations() ?? [];
+        // Same binding as the Learning gate: only the current Run's observations block it.
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        $run = (new GovernedRunStore($this->rootPath))->find($taskId);
+        $observations = $state !== null && ($run === null || $run->runId === $state->runId) ? $state->reviewObservations() : [];
 
         $statusStr = "in_progress";
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -485,13 +488,20 @@ final readonly class WorkflowPipelineCommand
      */
     private function assertKnownSubmitOptions(array $tokens): void
     {
-        foreach ($tokens as $token) {
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
             if (!str_starts_with($token, '--')) {
                 continue;
             }
             $name = explode('=', substr($token, 2), 2)[0];
             if (!in_array($name, self::SUBMIT_OPTIONS, true)) {
                 throw new InvalidArgumentException('Unknown option for pipeline submit: --' . $name);
+            }
+            // The token after a space-form value option is its value, even when it
+            // starts with --; the option's own reader decides whether it is valid.
+            if (!str_contains($token, '=') && $name !== 'auto-verify') {
+                ++$i;
             }
         }
     }

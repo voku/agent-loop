@@ -137,6 +137,7 @@ final class ReviewObservationCaptureTest extends TestCase
 
         foreach ([
             'value swallowed by the next flag' => [['--observation', '--summary', 'x'], '--observation requires a value'],
+            'value that looks like an option' => [['--observation', '--x'], '--observation requires a value'],
             'empty value' => [['--observation='], '--observation requires a non-empty value'],
             'trailing flag without value' => [['--observation'], '--observation requires a non-empty value'],
             'misspelled option' => [['--observations', 'Budget 0 admits one target.'], 'Unknown option for pipeline submit: --observations'],

@@ -468,8 +468,15 @@ final readonly class HostFrontDoorCommand
                             }
                             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
                             $learningStore = new RunLearningDecisionStore($learningRoot);
-                            if ($learningStore->find($run->runId) === null) {
-                                (new WorkflowLearningRecorder($this->rootPath))->record(
+                            // Auto-close only decides for the host when the host chose nothing
+                            // and no passing review recorded observations that contradict it.
+                            $recorder = new WorkflowLearningRecorder($this->rootPath);
+                            if (
+                                $learningStore->find($run->runId) === null
+                                && $options['learning'] === null
+                                && $recorder->reviewObservations($run) === []
+                            ) {
+                                $recorder->record(
                                     $run,
                                     $contract,
                                     $session,

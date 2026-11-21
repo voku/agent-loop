@@ -17,8 +17,10 @@ use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionProjector;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\SessionStore;
 
@@ -81,6 +83,18 @@ final class ReviewObservationLearningGateTest extends TestCase
         self::assertSame(RunLearningDecisionStatus::FOLLOW_UP_REQUIRED, $this->decisionStore()->find($run->runId)?->decision);
     }
 
+    public function testHumanDecisionProjectionDoesNotOfferTheRefusedDisposition(): void
+    {
+        $this->prepareLearningDecision(['Budget 0 still admits one target.']);
+
+        $decision = (new WorkflowHumanDecisionProjector($this->root))->project(self::TASK, 'agent-loop finish ' . self::TASK, RunPolicyEvaluation::KIND_DECISION_REQUIRED);
+
+        self::assertIsArray($decision);
+        $encoded = json_encode($decision, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        self::assertStringContainsString('"allowed_dispositions":["findings_recorded","follow_up_required"]', $encoded);
+        self::assertStringContainsString('"review_observations":["Budget 0 still admits one target."]', $encoded);
+    }
+
     public function testWorkflowLearnRefusalNamesItsOwnFlags(): void
     {
         $run = $this->prepareLearningDecision(['Guide names a bare sync-githooks command.']);
@@ -110,6 +124,43 @@ final class ReviewObservationLearningGateTest extends TestCase
         self::assertSame(RunLearningDecisionStatus::NO_DURABLE_LEARNING, $this->decisionStore()->find($run->runId)?->decision);
     }
 
+    public function testFastPathAutoCloseNeitherOverridesObservationsNorTheHostsChoice(): void
+    {
+        file_put_contents($this->root . '/src/QuickTarget.php', "<?php\nfinal class QuickTarget {}\n");
+        foreach (['init -q -b main', 'config user.name T', 'config user.email t@example.test', 'add src/QuickTarget.php', 'commit -qm base'] as $git) {
+            exec('git -C ' . escapeshellarg($this->root) . ' ' . $git . ' 2>&1');
+        }
+        $quick = $this->runCli(['quick', 'Q-1', 'Fix docblock', '--file=src/QuickTarget.php', '--verify=php -r "exit(0);"', '--format=json']);
+        self::assertSame(0, $quick['exit'], $quick['stderr']);
+        $run = (new GovernedRunStore($this->root))->find('Q-1');
+        self::assertNotNull($run);
+        $contract = (new TaskContractStore($this->root))->load('Q-1');
+        $this->writePassingReview('Q-1', $run, $contract->revision, ['Known limit X.']);
+
+        // The auto-close must not record no_durable_learning over a recorded observation.
+        $plain = $this->runCli(['finish', 'Q-1', '--format=json']);
+        self::assertStringContainsString('Known limit X.', $plain['stdout']);
+        self::assertNull($this->decisionStore()->find($run->runId));
+
+        // The remedy the refusal names works on the fast path too.
+        $followUp = $this->runCli(['finish', 'Q-1', '--follow-up-ref', 'voku/agent-loop#1120', '--by', 'fixture-reviewer', '--format=json']);
+        self::assertSame(0, $followUp['exit'], $followUp['stdout'] . $followUp['stderr']);
+        self::assertSame(RunLearningDecisionStatus::FOLLOW_UP_REQUIRED, $this->decisionStore()->find($run->runId)?->decision);
+    }
+
+    /** @param list<string> $observations */
+    private function writePassingReview(string $taskId, GovernedRun $run, int $revision, array $observations): void
+    {
+        $digest = 'sha256:' . str_repeat('b', 64);
+        $review = new StageResult('submission:review', $taskId, $run->runId, $revision, $digest, 'review', 1, StageOutcome::PASS, 'candidate', [], [], 'Review passed.', 'ctx:review', observations: $observations);
+        $state = new ExecutionState($taskId, $run->runId, $revision, $digest, null, 1, 'candidate', null, [new AcceptedStageResult($review, null, '2026-11-21T00:00:00Z')]);
+        $path = (new ExecutionStateStore($this->root))->path($taskId);
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0o775, true);
+        }
+        file_put_contents($path, json_encode($state->toArray(), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+    }
+
     /** @param list<string> $observations */
     private function prepareLearningDecision(array $observations): GovernedRun
     {
@@ -133,14 +184,7 @@ final class ReviewObservationLearningGateTest extends TestCase
         file_put_contents($recall . '/validation-plan.md', "# Validation\n\nRun the approved command.\n");
 
         // An accepted passing review of this Run, as pipeline submit stores it.
-        $digest = 'sha256:' . str_repeat('b', 64);
-        $review = new StageResult('submission:review', self::TASK, $run->runId, $contract->revision, $digest, 'review', 1, StageOutcome::PASS, 'candidate', [], [], 'Review passed.', 'ctx:review', observations: $observations);
-        $state = new ExecutionState(self::TASK, $run->runId, $contract->revision, $digest, null, 1, 'candidate', null, [new AcceptedStageResult($review, null, '2026-11-21T00:00:00Z')]);
-        $path = (new ExecutionStateStore($this->root))->path(self::TASK);
-        if (!is_dir(dirname($path))) {
-            mkdir(dirname($path), 0o775, true);
-        }
-        file_put_contents($path, json_encode($state->toArray(), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+        $this->writePassingReview(self::TASK, $run, $contract->revision, $observations);
 
         $prepared = $this->finishJson([]);
         self::assertSame(1, $prepared['exit']);
