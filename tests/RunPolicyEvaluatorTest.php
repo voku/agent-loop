@@ -196,6 +196,28 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertStringNotContainsString('--learning', $policy->nextAction);
     }
 
+    public function testLearningTemplateDropsNoDurableLearningWhileObservationsExistInAnyPendingState(): void
+    {
+        foreach (['missing', 'stale', 'invalid'] as $learningState) {
+            $references = $this->references(
+                contract: 'approved',
+                approval: 'current',
+                session: 'active',
+                recall: 'compiled',
+                executionContract: 'not_required',
+                verification: 'ready',
+                review: 'ok',
+                learning: $learningState,
+            );
+            $references['learning']['review_observations'] = ['Budget 0 still admits one target.'];
+
+            $policy = (new RunPolicyEvaluator())->evaluate('ABC-123', 'governed', $references, []);
+
+            self::assertStringContainsString('<findings_recorded|follow_up_required>', $policy->nextAction, $learningState);
+            self::assertStringNotContainsString('no_durable_learning', $policy->nextAction, $learningState);
+        }
+    }
+
     public function testReadyToCloseNeverReopensMutation(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(

@@ -14,6 +14,7 @@ use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionProfileSelectionStore;
 use voku\AgentLoop\Execution\ExecutionProjection;
 use voku\AgentLoop\Execution\ExecutionStageKind;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\StageExecutionBundle;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
@@ -140,6 +141,10 @@ final readonly class WorkflowPipelineCommand
             static fn ($h) => $h->toArray(),
             $projection->handoffs,
         );
+        // Same binding as the Learning gate: only the current Run's observations block it.
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        $run = (new GovernedRunStore($this->rootPath))->find($taskId);
+        $observations = $state !== null && ($run === null || $run->runId === $state->runId) ? $state->reviewObservations() : [];
 
         $statusStr = "in_progress";
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -185,6 +190,7 @@ final readonly class WorkflowPipelineCommand
             "attention" => $projection->attention?->toArray(),
             "handoffs_count" => count($projection->handoffs),
             "handoffs" => $handoffs,
+            "review_observations" => $observations,
             "next_action" => $nextAction,
             "next_action_kind" => $nextActionKind,
         ];
@@ -207,6 +213,9 @@ final readonly class WorkflowPipelineCommand
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
+            }
+            foreach ($observations as $observation) {
+                echo "Review observation: " . $observation . "\n";
             }
             echo "Next: " . $nextAction . "\n";
         }
@@ -317,6 +326,9 @@ final readonly class WorkflowPipelineCommand
      */
     private function submit(string $taskIdString, array $tokens, string $format): int
     {
+        // Malformed observations first: their message names the actual mistake.
+        $observations = $this->observations($tokens);
+        $this->assertKnownSubmitOptions($tokens);
         $taskId = (new WorkflowTaskId($taskIdString))->value;
         $outcomeRaw = OptionTokens::value($tokens, "outcome");
         if ($outcomeRaw === null) {
@@ -378,6 +390,9 @@ final readonly class WorkflowPipelineCommand
         }
 
         $bundle = $gateway->prepareStage($taskId, $currentStageId);
+        if ($observations !== []) {
+            $this->assertObservationsAllowed($taskId, $bundle, $outcome);
+        }
         // Only a completing submission claims the workspace; blocked/failed/clarification must stay reportable from any workspace.
         $completing = $outcome === StageOutcome::COMPLETED;
         $observedCandidate = $completing ? $gateway->observeStageCandidate($bundle, $candidate, $candidateWorkspace) : null;
@@ -435,6 +450,7 @@ final readonly class WorkflowPipelineCommand
             [],
             $summary,
             $contextId,
+            observations: $observations,
         );
 
         $newProjection = $gateway->submitStageResult($stageResult);
@@ -458,6 +474,91 @@ final readonly class WorkflowPipelineCommand
         }
 
         return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles);
+    }
+
+    private const array SUBMIT_OPTIONS = [
+        'outcome', 'summary', 'candidate', 'context-id', 'artifact', 'artifacts-file',
+        'exclude-artifact', 'observation', 'auto-verify', 'workspace', 'format',
+    ];
+
+    /**
+     * A misspelled option (`--observations`) would otherwise be ignored and the
+     * finding it carried lost without notice.
+     *
+     * @param list<string> $tokens
+     */
+    private function assertKnownSubmitOptions(array $tokens): void
+    {
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
+            if (!str_starts_with($token, '--')) {
+                continue;
+            }
+            $name = explode('=', substr($token, 2), 2)[0];
+            if (!in_array($name, self::SUBMIT_OPTIONS, true)) {
+                throw new InvalidArgumentException('Unknown option for pipeline submit: --' . $name);
+            }
+            // The token after a space-form value option is its value, unless it is
+            // itself an option, which is then checked like any other.
+            $next = $tokens[$i + 1] ?? null;
+            if (!str_contains($token, '=') && $name !== 'auto-verify' && is_string($next) && !str_starts_with($next, '--')) {
+                ++$i;
+            }
+        }
+    }
+
+    /**
+     * Every --observation must carry its text. The shared option reader drops an
+     * empty value and a value that starts with `--`; for an observation either
+     * would silently lose a finding, so both are refused instead.
+     *
+     * @param list<string> $tokens
+     *
+     * @return list<string>
+     */
+    private function observations(array $tokens): array
+    {
+        $observations = [];
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
+            if (str_starts_with($token, '--observation=')) {
+                $value = substr($token, strlen('--observation='));
+            } elseif ($token === '--observation') {
+                $value = $tokens[$i + 1] ?? '';
+                if (str_starts_with($value, '--')) {
+                    throw new InvalidArgumentException('--observation requires a value; use --observation="<text>" when the text starts with --.');
+                }
+                ++$i;
+            } else {
+                continue;
+            }
+            if (trim($value) === '') {
+                throw new InvalidArgumentException('--observation requires a non-empty value.');
+            }
+            $observations[] = $value;
+        }
+
+        return $observations;
+    }
+
+    /**
+     * Observations are a passing reviewer's non-blocking findings. A blocking
+     * finding is CHANGES_REQUIRED, and non-review stages have nothing to observe,
+     * so both are refused rather than silently stored.
+     */
+    private function assertObservationsAllowed(string $taskId, StageExecutionBundle $bundle, StageOutcome $outcome): void
+    {
+        $capabilities = $bundle->roleId === null
+            ? []
+            : (new ExecutionPlanStore($this->rootPath))->load($taskId)->role($bundle->roleId)->requiredCapabilities;
+        if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+            throw new InvalidArgumentException('--observation is only accepted on review stages; stage ' . $bundle->stageId . ' is not one.');
+        }
+        if ($outcome !== StageOutcome::PASS) {
+            throw new InvalidArgumentException('--observation records non-blocking findings of a passing review; use --outcome pass, or changes_required for a blocking finding.');
+        }
     }
 
     /**
@@ -632,7 +733,7 @@ Usage:
   agent-loop pipeline status <task-id> [--format text|json]
   agent-loop pipeline stage <task-id> [--format text|json]
   agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--workspace <path>] [--auto-verify] [--format text|json]
-  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--artifacts-file <path>] [--exclude-artifact <path>=<reason>] [--auto-verify] [--workspace <path>] [--format text|json]
+  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--artifacts-file <path>] [--exclude-artifact <path>=<reason>] [--observation "<non-blocking review finding>" ...] [--auto-verify] [--workspace <path>] [--format text|json]
   agent-loop pipeline recover <task-id> --candidate <content-addressed-revision> [--workspace <path>] [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.

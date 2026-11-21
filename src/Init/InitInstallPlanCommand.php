@@ -77,6 +77,10 @@ final readonly class InitInstallPlanCommand
         into the host's native project locations. `host-status` then reports the next
         repository-owned integration action, including host policy when supported.
         Executable Codex/Claude host hooks remain an explicit `--with-hooks` opt-in.
+        When the repository tracks `.agent-loop/githooks.json`, `install-assets` also
+        registers its Git hooks (`core.hooksPath`, `commit.template`); add
+        `--skip-git-config` to keep that a separate step, which `host-status` then
+        names as the exact `init sync-githooks` command.
         It does not clone a repository, execute a remote installer, use a plugin marketplace,
         or require Node.js.
 

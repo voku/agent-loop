@@ -152,6 +152,8 @@ final readonly class WorkflowHumanDecisionProjector
     {
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
         $review = (new WorkflowReviewReportReader($this->rootPath))->detail($taskId);
+        // Recorded review observations make no_durable_learning a refused choice.
+        $observations = $run === null ? [] : (new WorkflowLearningRecorder($this->rootPath))->reviewObservations($run);
 
         return $this->decision(
             'learning_disposition',
@@ -164,10 +166,11 @@ final readonly class WorkflowHumanDecisionProjector
                 'review_sha256' => $review->sha256,
                 'review_status' => $review->reportStatus,
                 'allowed_dispositions' => [
-                    'no_durable_learning',
+                    ...($observations === [] ? ['no_durable_learning'] : []),
                     'findings_recorded',
                     'follow_up_required',
                 ],
+                'review_observations' => $observations,
                 'reason_required' => true,
             ],
         );

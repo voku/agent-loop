@@ -20,7 +20,7 @@ Preserve the terminal contract:
 STATUS: findings|clean|blocked
 ```
 
-For `findings`, keep exact path/line evidence and the concrete fix. `STATUS: clean` is valid after concrete falsification attempts find no evidence-backed defect. Use `blocked` only for an exact material evidence gap or contradiction that prevents the default review itself; keep that gap as `UNKNOWN:`. The result does not grant workflow approval.
+For `findings`, keep exact path/line evidence and the concrete fix. `STATUS: clean` is valid after concrete falsification attempts find no evidence-backed defect. A clean review still lists each non-blocking finding it saw (known limit, nit, follow-up) as its own `OBSERVATION: <path:line> <finding>` line after the status; do not fold them into the clean summary. In a governed pipeline, pass each one as its own `--observation` on `pipeline submit --outcome pass`. Use `blocked` only for an exact material evidence gap or contradiction that prevents the default review itself; keep that gap as `UNKNOWN:`. The result does not grant workflow approval.
 
 Keep `review blindspots` separate; it is process/evidence analysis, not correctness review.
 

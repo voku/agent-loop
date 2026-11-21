@@ -60,6 +60,13 @@ final readonly class WorkflowLearningCommand
                 throw new RuntimeException('Learning requires a current blind-spot review bound to the current Contract revision and implementation snapshot.');
             }
 
+            WorkflowLearningRecorder::assertObservationsDispositioned(
+                $options['status'],
+                (new WorkflowLearningRecorder($this->rootPath))->reviewObservations($run),
+                $run->runId,
+                workflowLearn: true,
+            );
+
             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
             $decision = (new RunLearningDecisionStore($learningRoot))->record(
                 $run->runId,

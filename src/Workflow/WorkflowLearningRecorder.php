@@ -8,6 +8,7 @@ use ItpContext\Attribute\Rule;
 use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Context\ArchitectureRules;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\RunLearningDecision;
@@ -92,6 +93,7 @@ final readonly class WorkflowLearningRecorder
         if (($findingInputs !== [] || $findingIds !== []) && $decision !== RunLearningDecisionStatus::FINDINGS_RECORDED) {
             throw new RuntimeException('Finish Finding content or ids are only valid with --learning findings_recorded.');
         }
+        self::assertObservationsDispositioned($decision, $this->reviewObservations($run), $run->runId);
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
         $validationSha256 = $boundary->validationEvidenceSha256();
@@ -146,6 +148,52 @@ final readonly class WorkflowLearningRecorder
             $validationSha256,
             $reviewSha256,
         );
+    }
+
+    /**
+     * no_durable_learning is a claim that nothing reusable came out of the Run.
+     * Recorded review observations contradict that claim, so they must become
+     * Findings or be carried by a follow-up reference instead.
+     *
+     * The remedy names the flags of the command that refused, so a host can act
+     * on the message without translating between `finish` and `workflow learn`.
+     *
+     * @param list<non-empty-string> $observations
+     */
+    public static function assertObservationsDispositioned(
+        RunLearningDecisionStatus $decision,
+        array $observations,
+        string $runId,
+        bool $workflowLearn = false,
+    ): void {
+        if ($decision !== RunLearningDecisionStatus::NO_DURABLE_LEARNING || $observations === []) {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            "%s cannot record no_durable_learning: the review stages of %s recorded %d non-blocking observation(s):\n- %s\n%s",
+            $workflowLearn ? 'workflow learn' : 'finish',
+            $runId,
+            count($observations),
+            implode("\n- ", $observations),
+            $workflowLearn
+                ? 'Capture them as Findings (learn capture, then --finding <id>) or link the issue that tracks them (--follow-up <ref>).'
+                : 'Record them as Findings (--finding-observation ... or --finding <id>, both imply findings_recorded) or link the issue that tracks them (--follow-up-ref <ref>, implies follow_up_required).',
+        ));
+    }
+
+    /**
+     * Observations of every accepted passing review result of the current Run. The
+     * execution state belongs to one Run; a stale state from an earlier Run
+     * contributes nothing.
+     *
+     * @return list<non-empty-string>
+     */
+    public function reviewObservations(GovernedRun $run): array
+    {
+        $state = (new ExecutionStateStore($this->rootPath))->find($run->taskId);
+
+        return $state === null || $state->runId !== $run->runId ? [] : $state->reviewObservations();
     }
 
     /**

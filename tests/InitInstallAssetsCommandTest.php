@@ -375,6 +375,54 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(1, $runner->run(['git', 'config', '--get', 'core.hooksPath'])['exit_code']);
     }
 
+    public function testSkipGitConfigLeavesHooksThatGitAlreadyRunsUntouched(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+        self::assertSame(0, $this->runCommand(['--agent=codex'])['exit']);
+        self::assertSame(".githooks\n", $runner->mustRun(['git', 'config', '--get', 'core.hooksPath'])['stdout']);
+
+        // Git runs these files now; an asset install that defers Git integration must not change them.
+        file_put_contents($this->root . '/.githooks/pre-commit', "# locally pinned\n", FILE_APPEND);
+        $before = (string) file_get_contents($this->root . '/.githooks/pre-commit');
+
+        $result = $this->runCommand(['--agent=codex', '--skip-git-config']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertSame($before, (string) file_get_contents($this->root . '/.githooks/pre-commit'));
+        self::assertStringContainsString('left the active Git hooks in .githooks untouched', $result['output']);
+        self::assertStringContainsString('init sync-githooks --hooks-dir=.githooks', $result['output']);
+    }
+
+    public function testInstallLeavesAHooksPathThatRunsOtherHooksToTheOwner(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+        $runner->mustRun(['git', 'config', 'core.hooksPath', '.husky']);
+        mkdir($this->root . '/.husky', 0o775, true);
+        file_put_contents($this->root . '/.husky/pre-commit', "#!/bin/sh\necho husky\n");
+        chmod($this->root . '/.husky/pre-commit', 0o755);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+
+        $result = $this->runCommand(['--agent=codex']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('left Git hooks untouched: core.hooksPath=.husky runs other executable hooks', $result['output']);
+        self::assertSame(".husky\n", $runner->mustRun(['git', 'config', '--get', 'core.hooksPath'])['stdout']);
+        self::assertFileDoesNotExist($this->root . '/.githooks/pre-commit');
+    }
+
     public function testDisabledPackageSkillsAndSubagentsViaConfig(): void
     {
         mkdir($this->root . '/.agent-loop', 0o775, true);

@@ -14,6 +14,7 @@ use voku\AgentKanban\Repository\BoardContextResolution;
 use voku\AgentKanban\Repository\BoardContextResolver;
 use voku\AgentLearning\RunLearningDecision;
 use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
@@ -720,6 +721,23 @@ final class RunManifestProjector
     }
 
     /**
+     * Non-blocking findings that passing reviews of this Run recorded. They are
+     * projected at the learning decision so a host or UI sees them before it
+     * chooses a disposition, not only in a refusal afterwards.
+     *
+     * @return list<non-empty-string>
+     */
+    private function reviewObservations(string $taskId, ?GovernedRun $run): array
+    {
+        if ($run === null) {
+            return [];
+        }
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+
+        return $state === null || $state->runId !== $run->runId ? [] : $state->reviewObservations();
+    }
+
+    /**
      * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      * @return array<string, mixed>
      */
@@ -893,12 +911,16 @@ final class RunManifestProjector
                 }
             }
             if (($failure['gate'] ?? null) === 'learning_decision') {
+                $observations = $this->reviewObservations($taskId, $run);
                 $reference['learning_disposition'] = [
                     'evaluate_reusable_learning' => true,
                     'reusable_lesson' => 'capture an evidence-backed Finding and reference its id',
                     'out_of_scope_work' => 'provide the concrete follow-up reference',
-                    'no_durable_learning' => 'choose explicitly only after evaluating the run and finding no reusable lesson or follow-up',
+                    'no_durable_learning' => $observations === []
+                        ? 'choose explicitly only after evaluating the run and finding no reusable lesson or follow-up'
+                        : 'unavailable: passing reviews recorded the review_observations below; record them as Findings or link a follow-up',
                     'anti_shortcut' => 'Do not choose no_durable_learning merely to complete the Run.',
+                    'review_observations' => $observations,
                 ];
             }
 
@@ -1094,7 +1116,15 @@ final class RunManifestProjector
             return ['owner' => 'agent-learning', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
         if ($decision === null) {
-            return ['owner' => 'agent-learning', 'state' => 'missing', 'observation_mode' => 'checked', 'run_id' => $run->runId];
+            // The pending decision carries the observations whatever gate blocks first,
+            // so no template offers the refused no_durable_learning.
+            return [
+                'owner' => 'agent-learning',
+                'state' => 'missing',
+                'observation_mode' => 'checked',
+                'run_id' => $run->runId,
+                'review_observations' => $this->reviewObservations($run->taskId, $run),
+            ];
         }
         if (str_starts_with($decision->decidedBy, 'standing:')) {
             return [
@@ -1104,6 +1134,7 @@ final class RunManifestProjector
                 'run_id' => $run->runId,
                 'reason' => 'Persisted Learning decision uses an unverified reserved standing: actor.',
                 'source' => $this->artifact($decision->path),
+                'review_observations' => $this->reviewObservations($run->taskId, $run),
             ];
         }
 
@@ -1125,6 +1156,8 @@ final class RunManifestProjector
         if ($bindingFailure !== null) {
             $reference['state'] = 'stale';
             $reference['reason'] = $bindingFailure;
+            // A stale decision is re-taken, so the replacement must see the observations too.
+            $reference['review_observations'] = $this->reviewObservations($run->taskId, $run);
         }
 
         return $reference;

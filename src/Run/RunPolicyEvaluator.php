@@ -194,7 +194,8 @@ final readonly class RunPolicyEvaluator
 
             return [
                 'action' => 'change the implementation so the declared validation passes'
-                    . (is_string($reason) && $reason !== '' ? ': ' . $reason : ''),
+                    . (is_string($reason) && $reason !== '' ? ': ' . $reason : '')
+                    . '; if the cause was the environment rather than the code (for example a missing tool or a refused root run), fix the environment and repeat finish with --revalidate',
                 'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
                 'invocation' => null,
             ];
@@ -473,13 +474,17 @@ final readonly class RunPolicyEvaluator
             return $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
+            // Recorded review observations make no_durable_learning a refused
+            // choice, so the template does not offer it.
+            $observed = ($references['learning']['review_observations'] ?? $references['verification']['learning_disposition']['review_observations'] ?? []) !== [];
+
             return $this->command(
                 'agent-loop',
                 [
                     'finish',
                     $taskId,
                     '--learning',
-                    '<no_durable_learning|findings_recorded|follow_up_required>',
+                    $observed ? '<findings_recorded|follow_up_required>' : '<no_durable_learning|findings_recorded|follow_up_required>',
                     '--by',
                     '<actor>',
                     '[--finding',

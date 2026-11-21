@@ -32,6 +32,27 @@ final readonly class ExecutionState
     ) {
     }
 
+    /**
+     * Observations of every accepted passing review result. Review stages run in
+     * fresh contexts that never see earlier observations, so a later pass
+     * without observations is no evidence that earlier ones were resolved.
+     *
+     * @return list<non-empty-string>
+     */
+    public function reviewObservations(): array
+    {
+        $observations = [];
+        foreach ($this->history as $accepted) {
+            if ($accepted->result->outcome === StageOutcome::PASS) {
+                foreach ($accepted->result->observations as $observation) {
+                    $observations[] = $observation;
+                }
+            }
+        }
+
+        return array_values(array_unique($observations));
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

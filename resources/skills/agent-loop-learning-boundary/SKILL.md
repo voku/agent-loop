@@ -25,7 +25,7 @@ Findings are **not** durable memory. A Run learning close-out records what happe
 | Situation | Status | Command Template | Required Arguments |
 |---|---|---|---|
 | Reusable lesson discovered | `findings_recorded` | `vendor/bin/agent-loop workflow learn <task-id> --finding <id> --by <actor>` | `--finding <id>`, `--by` |
-| One-off fix / already known | `no_durable_learning` | `vendor/bin/agent-loop workflow learn <task-id> --status no_durable_learning --by <actor>` | `--status`, `--by` |
+| One-off fix / already known, no review observations | `no_durable_learning` | `vendor/bin/agent-loop workflow learn <task-id> --status no_durable_learning --by <actor>` | `--status`, `--by` |
 | Out-of-scope follow-up | `follow_up_required` | `vendor/bin/agent-loop workflow learn <task-id> --follow-up <ref> --by <actor>` | `--follow-up <ref>`, `--by` |
 
 `--finding` and `--follow-up` already state the decision. `--reason` is optional context: do not write a sentence to say nothing durable was learned.
@@ -44,6 +44,7 @@ Findings are **not** durable memory. A Run learning close-out records what happe
    vendor/bin/agent-loop learn validate
    ```
 3. **Evaluate Reusable Learning, Then Record the Decision:** Before choosing the Learning disposition, decide whether the run exposed an evidence-backed reusable lesson. Finding creation stays sparse, but this evaluation is not optional.
+   - First read the observations that passing reviews recorded: `review_observations` in `vendor/bin/agent-loop pipeline status <task-id> --format=json`, also projected under `learning_disposition` in the `finish` JSON. While any exist, `no_durable_learning` is refused: capture the reusable ones as Findings and/or link the issue that tracks the rest with a follow-up reference.
    - Reusable lesson: capture it through the Learning owner, then reference the resulting Finding:
      ```bash
      vendor/bin/agent-loop learn capture \
@@ -58,7 +59,7 @@ Findings are **not** durable memory. A Run learning close-out records what happe
        --by <actor>
      ```
    - Concrete out-of-scope work remains: record `follow_up_required` with its real reference.
-   - No reusable lesson and no follow-up: explicitly record `no_durable_learning`:
+   - No reusable lesson, no follow-up, and no recorded review observations: explicitly record `no_durable_learning`:
      ```bash
      vendor/bin/agent-loop workflow learn <task-id> \
        --status no_durable_learning \

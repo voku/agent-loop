@@ -111,7 +111,7 @@ final readonly class WorkflowRepairCommand
                 'tool_category' => $diagnostic->toolCategory,
                 'errors' => $diagnostic->errors,
                 'repair_instruction' => $instruction,
-                'next_action' => 'Apply repair and run agent-loop finish ' . $taskId->value,
+                'next_action' => 'Apply repair and run agent-loop finish ' . $taskId->value . ' (add --revalidate when the cause was the environment, not the code)',
                 'next_action_kind' => RunPolicyEvaluation::KIND_HOST_WORK,
             ];
 
@@ -127,7 +127,7 @@ final readonly class WorkflowRepairCommand
                     echo "  * " . $loc . $error['message'] . "\n";
                 }
                 echo "\nRepair Instruction:\n  " . $instruction . "\n";
-                echo "\nNext: Apply repair and run agent-loop finish " . $taskId->value . "\n";
+                echo "\nNext: Apply repair and run agent-loop finish " . $taskId->value . " (add --revalidate when the cause was the environment, not the code)\n";
             }
 
             return 0;

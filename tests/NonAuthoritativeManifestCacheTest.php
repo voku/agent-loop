@@ -44,6 +44,31 @@ final class NonAuthoritativeManifestCacheTest extends TestCase
     {
         $this->writeUnsupportedManifest();
 
+        $this->assertStatusReportsStaleProjection('Unsupported run-manifest schema version');
+    }
+
+    public function testExplicitStoredProjectionReadRejectsCorruptJson(): void
+    {
+        $this->writeCorruptManifest();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid run manifest JSON');
+
+        (new RunManifestStore($this->root))->read('ABC-123');
+    }
+
+    public function testCorruptPersistedProjectionIsReportedWithoutBlockingFreshOwnerBackedStatus(): void
+    {
+        $this->writeCorruptManifest();
+        $manifestPath = $this->root . '/.agent-loop/runs/ABC-123/manifest.json';
+        $before = file_get_contents($manifestPath);
+
+        $this->assertStatusReportsStaleProjection('Invalid run manifest JSON');
+        self::assertSame($before, file_get_contents($manifestPath), 'Read-only status must not repair or replace the corrupt projection.');
+    }
+
+    private function assertStatusReportsStaleProjection(string $reason): void
+    {
         ob_start();
         try {
             $exit = (new WorkflowStatusCommand($this->root))->run(['ABC-123', '--format=json']);
@@ -61,10 +86,12 @@ final class NonAuthoritativeManifestCacheTest extends TestCase
         self::assertSame('stale', $status['storage']['state'] ?? null);
         self::assertArrayHasKey('stored_sha256', $status['storage']);
         self::assertNull($status['storage']['stored_sha256']);
-        self::assertStringContainsString(
-            'Unsupported run-manifest schema version',
-            (string) ($status['storage']['reason'] ?? ''),
-        );
+        self::assertStringContainsString($reason, (string) ($status['storage']['reason'] ?? ''));
+    }
+
+    private function writeCorruptManifest(): void
+    {
+        file_put_contents($this->root . '/.agent-loop/runs/ABC-123/manifest.json', '{"schema_version": "1.0", "task_id": ');
     }
 
     private function writeUnsupportedManifest(): void

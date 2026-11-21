@@ -792,6 +792,7 @@ final readonly class ExecutionStateStore
                 ? $this->requiredString($data, 'context_id', $path)
                 : null,
             ExecutionArtifactValue::stringList($data['consistency_references'] ?? [], $path . '#consistency_references'),
+            ExecutionArtifactValue::stringList($data['observations'] ?? [], $path . '#observations'),
         );
     }
 

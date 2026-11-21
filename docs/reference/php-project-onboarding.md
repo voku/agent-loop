@@ -30,7 +30,7 @@ Select the actual host (`codex` above is an example; `init host-status --format=
 vendor/bin/agent-loop init install-assets --agent=codex --skip-git-config
 ```
 
-This projects the package's `agent-loop-php-setup` skill into the coding host. Executable host hooks are **not** installed unless `--with-hooks` is separately requested. `--skip-git-config` keeps the command from registering Git hooks (`core.hooksPath`, `commit.template`), which it otherwise does whenever `.agent-loop/githooks.json` exists; run `init sync-githooks` only after a separate approval. Project-owned `AGENTS.md` content must remain intact.
+This projects the package's `agent-loop-php-setup` skill into the coding host. Executable host hooks are **not** installed unless `--with-hooks` is separately requested. `--skip-git-config` keeps the command from registering Git hooks (`core.hooksPath`, `commit.template`), which it otherwise does whenever `.agent-loop/githooks.json` exists; it still writes inert hook files, but leaves them untouched when `core.hooksPath` already points to that directory, because those are the hooks Git runs, and writes nothing when Git runs other hooks (a `core.hooksPath` such as `.husky`, or hooks in `.git/hooks` such as CaptainHook or GrumPHP): switching those is an owner decision that `init host-status` returns as `decision_required`. Register Git hooks only after a separate approval, with the exact `init sync-githooks …` command that `vendor/bin/agent-loop init status` or `init host-status` prints: it carries the detected `--hooks-dir`, `--commit-template` and `--adopt-existing` arguments. `sync-githooks` refuses to replace hooks Git already runs from elsewhere. Project-owned `AGENTS.md` content must remain intact.
 
 ## Tell the coding agent what to do
 
