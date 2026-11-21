@@ -41,7 +41,7 @@
         "exit_code": 0,
         "commit": "e05cf7d25261bf629b5ae389418399e9c51c228d",
         "target_source_ref": "MEMORY.md",
-        "target_content_hash": "738041bca71a6bca806e1033bd2e202393c90f2e8ee2581896e92c0156afaaa6",
+        "target_content_hash": "5ba14941081b9e1ea02e1cb09dfceb47111edfdcaa218266c1c6fe702ccc1a1a",
         "summary": "481 tests, PHPStan level 8 clean, nine project rule fixtures asserted out of process, context validate and discipline dogfood. composer review:slop reported 0 new findings and php tools/self-shape-dogfood.php governed this diff to PASSED.",
         "evidence": [
             "composer ci",
@@ -49,7 +49,7 @@
             "php tools/self-shape-dogfood.php"
         ],
         "reanchored_by": "voku",
-        "reanchored_at": "2026-11-19T21:07:46+00:00",
-        "reanchor_reason": "MEMORY.md canonical homes corrected to the current owners (WorkflowRunPreparer::activeSession(), WorkflowCloseReadinessInspector::checkReviewGate()), found by MemoryCanonicalHomesResolveTest; the durable rules are unchanged."
+        "reanchored_at": "2026-11-21T10:37:32+00:00",
+        "reanchor_reason": "Row 'Tooling test isolation' deleted by approved proposal.2026-11-21.0f8920 (rule removed in ea096397); the reviewed guidance of the re-pinned proofs is unchanged."
     }
 }

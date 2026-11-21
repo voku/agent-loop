@@ -9,7 +9,7 @@
     "remaining_uncertainty": [
         "Without the rule, nothing stops a PHPStan test class from being loaded into the normal PHPUnit process, which originally broke agent-map discovery tests."
     ],
-    "status": "approved",
+    "status": "applied",
     "proposed_by": "consolidation",
     "approved_by": "voku",
     "approved_at": "2026-11-21T00:03:47+00:00",
@@ -24,5 +24,21 @@
     "validation": [
         "vendor/bin/agent-learning validate --root .agent-loop/learning"
     ],
-    "scope_justification": "Owner decision 2026-11-21 (voku): the in-process PHPStan rule is removed (governed task REMOVE-INPROC-RULE), so its MEMORY row, already stale per finding.2026-11-20.0a3b45, is deleted instead of corrected. The broader idea that agent experiment files are not tests is pursued separately."
+    "scope_justification": "Owner decision 2026-11-21 (voku): the in-process PHPStan rule is removed (governed task REMOVE-INPROC-RULE), so its MEMORY row, already stale per finding.2026-11-20.0a3b45, is deleted instead of corrected. The broader idea that agent experiment files are not tests is pursued separately.",
+    "applied_by": "claude-agent",
+    "applied_at": "2026-11-21T10:37:42+00:00",
+    "commit": "9b89b7ce19bc96c710875e9fee39d2917de6b324",
+    "applied_validation": {
+        "command": "vendor/bin/agent-learning validate --root .agent-loop/learning",
+        "status": "passed",
+        "exit_code": 0,
+        "commit": "9b89b7ce19bc96c710875e9fee39d2917de6b324",
+        "target_source_ref": "MEMORY.md",
+        "target_content_hash": "5ba14941081b9e1ea02e1cb09dfceb47111edfdcaa218266c1c6fe702ccc1a1a",
+        "summary": "Row 'Tooling test isolation' deleted verbatim as approved; no other MEMORY.md line changed. Proofs 007 and 013 re-anchored. agent-learning validate and php tools/project-phpstan-rules.php pass locally; composer ci (including MemoryCanonicalHomesResolveTest) is left to exact-head CI on voku/agent-loop#1115 because PHPUnit is not installed in this checkout.",
+        "evidence": [
+            "vendor/bin/agent-learning validate --root .agent-loop/learning",
+            "php tools/project-phpstan-rules.php"
+        ]
+    }
 }
