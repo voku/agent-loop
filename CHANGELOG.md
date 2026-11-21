@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Documentation
+
+- AGENTS.md names the Evidence Lab probe folder (`build/evidence/<task-id>/probes/`, `docs/testing/evidence-lab.md`): exploratory code is a probe, not a test, even when PHPUnit runs it. Two learning-effect pilot agents had written such a probe into `tests/` because no repository instruction named the place.
+
 ### Removed
 
 - The in-process PHPStan test-case rule (`NoInProcessPhpstanRuleTestCaseRule`), its fixtures and its registrations, by owner decision. Its constraint (`proposal.2026-09-13.2acd04`) is retired and its active manifest deleted, and the MEMORY.md row "Tooling test isolation" is deleted through the approved `proposal.2026-11-21.0f8920`. The broader rule that agent experiment files are not tests is pursued separately.

@@ -62,6 +62,7 @@ For prompt-related work specifically: Recall owns recipe catalog/arguments/rende
 - Fail closed on stale provenance, unsupported contract versions, ambiguous owner state, or source identity drift before mutation.
 - Do not turn Loop into a generic mutation engine merely because multiple safe edit/refactoring plans can cross its existing edit boundary.
 - Keep development-only dogfood, architecture checks, and probes outside production autoload unless runtime consumers genuinely need them.
+- Code you write only to explore or experiment is a probe, not a test, even when PHPUnit runs it. Put it in `build/evidence/<task-id>/probes/` (ignored by Git and outside the test suite; see `docs/testing/evidence-lab.md`) and never commit it. Move a probe into `tests/` only when the Contract scope names it as a regression test.
 - Prefer action over commentary when the requested outcome is reachable with current repository, host, or GitHub capabilities. Discover available mutation tools before declaring an intermediate artifact missing or handing work back to the user. If the safe path is branch -> change -> PR -> exact-head validation -> merge -> release marker/tag, execute that path as far as current authority permits; only report a blocker when the next genuinely required action cannot be performed.
 
 ## Validation
