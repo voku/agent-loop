@@ -17,7 +17,9 @@ use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowHumanDecisionProjector;
@@ -93,6 +95,37 @@ final class ReviewObservationLearningGateTest extends TestCase
         $encoded = json_encode($decision, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         self::assertStringContainsString('"allowed_dispositions":["findings_recorded","follow_up_required"]', $encoded);
         self::assertStringContainsString('"review_observations":["Budget 0 still admits one target."]', $encoded);
+    }
+
+    public function testInvalidReservedActorDecisionStillProjectsObservationsAndDropsTheRefusedChoice(): void
+    {
+        $run = $this->prepareLearningDecision(['Budget 0 still admits one target.']);
+        $path = $this->decisionStore()->path($run->runId);
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0o775, true);
+        }
+        file_put_contents($path, json_encode([
+            'schema_version' => '1.0',
+            'kind' => 'run_learning_decision',
+            'run_id' => $run->runId,
+            'decision' => RunLearningDecisionStatus::NO_DURABLE_LEARNING->value,
+            'decided_by' => 'standing:spoofed',
+            'decided_at' => '2026-11-02T00:00:00+00:00',
+            'reason' => 'Pre-upgrade untrusted actor must not retain authority.',
+            'finding_ids' => [],
+            'follow_up_ref' => null,
+            'contract_revision' => null,
+            'implementation_snapshot' => null,
+            'validation_evidence_sha256' => null,
+            'review_evidence_sha256' => null,
+        ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n");
+
+        $manifest = (new RunManifestProjector($this->root))->project(self::TASK);
+        self::assertSame('invalid', $manifest->references['learning']['state'] ?? null);
+        self::assertSame(['Budget 0 still admits one target.'], $manifest->references['learning']['review_observations'] ?? null);
+
+        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+        self::assertStringNotContainsString('<no_durable_learning|', $policy->nextAction);
     }
 
     public function testWorkflowLearnRefusalNamesItsOwnFlags(): void
