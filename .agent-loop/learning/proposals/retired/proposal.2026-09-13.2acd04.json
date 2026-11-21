@@ -7,11 +7,11 @@
         "finding.2026-08-14.006",
         "finding.2026-09-13.2c3f55"
     ],
-    "reason": "Two independent coding-run findings established that an in-process PHPStan RuleTestCase can destabilize the normal PHPUnit process, and the current governed run proved that stale soft guidance blocks Recall rather than enforcing the rule. The existing PHPStan detector, its registered invalid fixture, and its dedicated runner now provide a cheaper deterministic boundary; this proposal adopts that enforcement without generating a duplicate rule.",
+    "reason": "Owner decision 2026-11-21: the in-process PHPStan rule is removed (REMOVE-INPROC-RULE). Its active manifest is deleted by hand by owner decision, because agent-learning has no constraint deactivation.",
     "remaining_uncertainty": [
         "The detector intentionally covers direct RuleTestCase inheritance; different PHPStan test-harness designs need separate evidence before they are constrained."
     ],
-    "status": "applied",
+    "status": "retired",
     "proposed_by": "consolidation",
     "approved_by": "Lars Moelleken",
     "approved_at": "2026-09-13T09:36:49+00:00",
@@ -97,5 +97,8 @@
             "tests/PHPStan/data/in-process-phpstan-rule-test-case.php": "sha256:926b1aca81d8d6153997bbb2b854855fa3c3800ec1f504e383dbd26012cdb003",
             "tools/project-phpstan-rules.php": "sha256:f920b0f9e790629c2ce6226c30ccab74cb446c07a76c267e0f9b91142de1f094"
         }
-    }
+    },
+    "proposal_reason": "Two independent coding-run findings established that an in-process PHPStan RuleTestCase can destabilize the normal PHPUnit process, and the current governed run proved that stale soft guidance blocks Recall rather than enforcing the rule. The existing PHPStan detector, its registered invalid fixture, and its dedicated runner now provide a cheaper deterministic boundary; this proposal adopts that enforcement without generating a duplicate rule.",
+    "retired_by": "voku",
+    "retired_at": "2026-11-21T00:04:57+00:00"
 }

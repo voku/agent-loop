@@ -1,0 +1,30 @@
+{
+    "id": "finding.2026-11-20.0a3b45",
+    "task_id": "LEARN-INPROC-RULE",
+    "session": "2026-11-20-learn-inproc-rule-r3-3ced2273",
+    "created_at": "2026-11-20T23:08:01+00:00",
+    "created_by": "claude-agent",
+    "scope": [
+        "MEMORY.md",
+        "phpstan/Rules"
+    ],
+    "observation": "MEMORY.md row 'Tooling test isolation' tells agents not to load PHPStan\\Testing\\RuleTestCase in the PHPUnit process, and applied proposal 2acd04's constraint specification says 'Only direct RuleTestCase inheritance is detected.' Since 0866edaf the rule rejects every class whose ancestor chain contains PHPStan\\Testing\\PHPStanTestCase (RuleTestCase, TypeInferenceTestCase, intermediate bases). finding.2026-09-15.b7d8f5 recorded that enforcement change but no guidance was updated.",
+    "evidence": [
+        {
+            "type": "commit",
+            "commit": "0866edafef95ef2409998e9960c6135b4c0d0334"
+        },
+        {
+            "type": "manual_verification",
+            "summary": "origin/main 145d5732: MEMORY.md:14 names only RuleTestCase; phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php:32,44 checks PHPStanTestCase in getParentClassesNames(); constraint-generation/proposal.2026-09-13.2acd04/specification.json:23 says only direct inheritance. Prior lesson: finding.2026-09-15.b7d8f5 (archived)."
+        }
+    ],
+    "hypothesis": "The enforcement change landed without a matching REPLACE of the memory row and the constraint wording, so durable guidance now under-describes the rule an agent will hit.",
+    "validated_conclusion": "Durable guidance must name the PHPStanTestCase ancestor chain, not only RuleTestCase: the memory row needs a REPLACE, and the 2acd04 constraint specification needs a separate owner decision (REPLACE or retirement) because it now contradicts the enforced rule.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public",
+    "validated_by": "voku",
+    "validated_at": "2026-11-21T00:02:04+00:00"
+}

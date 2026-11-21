@@ -1,0 +1,73 @@
+{
+    "id": "proposal.2026-11-20.9b62ae",
+    "created_at": "2026-11-20T23:38:55+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-07.005",
+        "finding.2026-08-14.006",
+        "finding.2026-09-13.2c3f55",
+        "finding.2026-11-20.0a3b45"
+    ],
+    "reason": "Owner decision 2026-11-21: the in-process PHPStan rule and its MEMORY row are removed instead of corrected; the experiments-vs-tests idea is pursued generally.",
+    "remaining_uncertainty": [
+        "No negative fixture proves that a class outside the PHPStanTestCase chain (for example a plain PHPUnit TestCase) stays unflagged; the exact-count fixture check would only catch an extra diagnostic on an analysed negative case.",
+        "The owner has no constraint REPLACE action; replacement is ADD plus retire with superseded_by, and re-activating the manifest from this proposal is not yet exercised."
+    ],
+    "status": "rejected",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "constraint",
+    "target": "agent-loop.phpstan.in-process-rule-test-case",
+    "scope": [
+        "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "phpstan/project-rule-test.neon",
+        "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+        "tools/project-phpstan-rules.php",
+        "tests/PHPStan/data/in-process-phpstan-type-inference-test-case.php",
+        "tests/PHPStan/data/in-process-phpstan-rule-test-case-alias.php"
+    ],
+    "old": null,
+    "new": "The registered NoInProcessPhpstanRuleTestCaseRule rejects in-process PHPStan test fixtures whose ancestor chain contains PHPStan\\Testing\\PHPStanTestCase, through the dedicated project PHPStan runner.",
+    "boundary": "Detection follows the resolved ancestor chain to PHPStan\\Testing\\PHPStanTestCase (RuleTestCase, TypeInferenceTestCase, aliases, intermediate bases). Isolated subprocess fixtures and classes outside that chain are not constrained.",
+    "validation": [
+        "php tools/project-phpstan-rules.php",
+        "composer ci"
+    ],
+    "scope_justification": "Replacement specification for proposal.2026-09-13.2acd04, whose boundary ('only direct RuleTestCase inheritance') has been narrower than the enforced rule since 0866edaf. Recall renders that stale boundary as active guidance for tasks touching the rule files. The detector, its five registered fixtures and its runner are unchanged; this proposal only corrects the specification. If approved, 2acd04 is retired with superseded_by this proposal and the active manifest is re-activated from it.",
+    "constraint": {
+        "rule_id": "agent-loop.phpstan.in-process-rule-test-case",
+        "engine": "phpstan",
+        "rule_class_name": "NoInProcessPhpstanRuleTestCaseRule",
+        "target_rule_path": "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "registration_files": [
+            "phpstan/project-rule-test.neon",
+            "composer.json"
+        ],
+        "scope": [
+            "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+            "phpstan/project-rule-test.neon",
+            "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+            "tools/project-phpstan-rules.php",
+            "tests/PHPStan/data/in-process-phpstan-type-inference-test-case.php",
+            "tests/PHPStan/data/in-process-phpstan-rule-test-case-alias.php"
+        ],
+        "violation": "A project PHPUnit test class whose resolved ancestor chain contains PHPStan\\Testing\\PHPStanTestCase (RuleTestCase, TypeInferenceTestCase, an import alias or an intermediate base class) can load a PHPStan container into the normal test process.",
+        "allowed_boundaries": [
+            "Isolated PHPStan subprocess fixtures are outside this rule.",
+            "Detection follows the resolved ancestor chain to PHPStan\\Testing\\PHPStanTestCase; classes outside that chain are not constrained."
+        ],
+        "detectability": "static",
+        "false_positive_risk": "low",
+        "validation_commands": [
+            "php tools/project-phpstan-rules.php",
+            "composer ci"
+        ],
+        "example_rule_paths": [
+            "phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php"
+        ]
+    },
+    "proposal_reason": "Replacement specification for proposal.2026-09-13.2acd04, whose boundary ('only direct RuleTestCase inheritance') has been narrower than the enforced rule since 0866edaf. Recall renders that stale boundary as active guidance for tasks touching the rule files. The detector, its five registered fixtures and its runner are unchanged; this proposal only corrects the specification. If approved, 2acd04 is retired with superseded_by this proposal and the active manifest is re-activated from it.",
+    "rejected_by": "voku",
+    "rejected_at": "2026-11-21T00:02:03+00:00"
+}

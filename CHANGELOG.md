@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Removed
+
+- The in-process PHPStan test-case rule (`NoInProcessPhpstanRuleTestCaseRule`), its fixtures and its registrations, by owner decision. Its constraint (`proposal.2026-09-13.2acd04`) is retired and its active manifest deleted, and the MEMORY.md row "Tooling test isolation" is deleted through the approved `proposal.2026-11-21.0f8920`. The broader rule that agent experiment files are not tests is pursued separately.
+
+### Dependencies
+
+- Require `voku/agent-recall-compiler ^0.29.7` (was `^0.29.4`; locked 0.29.7). The minimum-release CI jobs (`acceptance-criteria-candidate`, `prompt-primitives-candidate`) now check out 0.29.7. Recall no longer reports an approved DELETE as contradicting a rejected (0.29.6) or retired (0.29.7) proposal for the same target; before that, deleting the row above blocked every governed task that touches MEMORY.md.
+
 ## [0.20.103] - 2026-11-20
 
 ### Changed

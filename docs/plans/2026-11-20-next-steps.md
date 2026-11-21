@@ -1,8 +1,49 @@
 # Next steps after the 2026-11-20 learning-effect and Ponytail work
 
-**Audience:** coding agents of any size, and their human operator. Every task is self-contained: read **Global rules** once, then take any task whose **Prerequisites** are met. Tasks are ordered by priority. Tasks marked **OWNER** need a human decision; an agent prepares material and stops.
+**Audience:** coding agents of any size, and their human operator. Every task is self-contained: read **Global rules** once, then take the next step of **section 0 (Roadmap)**. The T-sections are detail, not order. Tasks marked **OWNER** need a human decision; an agent prepares material and stops.
 
 Roadmap context: voku/agent-loop#901. Learning thesis: voku/agent-loop#457 (stays open).
+
+---
+
+## 0. Roadmap: the order to work in (updated 2026-11-20)
+
+This section is the only ordering. The T-sections below hold the details. Work it as dogfood:
+
+- **One step in progress at a time.**
+- Every step that changes files is a governed task: `bin/agent-loop enter <TASK-ID>` … `finish`. Its Contract lists the files it may change.
+- Widening that list, approvals, and merges are **decision cards** for the owner.
+- A step is done only with evidence in GitHub: a PR or comment link plus an exact-head CI run.
+
+### Why this order
+
+1. **Close what is in flight before starting new work.** #1115 already holds two validated candidates.
+2. **Measure before building.** T10 observes real Recall/Map use before any DX change. **Exception, owner decision 2026-11-20:** the decision card (#1114, now R3b) comes right after #1115. The owner rejected two approval questions as unreadable in one session, and every later step needs approvals.
+3. **The protocol before comparisons.** T5 must exist before any A/B (T10 step 2) or holdout (T6).
+4. **Deadlines are fixed points.** T7 must finish before 2026-12-10, whatever else is running.
+
+### Steps
+
+| # | Step | Task id | Depends on | Stops for the owner at | Done when |
+| --- | --- | --- | --- | --- | --- |
+| ~~R1~~ | ~~Negative fixture for the in-process rule~~ **Skipped by the owner (2026-11-20).** `9b62ae` is reviewed with its stated uncertainty (no negative fixture) | ~~`RULE-NEG-FIXTURE`~~ rejected rev 1 | – | – | – |
+| ~~R2~~ | ~~Owner reviews #1115's candidates~~ **Done 2026-11-21 differently:** the owner rejected both candidates (`4b7e8f`, `9b62ae`) and chose to remove the rule and its MEMORY row instead | – | – | – | – |
+| ~~R3~~ | **Done 2026-11-21 as governed task `REMOVE-INPROC-RULE` (Contract rev 4, complete):** rule class, registrations, 3 fixtures and count line removed; MEMORY row deleted via approved `proposal.2026-11-21.0f8920` (proofs 007/013 re-anchored); constraint `2acd04` retired and its active manifest deleted by owner decision; Recall floor `^0.29.7` (releases 0.29.6/0.29.7 fixed the DELETE-vs-rejected/retired false conflicts) with both minimum-release workflows pinned to it. Exact-head CI on `edf54e20` green. Follow-up: agent-recall-compiler#296 | `REMOVE-INPROC-RULE` | – | merge of #1115 | #1115 merged |
+| **R3b** | (next) #1114: typed `human_decision.card` (scope-expansion cards, compact/markdown/html per host session), shape: What / Why / Changes / Risk / Recommendation, ids last (see the #1114 comments on two live misses). Also answers D2 for decisions | `FEAT-DECISION-CARD` | R3 | Contract approval | merged and released; three formats proven identical in subject, digest and choices |
+| **R4** | **Owner decision batch** (one card, answered together): D1, D3, D4, D5 (December experiment budget, which T10/T6 runs spend) | – | – (any time before R6) | all four | answers recorded in this plan |
+| **R5** | T5 protocol doc: experiments, oracles calibrated with a plausible wrong fix and negative fixtures, leakage, approvals, and provided ≠ received ≠ used ≠ useful | `DOC-EXP-PROTOCOL` | – | Contract approval | merged; README links it |
+| **R6** | T10 step 1a: observe the **small** task `c2f7eb` (`@putenv` shape test). It also tests the observation setup | `OBS-C2F7EB` | R3b, R4 (budget) | the sub-agent's real Contract | PR merged or closed with a reason; observation row recorded |
+| **R7** | T10 step 1b: observe the **Learning-relevant** task `5e1f07` (untested "Multiple active Sessions" refusal) | `OBS-5E1F07` | R6 | its Contract | same as R6 |
+| **R8** | T10 step 1c: observe the **multi-file** task `a958dd` (hand-built owner-artifact file names) | `OBS-A958DD` | R7 | its Contract (probably owner-first: a typed path API in the owning package) | same as R6 |
+| **R9** | Write the T10 record: provided / received / used / useful per task, and the step-2 decision (A/B or none) | `DOC-T10-RECORD` | R6–R8 | Contract approval | merged |
+| **R10** | Only if R9 names an anomaly: one A/B on a calibrated historical task | `EXP-T10-AB` | R5, R9 | experiment protocol approval | result recorded, including null |
+| **R11** | At most one DX fix in the owner R9/R10 names. Candidates: Map help or output, Recall output or budget, the `constraint-activate` relative `--project-root` bug (agent-learning, seen 2026-11-20) | owner repo | R9 (or R10) | Contract; owner release | released, bumped in Loop, `composer ci` green |
+| **R13** | T6 next holdout for #457. Candidates come from lessons recorded in R3/R6–R8; screen arm B first | `EXP-HOLDOUT-3` | R5, R10/R11 | experiment protocol approval | recorded |
+| **R14** | T8 design only, then T9 housekeeping | – | – | – | – |
+
+**Fixed date, parallel to everything:** **T7** (artifact rescue) before **2026-12-10**. It needs a machine that can reach the Actions artifact host, which this container cannot. Owner: name the machine and archive location (D-T7).
+
+**Not on the roadmap until an owner decision moves it:** #1030 (D1), real-host skill activation for skills other than decision cards (D2), and new benchmarks or gates of any kind.
 
 ---
 
@@ -12,7 +53,7 @@ Roadmap context: voku/agent-loop#901. Learning thesis: voku/agent-loop#457 (stay
 | --- | --- |
 | agent-loop | latest tag `0.20.101`. `main` has **unreleased** changes: the agent-learning `^0.21.0` bump (#1100) and docs #929, #1102, #1104 |
 | agent-learning | `0.21.0` released (tag → `3fe8978a`): `finding-create` emits `scope_advisories` when every scope entry is a single file (#203 closed) |
-| agent-recall-compiler | `0.29.4`; research PRs #270, #271, #272 closed with evidence records |
+| agent-recall-compiler | `0.29.7` (2026-11-21; 0.29.6/0.29.7 = DELETE no longer contradicts rejected/retired proposals); research PRs #270, #271, #272 closed with evidence records |
 | agent-map | research PRs #165, #174, #178, #179, #187 closed with evidence records |
 | agent-loop#1030 | **blocked** draft; reopen needs criterion 0 (need), then five security boundaries ([comment](https://github.com/voku/agent-loop/pull/1030#issuecomment-7048800098)) |
 | Learning effect | positive only for C1 (non-derivable fact, operator-written note): 0/6 → 3/3. Ceilings: H1, H2a, H2b, pipefail, worktree-hook |
@@ -118,6 +159,15 @@ Key records:
 
 ### T3 — Correct stale guidance about the in-process PHPStan rule (Learning workflow, stops at approval)
 
+> **Superseded 2026-11-21:** the owner rejected the correction candidates below and removed the rule and its MEMORY row instead (roadmap R3, task `REMOVE-INPROC-RULE`). The rest of this section is history.
+>
+> **Status (2026-11-20): at approval.** See PR #1115:
+> - Finding `finding.2026-11-20.0a3b45`;
+> - memory REPLACE candidate `proposal.2026-11-20.4b7e8f`;
+> - constraint candidate `proposal.2026-11-20.9b62ae`, the D6 owner choice "replace". Constraint proposals can only be `ADD`, so applying it means: apply, `constraint-activate --overwrite`, then `proposal-retire proposal.2026-09-13.2acd04 --superseded-by <new>`. This path was exercised end to end on a scratch copy.
+>
+> Both candidates wait for a named human. The steps below are kept as written.
+
 - **Evidence:**
   - The rule was widened in `0866edaf` (2026-09-15) to reject any `PHPStan\Testing\PHPStanTestCase` subclass.
   - Still stale on `main`: `MEMORY.md` row 14 ("Do not load `PHPStan\\Testing\\RuleTestCase` …") and the specification of applied proposal `proposal.2026-09-13.2acd04` ("Only direct RuleTestCase inheritance is detected.") in `.agent-loop/learning/constraint-generation/proposal.2026-09-13.2acd04/specification.json`.
@@ -209,6 +259,36 @@ Key records:
   2. Define an outcome oracle, i.e. what a correct downstream engineering result looks like.
 - **Do not** run model sessions without owner approval, and do not tune on the original 10 cases.
 
+### T10 — Observe real Recall/Map use on real tasks, then fix only what the observation shows
+
+Approved scope (owner, 2026-11-20). Files this task may change:
+- this plan;
+- one new record `docs/dogfood/<date>-recall-map-real-use.md` (plus `.results.jsonl`);
+- `tools/learning-effect/in-session/audit_transcripts.py`, for the `owner_tool_calls` counter.
+
+Not allowed: `src/`, owner repositories, prompts, hooks. Widening this list is a new owner decision, presented as a decision card.
+
+- **Question:** in normal work, what do Recall and Map **provide**, what does the host **receive or call**, is it **relevant**, what **happens next**, and is it **usable**? Each is a separate claim: provided ≠ received ≠ used ≠ useful.
+- **Already known (do not redo):**
+  - Recall records selection and provenance in `selection-report.json` and `context_explain`.
+  - The in-session learning-effect records (round 2, H1, H2) cover lesson delivery.
+  - This operator session, measured on its own transcript (biased: one host, and the operator is the agent): 34 `enter`/`finish` calls on real tasks, 558 plain searches, **0** `agent-map` calls. Recall artifacts were read only while experimenting.
+- **Step 1: observe (3 real pending tasks from #1082, chosen 2026-11-20 and verified still open on `main`):**
+
+  | Shape | Task | Why it fits |
+  | --- | --- | --- |
+  | Cause spread over several files | `2026-09-09.a958dd`: `src/` builds owner-artifact file names by hand (`ExecutionGateway.php:902`, `RunManifestProjector.php:1013`, …) | Finding every call site is where Map could help |
+  | Prior decision / Learning should matter | `2026-08-19.5e1f07`: the "Multiple active Sessions" refusal in `WorkflowRunPreparer::activeSession()` has no test; a MEMORY row and a Finding exist | Recall should deliver the lesson; check that it does |
+  | Small, obvious file | `2026-10-09.c2f7eb`: `ComposerScriptsShapeTest` for `@putenv` in `composer.json` | Expected result: Map and Recall add nothing, and that is fine |
+
+  For each task, a sub-agent host gets a fresh workspace, the normal setup, and the issue text only. No hint to use Map, Recall or a lesson; no historical fix. Its Contract approval is a real owner decision, because these are real tasks. Measure from existing artifacts only:
+  - provided: `selection-report.json`, the Map output, if any;
+  - received or called: `audit_transcripts.py` → `owner_tool_calls`, next to `plain_search`;
+  - relevance and what happened next: the diff, the tests, and which provided item (if any) the diff or review cites.
+- **Step 2 (only if step 1 shows a concrete anomaly):** one A/B on a calibrated historical task. Same base commit, task text and host. The oracle must fail on the baseline, pass on the historical fix, and reject one plausible wrong fix and a negative fixture. A pilot is directional only.
+- **Step 3:** at most one DX change, in the owner the observation names (Map help or output → agent-map; Recall budget or output → Recall; selection miss → Learning/Recall; loaded but ignored → host integration). "Direct work was enough" is a valid result.
+- **Done when:** the record states, for each task, the provided / received / used / useful claims with their evidence, and the step-2 decision.
+
 ### T9 — Housekeeping (any agent, low priority)
 
 - Delete the experiment workspaces in the scratch area after T0 is recorded. Use literal paths.
@@ -226,4 +306,6 @@ Key records:
 | D3 | Should Learning ask at Finding time whether a conclusion is recoverable from code alone? Open an agent-learning issue first; no code | H2 record, "What the rounds together suggest" |
 | D4 | Keep the in-session harness in `tools/` (this PR) or move it to an archive branch | T2 |
 | D5 | Experiment budget for December per #901 | T6 budget line |
-| D6 | Constraint `2acd04`: replace its specification, or retire it and generate a new constraint | T3 report |
+| D6 | Constraint `2acd04`: **decided 2026-11-21: retire** (the rule itself was removed; candidates `9b62ae` and `4b7e8f` rejected) | roadmap R3 |
+| D7 | T10: approve each real-task Contract the observation hosts submit | T10, roadmap R6–R8 |
+| D8 | T7: which machine downloads the expiring artifacts (before 2026-12-10), and where they are archived | T7 |
