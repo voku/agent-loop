@@ -378,9 +378,10 @@ final readonly class HostFrontDoorCommand
     private function finish(array $args, bool $showDecisionPresentation): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning no_durable_learning --by ACTOR] [--learning-reason TEXT] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT]\n";
+            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning no_durable_learning --by ACTOR] [--learning-reason TEXT] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT] [--revalidate]\n";
             echo "Reconcile deterministic validation/review evidence, bind explicit judgments, create Learning Findings through their owner, and close when canonical policy permits.\n";
             echo "Finding input or --finding implies findings_recorded and --follow-up-ref implies follow_up_required; --learning-reason is optional context.\n";
+            echo "--revalidate re-runs the Contract's declared validation for the current implementation after a failure whose cause was not the code (environment, missing tool); without it a failed result is not re-run.\n";
 
             return 0;
         }
@@ -397,7 +398,12 @@ final readonly class HostFrontDoorCommand
 
         if ($policy->state !== 'complete') {
             try {
-                if (($policy->mutationAllowed || $this->needsValidationReconciliation($manifest)) && !$this->hasCurrentFailedValidation($manifest)) {
+                // A failed result for the current snapshot is not re-run on every finish, so
+                // finish stays idempotent. --revalidate is the explicit re-run after a failure
+                // whose cause was outside the code (environment, missing tool, flaky service):
+                // the declared command runs again and its real result is recorded.
+                $revalidate = OptionTokens::hasFlag($tokens, 'revalidate');
+                if (($policy->mutationAllowed || $this->needsValidationReconciliation($manifest)) && ($revalidate || !$this->hasCurrentFailedValidation($manifest))) {
                     [$contract, $run, $session] = $this->currentRunContext($taskId->value);
                     (new WorkflowValidationRunner($this->rootPath))->run($contract, $run, $session);
                     $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
@@ -1223,7 +1229,7 @@ final readonly class HostFrontDoorCommand
             'follow-up-ref',
             'recall-outcome-draft',
             'commit',
-        ], ['json']);
+        ], ['json', 'revalidate']);
     }
 
     /**

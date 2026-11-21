@@ -194,7 +194,8 @@ final readonly class RunPolicyEvaluator
 
             return [
                 'action' => 'change the implementation so the declared validation passes'
-                    . (is_string($reason) && $reason !== '' ? ': ' . $reason : ''),
+                    . (is_string($reason) && $reason !== '' ? ': ' . $reason : '')
+                    . '; if the cause was the environment rather than the code (for example a missing tool or a refused root run), fix it and run `agent-loop finish ' . $taskId . ' --revalidate`',
                 'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
                 'invocation' => null,
             ];
