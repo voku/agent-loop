@@ -2,7 +2,7 @@
 
 ### Added
 
-- `pipeline submit --observation "<text>"` (repeatable) records a passing review stage's non-blocking findings as typed StageResult data instead of PASS-summary prose. The option is accepted only on review stages with `--outcome pass`, and review prompts ask for it. `finish --learning no_durable_learning` now fails closed while the Run's latest passing review results carry observations, and lists them. Record them as Findings, or pass `--follow-up-ref` to the issue that tracks them. In real use the reviews had seen the defects but filed them as a "known limit" or nit, so nothing reached Learning (voku/php-runtime-audit#46, #1119).
+- `pipeline submit --observation "<text>"` (repeatable) records a passing review stage's non-blocking findings as typed StageResult data instead of PASS-summary prose. The option is accepted only on review stages with `--outcome pass`, and review prompts ask for it. `finish --learning no_durable_learning` and `workflow learn --status no_durable_learning` now fail closed while any accepted passing review of the Run carries observations, and list them. A rework loop does not clear them, because fresh-context re-reviews never see earlier observations. The execution owner rejects observations on non-review stages or non-pass outcomes. Record them as Findings, or pass `--follow-up-ref` to the issue that tracks them. In real use the reviews had seen the defects but filed them as a "known limit" or nit, so nothing reached Learning (voku/php-runtime-audit#46, voku/agent-loop#1119).
 
 ### Fixed
 

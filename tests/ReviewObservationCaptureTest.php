@@ -34,6 +34,10 @@ final class ReviewObservationCaptureTest extends TestCase
 {
     private string $root;
 
+    private string $baseCommit = '';
+
+    private ?string $workspace = null;
+
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-observations-' . bin2hex(random_bytes(5));
@@ -44,23 +48,29 @@ final class ReviewObservationCaptureTest extends TestCase
         $git = 'git -C ' . escapeshellarg($this->root);
         exec("$git init -q && $git config user.email tests@example.test && $git config user.name Tests && $git add src/Foo.php .gitignore && $git commit -qm base", $output, $exit);
         self::assertSame(0, $exit, implode("\n", $output));
-        $baseCommit = trim((string) shell_exec("$git rev-parse HEAD"));
+        $this->baseCommit = trim((string) shell_exec("$git rev-parse HEAD"));
+    }
 
+    private function start(string $profile = 'surgical'): void
+    {
         ob_start();
         self::assertSame(0, (new WorkflowPlanCommand($this->root))->run([
             'ABC-123', '--by', 'lars', '--file', 'src/Foo.php',
             '--goal', 'Prove review observations are captured.',
-            '--validation', 'php -l src/Foo.php', '--base-commit', $baseCommit,
+            '--validation', 'php -l src/Foo.php', '--base-commit', $this->baseCommit,
         ]));
         $revision = (new TaskContractStore($this->root))->load('ABC-123')->revision;
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', (string) $revision, '--by', 'lars']));
-        self::assertSame(0, (new WorkflowExecutionProfileCommand($this->root))->run(['ABC-123', '--profile', 'surgical', '--by', 'lars']));
+        self::assertSame(0, (new WorkflowExecutionProfileCommand($this->root))->run(['ABC-123', '--profile', $profile, '--by', 'lars']));
         self::assertSame(0, (new HostFrontDoorCommand($this->root))->run('enter', ['ABC-123', '--format=json']));
         ob_end_clean();
     }
 
     protected function tearDown(): void
     {
+        if ($this->workspace !== null) {
+            exec('git -C ' . escapeshellarg($this->root) . ' worktree remove --force ' . escapeshellarg($this->workspace) . ' 2>/dev/null');
+        }
         if (!is_dir($this->root)) {
             return;
         }
@@ -98,6 +108,7 @@ final class ReviewObservationCaptureTest extends TestCase
 
     public function testReviewPromptAsksForObservations(): void
     {
+        $this->start();
         $this->advanceToReview();
 
         $review = (new ExecutionGateway($this->root))->prepareStage('ABC-123', 'review');
@@ -106,6 +117,7 @@ final class ReviewObservationCaptureTest extends TestCase
 
     public function testObservationIsRefusedOutsideAPassingReviewStage(): void
     {
+        $this->start();
         ob_start();
         $exit = (new WorkflowPipelineCommand($this->root))->run([
             'submit', 'ABC-123', '--outcome', 'completed', '--observation', 'not a review',
@@ -118,6 +130,7 @@ final class ReviewObservationCaptureTest extends TestCase
 
     public function testPassingReviewObservationsPersistAndBlockNoDurableLearning(): void
     {
+        $this->start();
         $candidate = $this->advanceToReview();
 
         ob_start();
@@ -161,6 +174,101 @@ final class ReviewObservationCaptureTest extends TestCase
             self::assertStringContainsString('Guide names a bare sync-githooks command.', $exception->getMessage());
             self::assertStringContainsString('--follow-up-ref', $exception->getMessage());
         }
+    }
+
+    public function testOwnerRejectsObservationsOnNonReviewStagesAndBlockingOutcomes(): void
+    {
+        $this->start();
+        $gateway = new ExecutionGateway($this->root);
+        $investigate = $gateway->prepareStage('ABC-123', 'investigate');
+        try {
+            $gateway->submitStageResult(new StageResult(
+                'submission:investigate-observed',
+                $investigate->taskId,
+                $investigate->runId,
+                $investigate->contractRevision,
+                $investigate->executionPlanDigest,
+                $investigate->stageId,
+                $investigate->attempt,
+                StageOutcome::COMPLETED,
+                $investigate->candidateRevision,
+                [],
+                [],
+                'Investigation complete.',
+                observations: ['not a review'],
+            ));
+            self::fail('A non-review stage must not record observations through the typed API.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('only review stages may record observations', $exception->getMessage());
+        }
+
+        $candidate = $this->advanceToReview();
+        $review = $gateway->prepareStage('ABC-123', 'review');
+        try {
+            $gateway->submitStageResult(new StageResult(
+                'submission:review-blocking-observed',
+                $review->taskId,
+                $review->runId,
+                $review->contractRevision,
+                $review->executionPlanDigest,
+                $review->stageId,
+                $review->attempt,
+                StageOutcome::CHANGES_REQUIRED,
+                $candidate,
+                [],
+                [],
+                'Blocking finding.',
+                'ctx:review',
+                observations: ['a blocking finding is not an observation'],
+            ));
+            self::fail('A changes_required review must not record observations.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('a blocking finding is changes_required', $exception->getMessage());
+        }
+
+        // Results recorded without observations (older state) still decode with none.
+        $state = (new ExecutionStateStore($this->root))->find('ABC-123');
+        self::assertNotNull($state);
+        foreach ($state->history as $accepted) {
+            self::assertSame([], $accepted->result->observations);
+        }
+    }
+
+    public function testObservationsSurviveAReworkLoopWithFreshReReviews(): void
+    {
+        $this->start('standard');
+        $this->workspace = $this->root . '-ws';
+        exec('git -C ' . escapeshellarg($this->root) . ' worktree add -q --detach ' . escapeshellarg($this->workspace) . ' ' . $this->baseCommit, $output, $exit);
+        self::assertSame(0, $exit, implode("\n", $output));
+
+        $this->submit(['--outcome', 'completed']);
+        file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 1; }\n");
+        $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-1']);
+        $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:correctness-1', '--observation', 'Budget 0 still admits one target.']);
+        $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:blindspot-1']);
+        file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 2; }\n");
+        $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-2']);
+        $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:correctness-2']);
+        $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:blindspot-2']);
+        self::assertSame('verify', (new ExecutionGateway($this->root))->projection('ABC-123')->currentStageId);
+
+        $run = (new GovernedRunStore($this->root))->find('ABC-123');
+        self::assertNotNull($run);
+        self::assertSame(
+            ['Budget 0 still admits one target.'],
+            (new WorkflowLearningRecorder($this->root))->reviewObservations($run),
+            'A fresh re-review never saw the earlier observation, so its silence must not clear it.',
+        );
+    }
+
+    /** @param list<string> $arguments */
+    private function submit(array $arguments): void
+    {
+        self::assertNotNull($this->workspace);
+        ob_start();
+        $exit = (new WorkflowPipelineCommand($this->root))->run(['submit', 'ABC-123', ...$arguments, '--workspace', $this->workspace, '--format=json']);
+        $output = (string) ob_get_clean();
+        self::assertSame(0, $exit, $output);
     }
 
     private function advanceToReview(): string

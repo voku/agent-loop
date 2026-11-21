@@ -21,6 +21,7 @@ final readonly class ExecutionStageResultAuthority
     ): void {
         $this->assertCandidate($plan, $state, $stage, $result->candidateRevision, $result->outcome);
         $this->assertExecutionContext($plan, $state, $stage, $result);
+        $this->assertObservations($plan, $stage, $result);
 
         $evidence = new ExecutionEvidenceStore($this->rootPath);
         $artifactClaims = [];
@@ -114,6 +115,25 @@ final readonly class ExecutionStageResultAuthority
         $this->assertCandidate($plan, $state, $stage, $claim->candidateRevision);
         if ($claim->kind === ExecutionEvidenceKind::ARTIFACT) {
             $this->assertArtifactClaim($plan, $claim);
+        }
+    }
+
+    /**
+     * Observations are a passing review's non-blocking findings. The owner
+     * enforces that, not only the CLI, so a typed caller cannot store them on a
+     * stage or outcome where finish would silently ignore them.
+     */
+    private function assertObservations(ExecutionPlan $plan, ExecutionStage $stage, StageResult $result): void
+    {
+        if ($result->observations === []) {
+            return;
+        }
+        $capabilities = $stage->roleId === null ? [] : $plan->role($stage->roleId)->requiredCapabilities;
+        if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: only review stages may record observations.');
+        }
+        if ($result->outcome !== StageOutcome::PASS) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: observations record non-blocking findings of a passing review; a blocking finding is changes_required.');
         }
     }
 

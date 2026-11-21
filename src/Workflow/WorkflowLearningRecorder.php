@@ -173,7 +173,7 @@ final readonly class WorkflowLearningRecorder
     }
 
     /**
-     * Observations of the current Run's latest accepted passing review results. The
+     * Observations of every accepted passing review result of the current Run. The
      * execution state belongs to one Run; a stale state from an earlier Run
      * contributes nothing.
      *
@@ -186,16 +186,13 @@ final readonly class WorkflowLearningRecorder
             return [];
         }
 
-        // Only the latest accepted result of each stage counts: a later attempt
-        // reviewed a newer candidate, so its observations supersede earlier ones.
-        $latest = [];
-        foreach ($state->history as $accepted) {
-            $latest[$accepted->result->stageId] = $accepted->result;
-        }
+        // Every accepted passing review of the Run counts. Review stages run in
+        // fresh contexts that never see earlier observations, so a later pass
+        // without observations is no evidence that earlier ones were resolved.
         $observations = [];
-        foreach ($latest as $result) {
-            if ($result->outcome === StageOutcome::PASS) {
-                foreach ($result->observations as $observation) {
+        foreach ($state->history as $accepted) {
+            if ($accepted->result->outcome === StageOutcome::PASS) {
+                foreach ($accepted->result->observations as $observation) {
                     $observations[] = $observation;
                 }
             }
