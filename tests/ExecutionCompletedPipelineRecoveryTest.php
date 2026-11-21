@@ -265,6 +265,41 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
         $this->assertCloseReadinessWaitsForRecoveredPipeline();
     }
 
+    public function testRecoveryIsRefusedOnceTheRunRecordedItsLearningDecision(): void
+    {
+        // Reproduced end to end: no_durable_learning closed the Run, a mode-only change
+        // kept the snapshot, recovery reopened the pipeline, a re-review recorded an
+        // observation, and finish still reported the Run complete under the old decision.
+        $this->completeRun();
+        $this->copyCandidateAIntoProjectRoot();
+        $this->finish([]);
+        $review = (new \voku\AgentLoop\Workflow\WorkflowReviewReportReader($this->run->root))->read('VER-1');
+        self::assertIsString($review['sha256']);
+        $this->finish(['--reviewed-report-sha256', $review['sha256'], '--by', 'fixture-reviewer']);
+        self::assertSame(0, $this->finish(['--learning', 'no_durable_learning', '--by', 'fixture-reviewer']));
+        $historyBefore = count($this->state()->history);
+
+        self::assertTrue(chmod($this->run->root . '/src/Foo.php', 0o755));
+        [$exit, $payload] = $this->recover($this->currentCandidateRevision());
+
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('RECOVERY_BLOCKED: the governed Run already recorded its Learning decision', (string) ($payload['message'] ?? ''));
+        self::assertStringContainsString('--supersede', (string) ($payload['message'] ?? ''));
+        self::assertNull($this->state()->currentStageId, 'the completed pipeline must not be reopened');
+        self::assertCount($historyBefore, $this->state()->history);
+    }
+
+    /** @param list<string> $options */
+    private function finish(array $options): int
+    {
+        ob_start();
+        try {
+            return (new \voku\AgentLoop\Workflow\HostFrontDoorApplication($this->run->root))->run('finish', ['VER-1', '--format=json', ...$options]);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
     public function testUnchangedCandidateRemainsCompleteWithoutRecoveryEvent(): void
     {
         [$gateway, $before, $build] = $this->completeRun();
