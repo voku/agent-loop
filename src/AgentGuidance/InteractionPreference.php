@@ -14,6 +14,7 @@ final readonly class InteractionPreference
         public string $sessionId,
         public string $defaultMode,
         public array $taskOverrides = [],
+        public ?string $language = null,
     ) {
         if (trim($sessionId) === '') {
             throw new InvalidArgumentException('A host session identity is required.');
@@ -24,6 +25,9 @@ final readonly class InteractionPreference
                 throw new InvalidArgumentException('A task override requires a task identity.');
             }
             self::validateMode($mode);
+        }
+        if ($language !== null && preg_match('/\A[a-z]{2,3}(?:-[a-z0-9]{2,8})*\z/', $language) !== 1) {
+            throw new InvalidArgumentException('A session language must be a normalized BCP 47 tag.');
         }
     }
 

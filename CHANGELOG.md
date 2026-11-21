@@ -2,6 +2,17 @@
 
 ### Added
 
+- Every `decision_required` gate now projects a typed decision card, `human_decision.card`, built only from owner state. It covers contract approval, review acknowledgement, Learning disposition, risk acceptance, Contract supersession and generic human authority. The card has these fields:
+  - `subject`;
+  - `why_now`: first revision, or which revision is replaced and its mechanical change;
+  - `may_change` and `out_of_scope`;
+  - `proof`: validation and review state as the RunManifest reports it, with the planned commands. A new Contract revision without a Run reads `not_run`, never `passed`;
+  - `choices`: the owner-supported actions with what each authorizes and its command;
+  - `unknown`: facts the owner does not hold.
+
+  Text-mode `enter` and `workflow plan` print the card before the Contract details. The managed router tells hosts to present the card verbatim before asking. Before this, the card existed only in a skill that a real host never loaded (#1114).
+- A host session can set its own presentation language: `workflow interaction <host-session-id> --language=de-DE`, cleared with `--language=inherit`, after a session mode is set. With `AGENT_LOOP_HOST_SESSION_ID` set, decision cards and the context's response-language line use it; the project's `prompting.language` stays unchanged. Invalid tags such as `DE_de` are refused.
+
 - `pipeline submit --observation "<text>"` (repeatable) records a passing review stage's non-blocking findings as typed StageResult data instead of PASS-summary prose. The option is accepted only on review stages with `--outcome pass`, and review prompts ask for it. `finish --learning no_durable_learning` and `workflow learn --status no_durable_learning` now fail closed while any accepted passing review of the Run carries observations, and list them. A rework loop does not clear them, because fresh-context re-reviews never see earlier observations. The execution owner rejects observations on non-review stages or non-pass outcomes. Record them as Findings, or link the issue that tracks them (`--follow-up-ref` on `finish`, `--follow-up` on `workflow learn`); each refusal names its own command's flags. In real use the reviews had seen the defects but filed them as a "known limit" or nit, so nothing reached Learning (voku/php-runtime-audit#46, voku/agent-loop#1119).
 - Observations are visible before the Learning decision: `pipeline status` lists `review_observations` (JSON and text), the `finish` JSON projects them under `learning_disposition`, and the `finish` template stops offering `no_durable_learning` while any exist. `pipeline submit` refuses an empty `--observation`, a value that starts with `--` in the space-separated form (use `--observation=...`), and unknown options such as `--observations`, so a finding is never dropped silently. The `agent-loop-learning-boundary`, `agent-loop-review-close` and `agent-loop-code-review` skills and both reviewer subagents now carry an `OBSERVATION:` slot instead of steering hosts into the refused `no_durable_learning` (#1120). The human-decision projection drops `no_durable_learning` from `allowed_dispositions` and lists the observations. On the fast path, `finish` no longer auto-records `no_durable_learning` when the host passed its own Learning option or a review recorded observations; before, the auto-close ran first and the host could not get past the refusal through `finish`.
 

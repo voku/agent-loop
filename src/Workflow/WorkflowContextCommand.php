@@ -203,7 +203,10 @@ final readonly class WorkflowContextCommand
             . '). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
         );
         $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
-        $budget->add('policy', 'Response language: ' . $prompting['language'] . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
+        $presentationLanguage = WorkflowPresentationLanguage::resolve($this->rootPath);
+        $budget->add('policy', 'Response language: ' . $presentationLanguage->language
+            . ($presentationLanguage->source === WorkflowPresentationLanguage::SOURCE_HOST_SESSION ? ' (host session; project: ' . $prompting['language'] . ')' : '')
+            . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
         $budget->add('policy', 'Blind-spot presentation: ' . $prompting['blindspots']['tone'] . ' tone. Focus on the task or concern supplied by the user; do not invent personal motives or evidence.');
 
         $interactionDirectory = getenv('AGENT_LOOP_INTERACTION_DIR');

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use voku\AgentLoop\Init\InitConfigLoader;
-use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\PathResolver;
 use Throwable;
 use voku\AgentLoop\Run\RunManifestProjector;
@@ -26,15 +24,15 @@ final readonly class WorkflowHumanDecisionTextRenderer
 
     public function renderContractApproval(WorkflowContractApprovalPresentation $decision): string
     {
-        $config = (new InitConfigLoader($this->rootPath))->load((new ProjectLayout($this->rootPath))->configPath());
-        $german = $this->isGerman($config['prompting']['language']);
+        $language = WorkflowPresentationLanguage::resolve($this->rootPath);
+        $german = $language->isGerman();
         $contract = $decision->contract;
-        $lines = [
-            $german ? 'Entscheidung erforderlich: Contract-Freigabe' : 'Decision required: Contract approval',
-            ($german ? 'Aufgabe: ' : 'Task: ') . $contract->taskId,
-            sprintf('Revision: %d', $contract->revision),
-        ];
-        $this->appendText($lines, $german ? 'Ziel' : 'Goal', $contract->goal);
+        $card = (new WorkflowDecisionCardFactory($this->rootPath, $language))->contractApproval($decision);
+
+        // The card comes first so a host that shows only the top of the output still shows it.
+        $lines = explode("\n", rtrim($this->renderCard($card, $german), "\n"));
+        $lines[] = '';
+        $lines[] = $german ? 'Contract-Details:' : 'Contract details:';
         $this->appendList($lines, 'Scope', $contract->scope, $german);
         $this->appendList($lines, $german ? 'Ausgeschlossen' : 'Non-goals', $contract->nonGoals, $german);
         $this->appendList($lines, $german ? 'Abnahmekriterien' : 'Acceptance criteria', $contract->acceptanceCriteria, $german);
@@ -53,24 +51,6 @@ final readonly class WorkflowHumanDecisionTextRenderer
             $german,
         );
         $this->appendRevisionDelta($lines, $decision, $german);
-        $lines[] = '';
-        $lines[] = $german
-            ? 'Was die Freigabe erlaubt: Arbeit ausschließlich innerhalb des im Contract festgelegten Scope. Sie genehmigt weder die Implementierung noch Validierungsergebnisse oder Learning.'
-            : 'What approval authorizes: work only within the Contract scope. It does not approve the implementation, validation results, or Learning.';
-        $lines[] = $german ? 'Mögliche Entscheidungen:' : 'Available choices:';
-        $lines[] = $german
-            ? '  Freigeben: Die Arbeit darf innerhalb des beschriebenen Scope beginnen.'
-            : '  Approve: Work may begin within the described scope.';
-        if ($decision->action !== '') {
-            $lines[] = '    ' . ($german ? 'Freigabeaktion: ' : 'Approval action: ') . $decision->action;
-        }
-        $lines[] = $german
-            ? '  Änderungen anfordern: Beschreibe die nötigen Änderungen. Der Contract bleibt nicht freigegeben, bis eine neue Revision vorgelegt und ausdrücklich freigegeben wird.'
-            : '  Request changes: Describe what must change. The Contract remains unapproved until a revised version is presented and explicitly approved.';
-        $lines[] = $german
-            ? '  Ablehnen: Die Ablehnung mit Begründung festhalten. Vor weiterer Arbeit ist eine neue Contract-Revision erforderlich.'
-            : '  Reject: Record a rejection and reason. A new Contract revision is required before work can proceed.';
-        $lines[] = '    agent-loop workflow reject ' . $contract->taskId . ' --revision ' . $contract->revision . ' --by <actor> --reason <reason>';
 
         $subject = $decision->subject(PathResolver::relativeTo($this->rootPath, $decision->contract->path));
         $advice = (new WorkflowDecisionAdvisor($this->rootPath))->advise('contract_approval', $subject);
@@ -82,6 +62,64 @@ final readonly class WorkflowHumanDecisionTextRenderer
         $lines[] = $german
             ? '  Die Entscheidung und Freigabe verbleiben ausschließlich beim Menschen.'
             : '  The human retains sole decision and approval authority.';
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Text form of a decision card. Every line comes from the typed card, so the
+     * text and JSON projections cannot drift apart.
+     */
+    public function renderCard(WorkflowDecisionCard $card, ?bool $german = null): string
+    {
+        $german ??= WorkflowPresentationLanguage::resolve($this->rootPath)->isGerman();
+        $lines = [$card->title];
+        $taskId = $card->subject['task_id'] ?? null;
+        if (is_string($taskId)) {
+            $lines[] = ($german ? 'Aufgabe: ' : 'Task: ') . $taskId;
+        }
+        $revision = $card->subject['contract_revision'] ?? null;
+        if (is_int($revision)) {
+            $lines[] = sprintf('Revision: %d', $revision);
+        }
+        $goal = $card->subject['goal'] ?? null;
+        if (is_string($goal)) {
+            $this->appendText($lines, $german ? 'Ziel' : 'Goal', $goal);
+        }
+        $lines[] = ($german ? 'Warum jetzt: ' : 'Why now: ') . $card->whyNow['summary'];
+        foreach ($card->whyNow['changes'] as $change) {
+            $lines[] = '  - ' . $change;
+        }
+        if ($card->mayChange !== [] || $card->type === 'contract_approval') {
+            $this->appendList($lines, $german ? 'Darf ändern' : 'May change', $card->mayChange, $german);
+        }
+        if ($card->outOfScope !== [] || $card->type === 'contract_approval') {
+            $this->appendList($lines, $german ? 'Nicht enthalten' : 'Out of scope', $card->outOfScope, $german);
+        }
+        $lines[] = $german ? 'Nachweis:' : 'Proof:';
+        $validation = $card->proof['validation'];
+        $lines[] = '  ' . ($german ? 'Validierung: ' : 'Validation: ') . $validation['state']
+            . ($validation['detail'] === null ? '' : ' (' . $validation['detail'] . ')');
+        foreach ($validation['planned'] as $command) {
+            $lines[] = '    ' . ($german ? 'geplant: ' : 'planned: ') . $command;
+        }
+        $review = $card->proof['review'];
+        $lines[] = '  Review: ' . $review['state'] . ($review['detail'] === null ? '' : ' (' . $review['detail'] . ')');
+        if ($card->unknown !== []) {
+            $lines[] = $german ? 'Unbekannt:' : 'Unknown:';
+            foreach ($card->unknown as $item) {
+                $lines[] = '  - ' . $item;
+            }
+        }
+        $lines[] = '';
+        $lines[] = $card->authorizes;
+        $lines[] = $german ? 'Mögliche Entscheidungen:' : 'Available choices:';
+        foreach ($card->choices as $choice) {
+            $lines[] = '  ' . $choice['label'] . ': ' . $choice['effect'];
+            if ($choice['command'] !== null) {
+                $lines[] = '    ' . ($choice['id'] === 'approve' ? ($german ? 'Freigabeaktion: ' : 'Approval action: ') : '') . $choice['command'];
+            }
+        }
 
         return implode("\n", $lines) . "\n";
     }
@@ -121,13 +159,6 @@ final readonly class WorkflowHumanDecisionTextRenderer
             // This optional presentation cannot hide or grant a human gate.
             return "\n[WARN] Decision advice unavailable; inspect the exact human gate in agent-ui.\n";
         }
-    }
-
-    private function isGerman(string $language): bool
-    {
-        $normalized = strtolower($language);
-
-        return $normalized === 'de' || str_starts_with($normalized, 'de-');
     }
 
     /** @param list<string> $lines */

@@ -358,11 +358,17 @@ final readonly class HostFrontDoorCommand
                 $policy->blockers,
             );
             if ($projection !== null) {
+                $card = WorkflowDecisionCardFactory::forRoot($this->rootPath)->forDecision(
+                    (string) $projection['type'],
+                    $taskId,
+                    $policy->nextAction,
+                    is_array($projection['subject'] ?? null) ? $projection['subject'] : [],
+                );
+                echo "\n" . (new WorkflowHumanDecisionTextRenderer($this->rootPath))->renderCard($card);
                 $recommendation = $projection['recommendation'] ?? null;
                 if (is_array($recommendation)) {
                     $choice = $recommendation['suggested_choice'] ?? null;
-                    echo "\nDecision required: " . $projection['type'] . "\n";
-                    echo "Advisory recommendation: " . (is_string($choice) ? $choice : 'abstain') . "\n";
+                    echo "\nAdvisory recommendation: " . (is_string($choice) ? $choice : 'abstain') . "\n";
                     echo "Reason: " . (string) ($recommendation['reason'] ?? 'Human judgment required.') . "\n";
                     echo "Only the human can authorize this decision.\n";
                 }

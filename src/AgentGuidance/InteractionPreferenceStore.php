@@ -25,7 +25,11 @@ final readonly class InteractionPreferenceStore
             throw new RuntimeException('Cannot create interaction preference file.');
         }
         try {
-            $data = json_encode(['session_id' => $preference->sessionId, 'default' => $preference->defaultMode, 'tasks' => $preference->taskOverrides], JSON_THROW_ON_ERROR);
+            $payload = ['session_id' => $preference->sessionId, 'default' => $preference->defaultMode, 'tasks' => $preference->taskOverrides];
+            if ($preference->language !== null) {
+                $payload['language'] = $preference->language;
+            }
+            $data = json_encode($payload, JSON_THROW_ON_ERROR);
             if (file_put_contents($temporary, $data, LOCK_EX) === false || !rename($temporary, $path)) {
                 throw new RuntimeException('Cannot save interaction preference.');
             }
@@ -63,11 +67,39 @@ final readonly class InteractionPreferenceStore
                 } else {
                     $overrides[$taskId] = $mode;
                 }
-                $preference = new InteractionPreference($sessionId, $existing->defaultMode, $overrides);
+                $preference = new InteractionPreference($sessionId, $existing->defaultMode, $overrides, $existing->language);
             } else {
-                $preference = new InteractionPreference($sessionId, $mode, $existing !== null ? $existing->taskOverrides : []);
+                $preference = new InteractionPreference($sessionId, $mode, $existing !== null ? $existing->taskOverrides : [], $existing?->language);
             }
             $this->save($preference);
+        } finally {
+            fclose($lock);
+        }
+    }
+
+    /**
+     * Set or clear (null) the presentation language of an existing session
+     * preference. A language is not a mode, so it never creates a preference.
+     */
+    public function setLanguage(string $sessionId, ?string $language): void
+    {
+        if (trim($sessionId) === '') {
+            throw new RuntimeException('A host session identity is required.');
+        }
+        if (!is_dir($this->directory)) {
+            throw new RuntimeException('Set a session default before setting a session language.');
+        }
+        $lock = fopen($this->path($sessionId) . '.lock', 'c');
+        if ($lock === false) {
+            throw new RuntimeException('Cannot open interaction preference lock.');
+        }
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                throw new RuntimeException('Cannot lock interaction preference.');
+            }
+            $existing = $this->find($sessionId)
+                ?? throw new RuntimeException('Set a session default before setting a session language.');
+            $this->save(new InteractionPreference($sessionId, $existing->defaultMode, $existing->taskOverrides, $language));
         } finally {
             fclose($lock);
         }
@@ -160,7 +192,12 @@ final readonly class InteractionPreferenceStore
                 throw new RuntimeException('Invalid interaction preference override.');
             }
         }
-        return new InteractionPreference($sessionId, $data['default'], $data['tasks']);
+        $language = $data['language'] ?? null;
+        if ($language !== null && !is_string($language)) {
+            throw new RuntimeException('Invalid interaction preference language.');
+        }
+
+        return new InteractionPreference($sessionId, $data['default'], $data['tasks'], $language);
     }
 
     private function path(string $sessionId): string
