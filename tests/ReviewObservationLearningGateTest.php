@@ -125,6 +125,7 @@ final class ReviewObservationLearningGateTest extends TestCase
         self::assertSame(['Budget 0 still admits one target.'], $manifest->references['learning']['review_observations'] ?? null);
 
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+        self::assertStringContainsString('--learning <findings_recorded|follow_up_required>', $policy->nextAction);
         self::assertStringNotContainsString('<no_durable_learning|', $policy->nextAction);
     }
 
