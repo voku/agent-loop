@@ -57,13 +57,9 @@ COMMAND_RES = {
 # the rest of the opening line (e.g. "&& bin/agent-loop finish X") stays. <<- allows tab-indented
 # terminators.
 HEREDOC_RE = re.compile(r"(<<-?\s*(['\"]?)(\w+)\2[^\n]*\n).*?\n\t*\3\b", re.S)
-# Command calls only: quoted text (commit messages, --goal/--summary prose, echo arguments) is not
-# a command, except $(...) inside double quotes, which the shell runs. A backslash escape outside
-# quotes and a # comment are consumed first so an apostrophe in them cannot pair across lines.
-SHELL_TOKEN_RE = re.compile(r"""\\.|(?:^|(?<=\s))#[^\n]*|"(?:\\.|[^"\\])*"|'[^']*'""")
-SUBSHELL_RE = re.compile(r'\$\(((?:[^()]|\([^()]*\))*)\)')
-
-
+# Command calls only. Quoted text (commit messages, --goal/--summary prose, echo arguments) is not
+# a command; $(...) and `...` are, even inside double quotes, and open a new quoting context there,
+# as in bash. A small scanner tracks that, since a regex cannot follow nested quotes.
 def without_heredoc_bodies(command):
     """Drop heredoc bodies (code or text the agent writes); keep the rest of the opening line."""
     return HEREDOC_RE.sub(lambda m: m.group(1), command)
@@ -71,14 +67,68 @@ def without_heredoc_bodies(command):
 
 def executable_text(command):
     """The parts of a Bash command that can run as a command, for COMMAND_RES matching only."""
-    def token(m):
-        text = m.group(0)
-        if text.startswith('"'):
-            return ' ' + ' ; '.join('$(' + inner + ')' for inner in SUBSHELL_RE.findall(text)) + ' '
-        if text.startswith('\\'):
-            return text
-        return ' '
-    return SHELL_TOKEN_RE.sub(token, without_heredoc_bodies(command))
+    text = without_heredoc_bodies(command)
+    out, stack, i, n = [], ["code"], 0, len(text)
+    while i < n:
+        c, ctx = text[i], stack[-1]
+        if ctx == "single":
+            if c == "'":
+                stack.pop()
+                out.append(" ")
+            i += 1
+            continue
+        if c == "\\":
+            if ctx != "double":
+                out.append(text[i:i + 2])
+            i += 2
+            continue
+        if ctx == "double":
+            if c == '"':
+                stack.pop()
+                out.append(" ")
+                i += 1
+            elif text.startswith("$(", i):
+                stack.append("subst")
+                out.append(" $(")
+                i += 2
+            elif c == "`":
+                stack.append("tick")
+                out.append(" $(")
+                i += 1
+            else:
+                i += 1  # quoted literal text is not a command
+            continue
+        # code-like contexts: code, ( group, $( substitution, backtick substitution
+        if c == "'":
+            stack.append("single")
+        elif c == '"':
+            stack.append("double")
+        elif c == "#" and (i == 0 or text[i - 1] in " \t\n;&|("):
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        elif text.startswith("$(", i):
+            stack.append("subst")
+            out.append("$(")
+            i += 2
+            continue
+        elif c == "`":
+            if ctx == "tick":
+                stack.pop()
+                out.append(")")
+            else:
+                stack.append("tick")
+                out.append("$(")
+        elif c == "(":
+            stack.append("group")
+            out.append(c)
+        elif c == ")" and ctx in ("subst", "group"):
+            stack.pop()
+            out.append(c)
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
 
 
 SEARCH_RE = re.compile(r'(?:^|[\s;&|("])(?:rg|grep|find|git\s+grep)\s', re.M)
