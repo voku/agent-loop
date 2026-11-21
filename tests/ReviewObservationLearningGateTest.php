@@ -140,6 +140,9 @@ final class ReviewObservationLearningGateTest extends TestCase
         // The auto-close must not record no_durable_learning over a recorded observation.
         $plain = $this->runCli(['finish', 'Q-1', '--format=json']);
         self::assertStringContainsString('Known limit X.', $plain['stdout']);
+        // A pending Learning decision, not the gate's refusal of an auto-close.
+        self::assertStringNotContainsString('cannot record no_durable_learning', $plain['stdout']);
+        self::assertStringContainsString('<findings_recorded|follow_up_required>', $plain['stdout']);
         self::assertNull($this->decisionStore()->find($run->runId));
 
         // The remedy the refusal names works on the fast path too.

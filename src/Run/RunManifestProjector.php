@@ -1116,7 +1116,15 @@ final class RunManifestProjector
             return ['owner' => 'agent-learning', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
         if ($decision === null) {
-            return ['owner' => 'agent-learning', 'state' => 'missing', 'observation_mode' => 'checked', 'run_id' => $run->runId];
+            // The pending decision carries the observations whatever gate blocks first,
+            // so no template offers the refused no_durable_learning.
+            return [
+                'owner' => 'agent-learning',
+                'state' => 'missing',
+                'observation_mode' => 'checked',
+                'run_id' => $run->runId,
+                'review_observations' => $this->reviewObservations($run->taskId, $run),
+            ];
         }
         if (str_starts_with($decision->decidedBy, 'standing:')) {
             return [

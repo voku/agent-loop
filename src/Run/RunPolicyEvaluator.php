@@ -195,7 +195,7 @@ final readonly class RunPolicyEvaluator
             return [
                 'action' => 'change the implementation so the declared validation passes'
                     . (is_string($reason) && $reason !== '' ? ': ' . $reason : '')
-                    . '; if the cause was the environment rather than the code (for example a missing tool or a refused root run), fix it and run `agent-loop finish ' . $taskId . ' --revalidate`',
+                    . '; if the cause was the environment rather than the code (for example a missing tool or a refused root run), fix the environment and repeat finish with --revalidate',
                 'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
                 'invocation' => null,
             ];
@@ -476,7 +476,7 @@ final readonly class RunPolicyEvaluator
         if ($this->referenceState($references, 'learning') !== 'decided') {
             // Recorded review observations make no_durable_learning a refused
             // choice, so the template does not offer it.
-            $observed = ($references['verification']['learning_disposition']['review_observations'] ?? []) !== [];
+            $observed = ($references['learning']['review_observations'] ?? $references['verification']['learning_disposition']['review_observations'] ?? []) !== [];
 
             return $this->command(
                 'agent-loop',

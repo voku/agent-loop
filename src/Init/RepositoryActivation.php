@@ -154,12 +154,16 @@ final readonly class RepositoryActivation
             return false;
         }
         $directory = $this->liveHooksDirectory();
-        if ($directory === null || !is_dir($directory) || is_file($directory . '/' . self::HOOK_MARKER_ENTRY)) {
+        if ($directory === null || !is_dir($directory)) {
             return false;
         }
+        // An older agent-loop hook directory migrates automatically, but only the
+        // entries its own manifest records; any other executable hook there is
+        // still someone else's.
+        $packageOwned = is_file($directory . '/' . self::HOOK_MARKER_ENTRY) ? $this->manifestEntries($directory) : [];
         foreach (scandir($directory) ?: [] as $entry) {
             $path = $directory . '/' . $entry;
-            if ($entry[0] === '.' || str_ends_with($entry, '.sample') || !is_file($path)) {
+            if ($entry[0] === '.' || str_ends_with($entry, '.sample') || !is_file($path) || in_array($entry, $packageOwned, true)) {
                 continue;
             }
             // Windows has no execute bit for extensionless hook scripts.
@@ -177,9 +181,9 @@ final readonly class RepositoryActivation
      *
      * @return non-empty-string
      */
-    public function otherHooksDecision(): string
+    public function otherHooksDecision(?string $hooksDir = null): string
     {
-        $hooksDir = $this->gitHooksDirectory();
+        $hooksDir ??= $this->gitHooksDirectory();
         $configured = $this->configuredHooksPath();
         $where = $configured === null
             ? 'core.hooksPath is unset, so Git runs the executable hooks in ' . (GitWorkTree::gitPath($this->absolute(''), 'hooks') ?? '.git/hooks')
@@ -187,8 +191,26 @@ final readonly class RepositoryActivation
 
         return $where . '; pointing core.hooksPath at ' . $hooksDir . ' would disable them. '
             . 'Whose hooks run is the repository owner\'s decision: either review them, then run git config core.hooksPath ' . $hooksDir
-            . ' and ' . $this->syncGitHooksCommand()
+            . ' and ' . ($hooksDir === $this->gitHooksDirectory() ? $this->syncGitHooksCommand() : $this->cliPath() . ' init sync-githooks --hooks-dir=' . $hooksDir)
             . '; or keep them and remove ' . self::HOOK_POLICY_FILE . ' so this repository stops declaring agent-loop Git hooks';
+    }
+
+    /** @return list<string> entry names an agent-loop hook manifest in $directory records */
+    private function manifestEntries(string $directory): array
+    {
+        $manifest = $directory . '/.agent-loop-manifest.json';
+        $decoded = is_file($manifest) ? json_decode((string) file_get_contents($manifest), true) : null;
+        $entries = is_array($decoded) && is_array($decoded['entries'] ?? null) ? $decoded['entries'] : [];
+
+        $names = [];
+        foreach ($entries as $entry) {
+            $name = is_array($entry) ? ($entry['path'] ?? $entry['name'] ?? null) : $entry;
+            if (is_string($name)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /** Absolute directory Git takes hooks from now. */

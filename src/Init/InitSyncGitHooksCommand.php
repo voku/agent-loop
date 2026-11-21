@@ -87,7 +87,7 @@ final readonly class InitSyncGitHooksCommand
         if (!OptionTokens::hasFlag($tokens, 'skip-git-config') && $activation->hooksPathRunsOtherHooks($hooksDir)) {
             // Re-pointing core.hooksPath silently disables the hooks Git runs now.
             // Whose hooks run is the repository owner's decision, not a sync side effect.
-            echo '[FAIL] sync githooks: refusing to change core.hooksPath: ' . $activation->otherHooksDecision() . '.' . "\n";
+            echo '[FAIL] sync githooks: refusing to change core.hooksPath: ' . $activation->otherHooksDecision($hooksDir) . '.' . "\n";
 
             return 1;
         }

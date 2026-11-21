@@ -326,6 +326,8 @@ final readonly class WorkflowPipelineCommand
      */
     private function submit(string $taskIdString, array $tokens, string $format): int
     {
+        // Malformed observations first: their message names the actual mistake.
+        $observations = $this->observations($tokens);
         $this->assertKnownSubmitOptions($tokens);
         $taskId = (new WorkflowTaskId($taskIdString))->value;
         $outcomeRaw = OptionTokens::value($tokens, "outcome");
@@ -370,7 +372,6 @@ final readonly class WorkflowPipelineCommand
             }
         }
         $excludedArtifacts = OptionTokens::values($tokens, "exclude-artifact");
-        $observations = $this->observations($tokens);
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
         $candidateWorkspace = OptionTokens::value($tokens, "workspace");
 
@@ -498,9 +499,10 @@ final readonly class WorkflowPipelineCommand
             if (!in_array($name, self::SUBMIT_OPTIONS, true)) {
                 throw new InvalidArgumentException('Unknown option for pipeline submit: --' . $name);
             }
-            // The token after a space-form value option is its value, even when it
-            // starts with --; the option's own reader decides whether it is valid.
-            if (!str_contains($token, '=') && $name !== 'auto-verify') {
+            // The token after a space-form value option is its value, unless it is
+            // itself an option, which is then checked like any other.
+            $next = $tokens[$i + 1] ?? null;
+            if (!str_contains($token, '=') && $name !== 'auto-verify' && is_string($next) && !str_starts_with($next, '--')) {
                 ++$i;
             }
         }

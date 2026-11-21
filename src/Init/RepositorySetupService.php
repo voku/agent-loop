@@ -795,7 +795,7 @@ final readonly class RepositorySetupService
 
         if ($integration->gitIntegration === RepositorySetupIntegrationState::MISSING && $gitIntegrationAction !== null) {
             $activation = new RepositoryActivation($this->rootPath);
-            if ($activation->hooksPathRunsOtherHooks($activation->gitHooksDirectory())) {
+            if ($activation->declaresGitHookPolicy() && $activation->hooksPathRunsOtherHooks($activation->gitHooksDirectory())) {
                 return ['kind' => RepositorySetupNextActionKind::DECISION_REQUIRED, 'action' => $activation->otherHooksDecision() . '.'];
             }
 

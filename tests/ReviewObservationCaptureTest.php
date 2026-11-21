@@ -141,6 +141,7 @@ final class ReviewObservationCaptureTest extends TestCase
             'empty value' => [['--observation='], '--observation requires a non-empty value'],
             'trailing flag without value' => [['--observation'], '--observation requires a non-empty value'],
             'misspelled option' => [['--observations', 'Budget 0 admits one target.'], 'Unknown option for pipeline submit: --observations'],
+            'misspelled option after a value option' => [['--summary', '--observations', 'Budget 0 admits one target.'], 'Unknown option for pipeline submit: --observations'],
         ] as $case => [$arguments, $message]) {
             ob_start();
             $exit = (new WorkflowPipelineCommand($this->root))->run([...$base, ...$arguments]);
