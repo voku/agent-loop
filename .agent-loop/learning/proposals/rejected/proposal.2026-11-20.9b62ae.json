@@ -8,12 +8,12 @@
         "finding.2026-09-13.2c3f55",
         "finding.2026-11-20.0a3b45"
     ],
-    "reason": "Replacement specification for proposal.2026-09-13.2acd04, whose boundary ('only direct RuleTestCase inheritance') has been narrower than the enforced rule since 0866edaf. Recall renders that stale boundary as active guidance for tasks touching the rule files. The detector, its five registered fixtures and its runner are unchanged; this proposal only corrects the specification. If approved, 2acd04 is retired with superseded_by this proposal and the active manifest is re-activated from it.",
+    "reason": "Owner decision 2026-11-21: the in-process PHPStan rule and its MEMORY row are removed instead of corrected; the experiments-vs-tests idea is pursued generally.",
     "remaining_uncertainty": [
         "No negative fixture proves that a class outside the PHPStanTestCase chain (for example a plain PHPUnit TestCase) stays unflagged; the exact-count fixture check would only catch an extra diagnostic on an analysed negative case.",
         "The owner has no constraint REPLACE action; replacement is ADD plus retire with superseded_by, and re-activating the manifest from this proposal is not yet exercised."
     ],
-    "status": "candidate",
+    "status": "rejected",
     "proposed_by": "consolidation",
     "approved_by": null,
     "approved_at": null,
@@ -66,5 +66,8 @@
         "example_rule_paths": [
             "phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php"
         ]
-    }
+    },
+    "proposal_reason": "Replacement specification for proposal.2026-09-13.2acd04, whose boundary ('only direct RuleTestCase inheritance') has been narrower than the enforced rule since 0866edaf. Recall renders that stale boundary as active guidance for tasks touching the rule files. The detector, its five registered fixtures and its runner are unchanged; this proposal only corrects the specification. If approved, 2acd04 is retired with superseded_by this proposal and the active manifest is re-activated from it.",
+    "rejected_by": "voku",
+    "rejected_at": "2026-11-21T00:02:03+00:00"
 }

@@ -5,11 +5,11 @@
     "source_findings": [
         "finding.2026-11-20.0a3b45"
     ],
-    "reason": "Since 0866edaf the rule rejects every PHPStanTestCase descendant, but the memory row still names only RuleTestCase, so an agent reading the guidance under-predicts what the rule refuses (e.g. a TypeInferenceTestCase or an intermediate base).",
+    "reason": "Owner decision 2026-11-21: the in-process PHPStan rule and its MEMORY row are removed instead of corrected; the experiments-vs-tests idea is pursued generally.",
     "remaining_uncertainty": [
         "Constraint proposal.2026-09-13.2acd04 still describes direct RuleTestCase inheritance only and contradicts the enforced rule until an owner decides on it."
     ],
-    "status": "candidate",
+    "status": "rejected",
     "proposed_by": "consolidation",
     "approved_by": null,
     "approved_at": null,
@@ -33,5 +33,8 @@
         "given": "agent-loop's PHPUnit suite, which also runs agent-map's Composer-based PHPStan discovery",
         "when": "a test class extends PHPStan\\Testing\\TypeInferenceTestCase or an intermediate base of PHPStanTestCase",
         "then": "project PHPStan analysis rejects the class, exactly as it does a direct RuleTestCase subclass"
-    }
+    },
+    "proposal_reason": "Since 0866edaf the rule rejects every PHPStanTestCase descendant, but the memory row still names only RuleTestCase, so an agent reading the guidance under-predicts what the rule refuses (e.g. a TypeInferenceTestCase or an intermediate base).",
+    "rejected_by": "voku",
+    "rejected_at": "2026-11-21T00:02:03+00:00"
 }

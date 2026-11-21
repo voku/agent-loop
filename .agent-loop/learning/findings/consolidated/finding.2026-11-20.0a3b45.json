@@ -23,6 +23,8 @@
     "validated_conclusion": "Durable guidance must name the PHPStanTestCase ancestor chain, not only RuleTestCase: the memory row needs a REPLACE, and the 2acd04 constraint specification needs a separate owner decision (REPLACE or retirement) because it now contradicts the enforced rule.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
-    "sensitivity": "public"
+    "status": "consolidated",
+    "sensitivity": "public",
+    "validated_by": "voku",
+    "validated_at": "2026-11-21T00:02:04+00:00"
 }
