@@ -73,7 +73,7 @@ Make the proposed per-file diff explicit, including managed assets, new `tools/`
 Use the supported owner commands, not hand-edited generated projections:
 
 ```bash
-vendor/bin/agent-loop init install-assets --agent=codex --dry-run
+vendor/bin/agent-loop init install-assets --agent=codex --dry-run --skip-git-config
 vendor/bin/agent-loop init sync-tools --dry-run
 ```
 
@@ -82,9 +82,11 @@ Replace `codex` with the **detected / explicitly selected** supported host, not 
 After the developer authorizes the proposed changes, use only the relevant commands:
 
 ```bash
-vendor/bin/agent-loop init install-assets --agent=codex
+vendor/bin/agent-loop init install-assets --agent=codex --skip-git-config
 vendor/bin/agent-loop init sync-tools
 ```
+
+`--skip-git-config` keeps `install-assets` from setting `core.hooksPath` and `commit.template`, which it otherwise does whenever `.agent-loop/githooks.json` exists. Register Git hooks only after the developer separately approves that step. Run the exact `init sync-githooks …` command that `vendor/bin/agent-loop init status` reports: it carries the detected `--hooks-dir`, `--commit-template=.gitmessage` and `--adopt-existing` arguments, which a bare `init sync-githooks` would drop.
 
 Run `map build` only with confirmed paths. Execute Composer installs, existing test/formatter scripts, executable host hooks (`--with-hooks`), Git hook registration and security-policy updates **only with their own justified approval and trust boundary**. A generic request to "set up Agent Loop" does not implicitly approve privilege escalation or execution of arbitrary repository scripts.
 

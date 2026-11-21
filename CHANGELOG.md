@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- The `agent-loop-php-setup` skill and the PHP onboarding guide now pass `--skip-git-config` to `init install-assets`, so following them no longer registers Git hooks (`core.hooksPath`, `commit.template`) whenever `.agent-loop/githooks.json` exists. Git hook registration is a separate `init sync-githooks` step that needs its own approval, as the skill already required. Reported on voku/php-runtime-audit#32.
+
 ### Documentation
 
 - AGENTS.md names the Evidence Lab probe folder (`build/evidence/<task-id>/probes/`, `docs/testing/evidence-lab.md`): exploratory code is a probe, not a test, even when PHPUnit runs it. Two learning-effect pilot agents had written such a probe into `tests/` because no repository instruction named the place.
