@@ -225,6 +225,31 @@ final class HostFinishFindingIdContractTest extends TestCase
     }
 
 
+    /**
+     * T10 run R7 (#1123): Loop accepted the task id OBS-5E1F07, but the Learning
+     * owner refused its Finding at the final decision ("missing task references").
+     */
+    public function testFindingCanBeRecordedForEveryGovernedTaskIdShape(): void
+    {
+        [$run, , $reviewSha256] = $this->prepareReview('OBS-5E1F07');
+
+        $result = $this->finishJson('OBS-5E1F07', [
+            '--reviewed-report-sha256', $reviewSha256,
+            '--by', 'fixture-reviewer',
+            '--finding-observation', 'Ephemeral Sessions counted as active for the one-Session invariant.',
+            '--finding-hypothesis', 'The invariant predates ephemeral Sessions.',
+            '--finding-conclusion', 'Verified by a regression test; the Session owner already excludes them.',
+            '--finding-confidence', 'high',
+            '--finding-sensitivity', 'public',
+        ]);
+
+        self::assertSame(0, $result['exit'], json_encode($result['payload'], JSON_THROW_ON_ERROR));
+        $decision = (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId);
+        self::assertNotNull($decision);
+        self::assertSame('findings_recorded', $decision->decision->value);
+        self::assertCount(1, $decision->findingIds);
+    }
+
     /** @return array{0: GovernedRun, 1: Session, 2: string} */
     private function prepareReview(string $taskId): array
     {
