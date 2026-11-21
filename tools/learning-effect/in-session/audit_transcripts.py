@@ -32,7 +32,12 @@ calls to inspect; they are not evidence that something was or was not used. What
       (agent-loop-investigate and other skills), so for any Map or Recall claim, classify the
       loop_cli calls by subcommand too. Loop also calls Map and Recall in-process, so map_cli 0
       does not mean Map was unused.
-  recall_artifact_read   Read tool: exact file_path under .agent-loop/recall/ (reliable).
+  recall_artifact_read   Read tool: a Read call whose file_path contains .agent-loop/recall/
+      followed by .md or .json (substring match, so .jsonl, .mdx and paths outside the run's
+      workspace also match). Counted per call from the tool_use alone, so failed, repeated
+      and partial Reads all count. It shows only that a Read was attempted in this transcript:
+      not that all Recall files were read, not that a Read succeeded, and not that the content
+      was understood or used.
       Bash: text-wide match of a reader word anywhere earlier on the line, NOT usable for
       claims. On a real transcript 5 of 6 Bash-based reads were accidental matches and about 14
       real reads counted 0 (python3 -c across a newline, path in a variable, grep/awk reads,
@@ -70,8 +75,11 @@ To use the command keys in a result:
      shape listed above, including variables, wrappers and PATH calls).
   2. Hand-check every counted call, since over-counts exist.
   3. If 1 or 2 cannot be done completely, mark the count incomplete.
-For "was Recall received", prefer Recall's own artifacts (selection-report.json) plus Read-tool
-reads, and hand-classify a sample of Bash calls; do not quote Bash-based recall_artifact_read.
+For "was Recall received", start from Recall's own artifacts (selection-report.json says what
+was provided). Loop's stage prompts carry the Recall briefing inline, so Recall can be received
+with no Read call at all: a Read count of 0 does not mean Recall was absent. Read-tool hits and
+a hand-classified sample of Bash calls are supporting evidence only. Sub-agent transcripts and
+other tools are separate evidence sources. Do not quote Bash-based recall_artifact_read.
 The robustness probes show bad input does not crash or hang the scanner; they do not make it
 a full shell parser.
 
