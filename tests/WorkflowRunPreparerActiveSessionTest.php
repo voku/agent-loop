@@ -80,15 +80,6 @@ final class WorkflowRunPreparerActiveSessionTest extends TestCase
         ));
     }
 
-    /** @return list<string> */
-    private function sessionIds(SessionStore $store, string $sessionsRoot): array
-    {
-        $ids = array_map(static fn (Session $session): string => $session->id, $store->all($sessionsRoot));
-        sort($ids);
-
-        return $ids;
-    }
-
     private function contract(): TaskContract
     {
         $contracts = new TaskContractStore($this->root);
