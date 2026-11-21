@@ -13,6 +13,7 @@ use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\Verify\MapRefresher;
 use voku\AgentLoop\Edit\Verify\ObjectiveGateRunner;
 use voku\AgentLoop\Edit\Verify\VerificationBundle;
+use voku\AgentLoop\Tests\Support\VerificationPlanFixture;
 use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexWriter;
 
@@ -246,14 +247,14 @@ final class MapRefresherTest extends TestCase
     {
         $recall = $this->root . '/.agent-loop/recall/REFRESH';
         mkdir($recall, 0o775, true);
-        $plan = json_encode([
+        $plan = json_encode(VerificationPlanFixture::shape([
             'task_id' => 'REFRESH',
             'target' => self::TARGET,
             'objective_gates' => [
                 ['id' => 'map_fresh', 'kind' => 'post_edit_map_fresh', 'required' => true],
                 ['id' => 'target', 'kind' => 'target_resolvable', 'required' => true],
             ],
-        ], JSON_THROW_ON_ERROR);
+        ]), JSON_THROW_ON_ERROR);
         file_put_contents($recall . '/verification-plan.json', $plan);
         $sha = 'sha256:' . hash('sha256', $plan);
         file_put_contents($recall . '/verification-key.json', json_encode(['plan_sha256' => $sha, 'target' => self::TARGET, 'probes' => []], JSON_THROW_ON_ERROR));

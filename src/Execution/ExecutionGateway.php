@@ -17,6 +17,7 @@ use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputPaths;
 
 /**
  * Public typed boundary for external execution hosts.
@@ -909,7 +910,7 @@ final readonly class ExecutionGateway
     {
         $recallRoot = (new ProjectLayout($this->rootPath))->recallRoot();
         $taskDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
-        $path = $taskDirectory . '/system.md';
+        $path = (new CompiledRecallOutputPaths($taskDirectory))->briefing();
         if (!is_file($path)) {
             return ['source' => null, 'content' => null];
         }

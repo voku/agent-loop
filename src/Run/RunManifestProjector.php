@@ -33,6 +33,7 @@ use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutput;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputPaths;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\AmbiguousActiveSession;
 use voku\AgentSession\Session;
@@ -1032,7 +1033,7 @@ final class RunManifestProjector
         try {
             return PathResolver::relativeTo(
                 $this->rootPath,
-                (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId) . '/recall-log.draft.json',
+                (new CompiledRecallOutputPaths((new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId)))->outcomeDraft(),
             );
         } catch (RuntimeException) {
             // Unsafe Recall roots have no usable draft path; the readiness failure remains in the manifest.

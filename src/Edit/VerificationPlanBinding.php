@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Edit;
 
-use JsonException;
+use RuntimeException;
+use voku\AgentRecallCompiler\Verification\VerificationPlanReader;
 
 /**
  * The result file's binding to one exact `verification-plan.json`.
@@ -13,8 +14,12 @@ use JsonException;
  * as `verification_plan_sha256` in `meta.json`. That is what lets a verifier reject an answer sheet
  * written against a plan that has since been recompiled, instead of grading yesterday's questions.
  *
- * A compilation that resolved no map target emits no plan; that is a legitimate state, not an
- * error, so the binding is simply empty and the answer slots with it.
+ * The plan is read through the Recall owner's `VerificationPlanReader`. A compilation that resolved no
+ * map target emits no plan; that is a legitimate state, so the binding is empty and the answer slots
+ * with it. A plan the owner reader rejects (unreachable, malformed, or without the writer's shape) also
+ * yields an empty binding here, because this runs after the edit was applied and must not fail it.
+ * That is not acceptance: the binding then carries no plan hash, so `edit verify` (whose
+ * `VerificationBundle` reads the same plan strictly) refuses the result instead of grading it.
  */
 final readonly class VerificationPlanBinding
 {
@@ -40,30 +45,16 @@ final readonly class VerificationPlanBinding
             return self::absent();
         }
 
-        $planFile = rtrim($recallDirectory, '/') . '/verification-plan.json';
-        if (!is_file($planFile)) {
-            return self::absent();
-        }
-
-        $raw = file_get_contents($planFile);
-        if (!is_string($raw)) {
-            return self::absent();
-        }
-
         try {
-            $plan = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
+            $plan = (new VerificationPlanReader())->read($recallDirectory);
+        } catch (RuntimeException) {
             return self::absent();
         }
-        if (!is_array($plan)) {
+        if ($plan === null) {
             return self::absent();
         }
 
-        return new self(
-            'sha256:' . hash('sha256', $raw),
-            self::ids($plan['knowledge_probes'] ?? null),
-            self::ids($plan['checklist'] ?? null),
-        );
+        return new self($plan->sha256, $plan->probeIds, $plan->checklistIds);
     }
 
     /** @return array<string, list<string>> */
@@ -76,25 +67,6 @@ final readonly class VerificationPlanBinding
     public function emptyChecklistEvidence(): array
     {
         return self::slots($this->checklistIds);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function ids(mixed $entries): array
-    {
-        if (!is_array($entries)) {
-            return [];
-        }
-
-        $ids = [];
-        foreach ($entries as $entry) {
-            if (is_array($entry) && is_string($entry['id'] ?? null) && $entry['id'] !== '') {
-                $ids[] = $entry['id'];
-            }
-        }
-
-        return $ids;
     }
 
     /**

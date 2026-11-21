@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Edit\Verify\ChecklistValidator;
 use voku\AgentLoop\Edit\Verify\VerificationBundle;
+use voku\AgentLoop\Tests\Support\VerificationPlanFixture;
 
 /**
  * What counts as a resolved checklist reference.
@@ -47,13 +48,13 @@ final class ChecklistEvidenceBoundaryTest extends TestCase
         file_put_contents($this->root . '/project/src/Changed.php', "<?php\n");
         file_put_contents($this->bundleDirectory . '/diff.patch', "--- a\n+++ b\n");
 
-        $plan = [
+        $plan = VerificationPlanFixture::shape([
             'task_id' => 'EV-1',
             'target' => 'Demo\\Service::save',
             'checklist' => self::CHECKLIST,
             'knowledge_probes' => [],
             'changed_files' => ['src/Changed.php'],
-        ];
+        ]);
         $planRaw = (string) json_encode($plan, \JSON_PRETTY_PRINT);
         file_put_contents($recallDirectory . '/verification-plan.json', $planRaw);
 
