@@ -14,10 +14,10 @@ For each run it prints one JSON object:
   other_outside      remaining paths outside the workspace (scratch logs etc.), counted;
   skill_access       every tool call that touches .claude/skills/, resources/skills/ or
                      uses the Skill tool (availability is NOT access; access is NOT use).
-  owner_tool_calls   counts of tool calls that run agent-map, read a Recall artifact under
+  owner_tool_calls   counts of tool calls that run agent-map, try to read a Recall artifact under
                      .agent-loop/recall/, run the Recall compiler, or run agent-loop, next to
                      plain_search (Grep/Glob or rg/grep/find/git grep). A count shows what the
-                     host called or read, not whether it helped.
+                     host called or tried to read, not whether it succeeded or helped.
 
 owner_tool_calls is a HIT FINDER, not a measurement. Its numbers are candidates that point at
 calls to inspect; they are not evidence that something was or was not used. What each key is:
@@ -33,8 +33,8 @@ calls to inspect; they are not evidence that something was or was not used. What
       loop_cli calls by subcommand too. Loop also calls Map and Recall in-process, so map_cli 0
       does not mean Map was unused.
   recall_artifact_read   Read tool: a Read call whose file_path contains .agent-loop/recall/
-      followed by .md or .json (substring match, so .jsonl, .mdx and paths outside the run's
-      workspace also match). Counted per call from the tool_use alone, so failed, repeated
+      followed, with no whitespace in between, by .md or .json (substring match, so .jsonl,
+      .mdx and paths outside the run's workspace also match). Counted per call from the tool_use alone, so failed, repeated
       and partial Reads all count. It shows only that a Read was attempted in this transcript:
       not that all Recall files were read, not that a Read succeeded, and not that the content
       was understood or used.
