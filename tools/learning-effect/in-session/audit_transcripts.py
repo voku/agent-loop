@@ -40,17 +40,33 @@ SKILL_RE = re.compile(r'(?:\.claude|resources)/skills/[A-Za-z0-9_.-]+(?:/[A-Za-z
 FORBIDDEN_RE = re.compile(r'/home/user/(agent-|voku)|candidates|/exp[23]?/|/tasks/a[0-9a-f]{16}\.output')
 # Matched against the decoded Bash `command` (multiline-safe) or the Read path only:
 # text an agent writes (Write/Edit/NotebookEdit content) is never evidence of tool use.
-# A call counts only at command position: line start, after ; & | && || ( $(, optionally
-# behind time/nice/timeout/env/VAR=value and php. A repo name in a loop, a search query or
-# quoted text is a mention, not a call (39 loose matches vs 10 real runs on a real transcript).
-CMD_START = r'(?:^|[;&|(]|\$\()\s*(?:(?:time|nice|timeout\s+\S+|env|\w+=\S+)\s+)*(?:php\s+)?'
+# A call counts only at command position: line start, after ; & | && || ( $( { !, or after the
+# shell keywords do/then/else, optionally behind time/nice/timeout/env/xargs/exec (with their
+# options), VAR=value and php. A repo name in a loop, a search query or quoted text is a mention,
+# not a call (39 loose matches vs 10 real runs on a real transcript).
+CMD_START = (r'(?:^|[;&|({!]|\$\(|\b(?:do|then|else)\b)\s*'
+             r'(?:(?:time|nice|timeout|env|xargs|exec)(?:\s+-\S+(?:\s+\d+)?)*(?:\s+\d+\S*)?\s+|\w+=\S+\s+)*'
+             r'(?:php\s+)?')
+PATH_PREFIX = r'(?:[\w.~$-]*/)*'
 COMMAND_RES = {
-    "map_cli": re.compile(CMD_START + r'(?:\S*/)?agent-map\s+[a-z]', re.M),
-    "recall_compile": re.compile(CMD_START + r'(?:\S*/)?agent-recall-compiler\s+compile', re.M),
-    "loop_cli": re.compile(CMD_START + r'(?:\S*/)?bin/agent-loop\s+[a-z]', re.M),
+    "map_cli": re.compile(CMD_START + PATH_PREFIX + r'agent-map\s+[a-z]', re.M),
+    "recall_compile": re.compile(CMD_START + PATH_PREFIX + r'agent-recall-compiler\s+compile', re.M),
+    "loop_cli": re.compile(CMD_START + PATH_PREFIX + r'bin/agent-loop\s+[a-z]', re.M),
 }
-# Heredoc bodies are code or text the agent writes, not commands it runs.
-HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\2\b", re.S)
+# Heredoc bodies are code or text the agent writes, not commands it runs. Only the body goes;
+# the rest of the opening line (e.g. "&& bin/agent-loop finish X") stays. <<- allows tab-indented
+# terminators.
+HEREDOC_RE = re.compile(r"(<<-?\s*(['\"]?)(\w+)\2[^\n]*\n).*?\n\t*\3\b", re.S)
+# Quoted text (commit messages, --goal/--summary prose, echo arguments) is not a command.
+QUOTED_RE = re.compile(r'"(?:\\.|[^"\\])*"|\'[^\']*\'', re.S)
+
+
+def executable_text(command):
+    """The parts of a Bash command that can run: heredoc bodies and quoted strings removed."""
+    without_heredocs = HEREDOC_RE.sub(lambda m: m.group(1), command)
+    return QUOTED_RE.sub('""', without_heredocs)
+
+
 SEARCH_RE = re.compile(r'(?:^|[\s;&|("])(?:rg|grep|find|git\s+grep)\s', re.M)
 RECALL_ARTIFACT_RE = re.compile(r'\.agent-loop/recall/\S*\.(?:md|json)')
 FILE_READER_RE = re.compile(r'(?:^|[\s;&|(])(?:cat|head|tail|less|sed|jq|python3?)\s[^\n]*\.agent-loop/recall/\S*\.(?:md|json)', re.M)
@@ -61,7 +77,7 @@ def owner_tool_calls(name, tool_input):
     """Counter keys one tool call adds, judged by what the tool does, not by text it carries."""
     keys = []
     if name == "Bash":
-        command = HEREDOC_RE.sub(" ", str(tool_input.get("command", "")))
+        command = executable_text(str(tool_input.get("command", "")))
         keys += [key for key, pattern in COMMAND_RES.items() if pattern.search(command)]
         if SEARCH_RE.search(command):
             keys.append("plain_search")
