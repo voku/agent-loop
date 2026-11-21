@@ -198,7 +198,7 @@ final class RunPolicyEvaluatorTest extends TestCase
 
     public function testLearningTemplateDropsNoDurableLearningWhileObservationsExistInAnyPendingState(): void
     {
-        foreach (['missing', 'stale'] as $learningState) {
+        foreach (['missing', 'stale', 'invalid'] as $learningState) {
             $references = $this->references(
                 contract: 'approved',
                 approval: 'current',

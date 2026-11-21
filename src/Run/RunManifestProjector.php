@@ -1134,6 +1134,7 @@ final class RunManifestProjector
                 'run_id' => $run->runId,
                 'reason' => 'Persisted Learning decision uses an unverified reserved standing: actor.',
                 'source' => $this->artifact($decision->path),
+                'review_observations' => $this->reviewObservations($run->taskId, $run),
             ];
         }
 
