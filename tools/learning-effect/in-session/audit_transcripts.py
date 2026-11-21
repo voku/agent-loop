@@ -22,19 +22,34 @@ For each run it prints one JSON object:
 owner_tool_calls counts RECOGNISED calls, not guaranteed all calls. A Bash command counts
 only at command position, after heredoc bodies and quoted literal text are removed, so
 mentions (repo names in loops, search queries, commit messages, --goal prose) do not count.
-Known shapes it can MISS. Each is a real call that may count 0, so a 0 is not proof that
-nothing ran:
-  php -d memory_limit=1G vendor/bin/agent-map search x   (php with options; the git-hook form)
-  case $x in a) bin/agent-loop enter X;; esac            (call inside a case arm)
-  echo $'it\'s'; bin/agent-loop enter X                  ($'...' quoting confuses the scanner)
-  bash -c 'bin/agent-loop status X'   (also sh -c, ssh '...')
-  "$ROOT/bin/agent-loop" enter X      (quoted or ${VAR}/ executable path)
-  cmd \<newline> bin/agent-loop src   (continuation: may count an argument as a call)
-  PowerShell or any non-Bash tool     (only the Bash tool is inspected)
-Before reporting a result, look for these shapes in the transcript (e.g. grep for "php -d",
-"bash -c", "case ", "$'"). Check them by hand, or mark the count incomplete. Hand-check every
-non-zero count too. The robustness probes show bad input does not crash or hang the scanner;
-they do not make it a full shell parser.
+Two kinds of error remain, so neither a 0 nor a non-zero count is proof on its own.
+
+MISSES (a real call counts 0). Shapes seen in real transcripts are marked [seen]:
+  php bin/agent-map $c $I                    subcommand in a variable [seen: 9 runs, 2026-11-18]
+  L=vendor/bin/agent-loop && $L enter X      program in a variable [seen, 2026-11-19]
+  php bin/agent-loop --version               option before the subcommand [seen]
+  php -d memory_limit=1G vendor/bin/agent-map search x   php with options (the git-hook form)
+  sudo|command|nohup|stdbuf|watch|/usr/bin/time bin/agent-loop enter X   unlisted wrapper
+  php8.3 bin/agent-loop enter X              versioned php binary
+  if bin/agent-loop enter X; then ...        also while/until/elif in front of the call
+  case $x in a) bin/agent-loop enter X;; esac  call inside a case arm
+  echo $'it\'s'; bin/agent-loop enter X      $'...' quoting confuses the scanner
+  bash -c 'bin/agent-loop status X'          also sh -c, ssh host '...'
+  "$ROOT/bin/agent-loop" enter X             quoted or ${VAR}/ executable path
+  agent-loop enter X                         found on PATH, no bin/ (also composer exec)
+  bin/agent-loop \<newline> enter X          line continuation inside the call
+  PowerShell or any non-Bash tool            map/compile/loop keys inspect only Bash
+OVER-COUNTS (a mention counts 1):
+  grep -rn foo \<newline> bin/agent-loop src   continuation: an argument looks like a call
+
+Before reporting a result:
+  1. grep the transcript for the bare names agent-map, agent-loop and agent-recall-compiler,
+     and compare those hits with the counted calls; every uncounted hit that really ran is a
+     miss (this finds all shapes above, including variables and wrappers).
+  2. Hand-check every counted call, since over-counts exist.
+  3. If 1 or 2 cannot be done completely, mark the count incomplete.
+The robustness probes show bad input does not crash or hang the scanner; they do not make it
+a full shell parser.
 
 Reconstructed from the inline audit commands used for holdout H2 and the H2b pilot
 (docs/dogfood/2026-11-20-learning-effect-h2-screening.md).
