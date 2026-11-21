@@ -61,6 +61,7 @@ final readonly class WorkflowHumanDecisionProjector
                 $taskId,
                 $nextAction,
                 $contractApproval->subject(PathResolver::relativeTo($this->rootPath, $contractApproval->contract->path)),
+                WorkflowDecisionCardFactory::forRoot($this->rootPath)->contractApproval($contractApproval),
             );
         }
 
@@ -239,8 +240,10 @@ final readonly class WorkflowHumanDecisionProjector
      * @param array<string, mixed> $subject
      * @return array<string, mixed>
      */
-    private function decision(string $type, string $taskId, string $nextAction, array $subject): array
+    private function decision(string $type, string $taskId, string $nextAction, array $subject, ?WorkflowDecisionCard $card = null): array
     {
+        $card ??= WorkflowDecisionCardFactory::forRoot($this->rootPath)->forDecision($type, $taskId, $nextAction, $subject);
+
         return [
             'schema_version' => '1.0',
             'type' => $type,
@@ -248,6 +251,8 @@ final readonly class WorkflowHumanDecisionProjector
             'task_id' => $taskId,
             'action' => $nextAction,
             'subject' => $subject,
+            // Show this card verbatim before asking; it is presentation, never authority.
+            'card' => $card->toArray(),
             'recommendation' => (new WorkflowDecisionAdvisor($this->rootPath))->advise($type, $subject),
         ];
     }
