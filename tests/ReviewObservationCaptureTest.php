@@ -99,7 +99,8 @@ final class ReviewObservationCaptureTest extends TestCase
         try {
             new StageResult('s', 'T', 'r', 1, $digest, 'review', 1, StageOutcome::PASS, 'c', [], [], 'ok', observations: ['  ']);
             self::fail('An empty observation must be rejected.');
-        } catch (InvalidArgumentException) {
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString('must be non-empty', $exception->getMessage());
         }
 
         $this->expectException(InvalidArgumentException::class);
