@@ -40,11 +40,17 @@ SKILL_RE = re.compile(r'(?:\.claude|resources)/skills/[A-Za-z0-9_.-]+(?:/[A-Za-z
 FORBIDDEN_RE = re.compile(r'/home/user/(agent-|voku)|candidates|/exp[23]?/|/tasks/a[0-9a-f]{16}\.output')
 # Matched against the decoded Bash `command` (multiline-safe) or the Read path only:
 # text an agent writes (Write/Edit/NotebookEdit content) is never evidence of tool use.
+# A call counts only at command position: line start, after ; & | && || ( $(, optionally
+# behind time/nice/timeout/env/VAR=value and php. A repo name in a loop, a search query or
+# quoted text is a mention, not a call (39 loose matches vs 10 real runs on a real transcript).
+CMD_START = r'(?:^|[;&|(]|\$\()\s*(?:(?:time|nice|timeout\s+\S+|env|\w+=\S+)\s+)*(?:php\s+)?'
 COMMAND_RES = {
-    "map_cli": re.compile(r'(?:^|[\s/;&|("])agent-map\s+[a-z]', re.M),
-    "recall_compile": re.compile(r'agent-recall-compiler\s+compile'),
-    "loop_cli": re.compile(r'bin/agent-loop\s+[a-z]'),
+    "map_cli": re.compile(CMD_START + r'(?:\S*/)?agent-map\s+[a-z]', re.M),
+    "recall_compile": re.compile(CMD_START + r'(?:\S*/)?agent-recall-compiler\s+compile', re.M),
+    "loop_cli": re.compile(CMD_START + r'(?:\S*/)?bin/agent-loop\s+[a-z]', re.M),
 }
+# Heredoc bodies are code or text the agent writes, not commands it runs.
+HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\2\b", re.S)
 SEARCH_RE = re.compile(r'(?:^|[\s;&|("])(?:rg|grep|find|git\s+grep)\s', re.M)
 RECALL_ARTIFACT_RE = re.compile(r'\.agent-loop/recall/\S*\.(?:md|json)')
 FILE_READER_RE = re.compile(r'(?:^|[\s;&|(])(?:cat|head|tail|less|sed|jq|python3?)\s[^\n]*\.agent-loop/recall/\S*\.(?:md|json)', re.M)
@@ -55,7 +61,7 @@ def owner_tool_calls(name, tool_input):
     """Counter keys one tool call adds, judged by what the tool does, not by text it carries."""
     keys = []
     if name == "Bash":
-        command = str(tool_input.get("command", ""))
+        command = HEREDOC_RE.sub(" ", str(tool_input.get("command", "")))
         keys += [key for key, pattern in COMMAND_RES.items() if pattern.search(command)]
         if SEARCH_RE.search(command):
             keys.append("plain_search")
