@@ -21,6 +21,7 @@
 
 ### Dependencies
 
+- Require `voku/agent-recall-compiler ^0.29.8` (was `^0.29.7`; locked 0.29.8). Recall no longer selects an applied DELETE proposal as active guidance (voku/agent-recall-compiler#296); with 0.29.7 a deleted rule could still reach a task's context. The minimum-release CI jobs (`acceptance-criteria-candidate`, `prompt-primitives-candidate`) now check out 0.29.8.
 - Require `voku/agent-recall-compiler ^0.29.7` (was `^0.29.4`; locked 0.29.7). The minimum-release CI jobs (`acceptance-criteria-candidate`, `prompt-primitives-candidate`) now check out 0.29.7. Recall no longer reports an approved DELETE as contradicting a rejected (0.29.6) or retired (0.29.7) proposal for the same target; before that, deleting the row above blocked every governed task that touches MEMORY.md.
 
 ## [0.20.103] - 2026-11-20
