@@ -30,6 +30,7 @@ final readonly class ProjectRuleFixtureCheck
         'ProjectLayout::learningRoot() result is discarded.' => 1,
         'PHPDoc contract tags must be on separate lines' => 1,
         'Do not infer Git repository state from is_dir(.git)' => 1,
+        'Production code must not build Recall-owned artifact path' => 1,
     ];
 
     public function __construct(private ProcessRunner $runner)

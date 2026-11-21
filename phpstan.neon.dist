@@ -1,5 +1,6 @@
 includes:
   - vendor/voku/phpstan-agent-format/extension.neon
+  - phpstan/owner-artifact-filename-baseline.neon
 
 parameters:
   errorFormat: agent
@@ -48,5 +49,9 @@ services:
       - phpstan.rules.rule
   -
     class: voku\AgentLoop\PHPStan\Rules\NoGitDirectoryShapeAssumptionRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoOwnerArtifactFilenameLiteralRule
     tags:
       - phpstan.rules.rule

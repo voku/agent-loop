@@ -1,0 +1,35 @@
+# Finding 2026-09-09.a958dd: sites that still build Recall-owned artifact paths by hand.
+# Remove an entry only by migrating its site to the released agent-recall-compiler API
+# (Output\CompiledRecallOutputPaths, Verification\VerificationPlanReader); never add one.
+parameters:
+  ignoreErrors:
+    -
+      message: '#^Production code must not build Recall\-owned artifact path system\.md by hand\.#'
+      identifier: agentLoop.recall.ownerArtifactFilename
+      count: 1
+      path: ../src/Execution/ExecutionGateway.php
+    -
+      message: '#^Production code must not build Recall\-owned artifact path recall\-log\.draft\.json by hand\.#'
+      identifier: agentLoop.recall.ownerArtifactFilename
+      count: 1
+      path: ../src/Run/RunManifestProjector.php
+    -
+      message: '#^Production code must not build Recall\-owned artifact path meta\.json by hand\.#'
+      identifier: agentLoop.recall.ownerArtifactFilename
+      count: 1
+      path: ../src/Workflow/WorkflowReportCommand.php
+    -
+      message: '#^Production code must not build Recall\-owned artifact path verification\-plan\.json by hand\.#'
+      identifier: agentLoop.recall.ownerArtifactFilename
+      count: 1
+      path: ../src/Edit/VerificationPlanBinding.php
+    -
+      message: '#^Production code must not build Recall\-owned artifact path verification\-plan\.json by hand\.#'
+      identifier: agentLoop.recall.ownerArtifactFilename
+      count: 1
+      path: ../src/Edit/Verify/VerificationBundle.php
+    -
+      message: '#^Production code must not build Recall\-owned artifact path verification\-key\.json by hand\.#'
+      identifier: agentLoop.recall.ownerArtifactFilename
+      count: 1
+      path: ../src/Edit/Verify/VerificationBundle.php
