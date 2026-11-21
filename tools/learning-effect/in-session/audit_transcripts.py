@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit in-session agent transcripts for isolation and skill access.
+r"""Audit in-session agent transcripts for isolation and skill access.
 
 usage: audit_transcripts.py <runmap.tsv>
 
@@ -18,6 +18,23 @@ For each run it prints one JSON object:
                      .agent-loop/recall/, run the Recall compiler, or run agent-loop, next to
                      plain_search (Grep/Glob or rg/grep/find/git grep). A count shows what the
                      host called or read, not whether it helped.
+
+owner_tool_calls counts RECOGNISED calls, not guaranteed all calls. A Bash command counts
+only at command position, after heredoc bodies and quoted literal text are removed, so
+mentions (repo names in loops, search queries, commit messages, --goal prose) do not count.
+Known shapes it can MISS. Each is a real call that may count 0, so a 0 is not proof that
+nothing ran:
+  php -d memory_limit=1G vendor/bin/agent-map search x   (php with options; the git-hook form)
+  case $x in a) bin/agent-loop enter X;; esac            (call inside a case arm)
+  echo $'it\'s'; bin/agent-loop enter X                  ($'...' quoting confuses the scanner)
+  bash -c 'bin/agent-loop status X'   (also sh -c, ssh '...')
+  "$ROOT/bin/agent-loop" enter X      (quoted or ${VAR}/ executable path)
+  cmd \<newline> bin/agent-loop src   (continuation: may count an argument as a call)
+  PowerShell or any non-Bash tool     (only the Bash tool is inspected)
+Before reporting a result, look for these shapes in the transcript (e.g. grep for "php -d",
+"bash -c", "case ", "$'"). Check them by hand, or mark the count incomplete. Hand-check every
+non-zero count too. The robustness probes show bad input does not crash or hang the scanner;
+they do not make it a full shell parser.
 
 Reconstructed from the inline audit commands used for holdout H2 and the H2b pilot
 (docs/dogfood/2026-11-20-learning-effect-h2-screening.md).
