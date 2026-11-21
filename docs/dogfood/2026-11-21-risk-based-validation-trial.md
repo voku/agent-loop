@@ -31,7 +31,7 @@ Removing either run is safe only where the remaining run checks at least what th
 
 Consequences:
 
-- `verify` cannot simply reuse a `finish` pass. A change outside scope between the two runs would go unseen, for example `composer.json`, `phpstan.neon.dist`, or a test helper. That defect class is real here: R8's own diff changes `phpstan.neon.dist`.
+- `verify` cannot simply reuse a `finish` pass. A change outside scope between the two runs would go unseen, for example `composer.json`, `phpstan.neon.dist`, or a test helper. Whether a file is in scope is the Contract author's choice. R8 happened to list `phpstan.neon.dist`, but a Contract that leaves out a configuration file the host edits anyway would validate content that neither the snapshot nor the Contract names.
 - `finish` cannot simply defer to `verify` either. A failing validation would then surface only after both reviews had been paid for, which loses the fail-fast property.
 
 ## 3. Proposed rule (not implemented; needs its own Contract)
