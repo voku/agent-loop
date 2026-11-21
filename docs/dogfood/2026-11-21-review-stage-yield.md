@@ -15,7 +15,7 @@ Date: 2026-11-21. Input: the governed tasks one operator session ran on `voku/ag
   - `tokens` is the subagent total reported by the host, including tool output, not the prompt alone.
   - `time` is the subagent's wall-clock duration.
   - Where the host did not show them, the value is `unknown`.
-- **Sample size:** n is small (4 tasks, 22 governed review stage runs, plus 6 replay reviewers). Read the results as direction, not as rates.
+- **Sample size:** n is small: 4 tasks and 18 governed review stage runs (the rows of the table below), plus 6 replay reviewers. Read the results as direction, not as rates.
 
 ## Per task and stage
 
@@ -26,14 +26,14 @@ Date: 2026-11-21. Input: the governed tasks one operator session ran on `voku/ag
 | | blindspot 1 | pass | unknown | Observations: the guide names a bare `sync-githooks`, and hook files are written into a directory Git already uses. **CodeRabbit later rated these same two points Minor and Major.** |
 | REVIEW-OBSERVATIONS (#1121) | correctness 1 | **changes_required** | 171,421 / 304 s | "Latest result per stage" erased observations after a rework loop. Proven with a CLI probe. |
 | | correctness 2 | pass, 7 observations | 168,994 / 352 s | – |
-| | blindspot 1 | pass, 9 observations | 139,683 / 224 s | Among the observations: the installed `agent-loop-learning-boundary` skill steered hosts into the new refusal. It was a real P1, later fixed in #1122. |
+| | blindspot 1 | pass, 9 observations | 139,683 / 224 s | 8 were new and were recorded as typed observations; one repeated a correctness observation. That makes 15 in total, listed in #1120. Among them: the installed `agent-loop-learning-boundary` skill steered hosts into the new refusal. It was a real P1, later fixed in #1122. |
 | | rev 3 (test delta, sonnet) | pass / pass | 73,590 / 15 s; 81,083 / 22 s | – |
 | DECISION-CARD (#1127) | correctness 1 | **changes_required** | 187,893 / 421 s | Card choices used the gate's unrelated action as their command. |
 | | correctness 2 | **changes_required** | 213,454 / 464 s | An unguarded Run lookup made `workflow plan` throw on an unreadable `run.json`. Proven with a probe. |
 | | correctness 3 | pass, 6 observations | 179,512 / 320 s | – |
 | | blindspot 1 | **changes_required** | 155,990 / 254 s | `card.language` claimed `fr-fr` while the text was English. |
 | | correctness 4 | pass, 4 observations | 133,348 / 183 s | – |
-| | blindspot 2 | pass, 4 observations | 143,431 / 200 s | – |
+| | blindspot 2 | pass, 4 observations | 143,431 / 200 s | The follow-ups from all DECISION-CARD reviews are in #1126. |
 | | rev 3 (test delta, sonnet) | pass / pass | 90,442 / 26 s; 82,246 / 28 s | – |
 | CARD-GUIDANCE (#1131, docs only) | correctness 1 (sonnet) | pass, 3 observations | 98,328 / 49 s | One observation was the CHANGELOG regional-tag wording. **CodeRabbit later reported the same point as its only Minor.** |
 | | blindspot 1 (sonnet) | pass, 3 observations | 96,111 / 26 s | – |
@@ -58,7 +58,7 @@ The code before the fix (`5bf451c`) went to 6 fresh reviewers with no notes. Eac
 | `runtime.packages` evidence IDs exceed the 512 limit (the major CodeRabbit finding) | 6 of 6 | CodeRabbit |
 | FIFO hang on the dpkg status file | 3 of 6 | CodeRabbit |
 | multi-arch duplicate | 6 of 6 | – |
-| silent status filter | 5 of 6 | – |
+| silent status filter (transitional and `deinstall ok installed` states dropped) | 5 of 6 | – (distinct from the earlier CodeRabbit `hold ok installed` finding, which was fixed in `e82078f` before `5bf451c`) |
 | field-name regex | 4 of 6 | – |
 | symlink race on parent directories | 4 of 6 | – |
 
