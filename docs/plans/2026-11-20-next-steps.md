@@ -27,9 +27,9 @@ This section is the only ordering. The T-sections below hold the details. Work i
 | # | Step | Task id | Depends on | Stops for the owner at | Done when |
 | --- | --- | --- | --- | --- | --- |
 | ~~R1~~ | ~~Negative fixture for the in-process rule~~ **Skipped by the owner (2026-11-20).** `9b62ae` is reviewed with its stated uncertainty (no negative fixture) | ~~`RULE-NEG-FIXTURE`~~ rejected rev 1 | – | – | – |
-| **R2** | Owner reviews #1115's candidates | – | – | `proposal-approve` / reject for `4b7e8f` and `9b62ae` | both decided |
-| **R3** | Apply the approved candidates: write the row verbatim, commit, `proposal-reanchor MEMORY.md` (proofs 007, 013), `proposal-mark-applied`; for the constraint: `mark-applied` → `constraint-activate --overwrite` (absolute `--project-root`) → `proposal-retire 2acd04 --superseded-by` | `LEARN-INPROC-APPLY` | R2 | Contract approval (scope `MEMORY.md`); merge of #1115 | `validate` and `composer ci` pass on the exact head; #1115 merged; Recall compile for a rule-file task shows only the new boundary |
-| **R3b** | #1114: typed `human_decision.card` (scope-expansion cards, compact/markdown/html per host session), shape: What / Why / Changes / Risk / Recommendation, ids last (see the #1114 comments on two live misses). Also answers D2 for decisions | `FEAT-DECISION-CARD` | R3 | Contract approval | merged and released; three formats proven identical in subject, digest and choices |
+| ~~R2~~ | ~~Owner reviews #1115's candidates~~ **Done 2026-11-21 differently:** the owner rejected both candidates (`4b7e8f`, `9b62ae`) and chose to remove the rule and its MEMORY row instead | – | – | – | – |
+| ~~R3~~ | **Done 2026-11-21 as governed task `REMOVE-INPROC-RULE` (Contract rev 4, complete):** rule class, registrations, 3 fixtures and count line removed; MEMORY row deleted via approved `proposal.2026-11-21.0f8920` (proofs 007/013 re-anchored); constraint `2acd04` retired and its active manifest deleted by owner decision; Recall floor `^0.29.7` (releases 0.29.6/0.29.7 fixed the DELETE-vs-rejected/retired false conflicts) with both minimum-release workflows pinned to it. Exact-head CI on `edf54e20` green. Follow-up: agent-recall-compiler#296 | `REMOVE-INPROC-RULE` | – | merge of #1115 | #1115 merged |
+| **R3b** | (next) #1114: typed `human_decision.card` (scope-expansion cards, compact/markdown/html per host session), shape: What / Why / Changes / Risk / Recommendation, ids last (see the #1114 comments on two live misses). Also answers D2 for decisions | `FEAT-DECISION-CARD` | R3 | Contract approval | merged and released; three formats proven identical in subject, digest and choices |
 | **R4** | **Owner decision batch** (one card, answered together): D1, D3, D4, D5 (December experiment budget, which T10/T6 runs spend) | – | – (any time before R6) | all four | answers recorded in this plan |
 | **R5** | T5 protocol doc: experiments, oracles calibrated with a plausible wrong fix and negative fixtures, leakage, approvals, and provided ≠ received ≠ used ≠ useful | `DOC-EXP-PROTOCOL` | – | Contract approval | merged; README links it |
 | **R6** | T10 step 1a: observe the **small** task `c2f7eb` (`@putenv` shape test). It also tests the observation setup | `OBS-C2F7EB` | R3b, R4 (budget) | the sub-agent's real Contract | PR merged or closed with a reason; observation row recorded |
@@ -53,7 +53,7 @@ This section is the only ordering. The T-sections below hold the details. Work i
 | --- | --- |
 | agent-loop | latest tag `0.20.101`. `main` has **unreleased** changes: the agent-learning `^0.21.0` bump (#1100) and docs #929, #1102, #1104 |
 | agent-learning | `0.21.0` released (tag → `3fe8978a`): `finding-create` emits `scope_advisories` when every scope entry is a single file (#203 closed) |
-| agent-recall-compiler | `0.29.4`; research PRs #270, #271, #272 closed with evidence records |
+| agent-recall-compiler | `0.29.7` (2026-11-21; 0.29.6/0.29.7 = DELETE no longer contradicts rejected/retired proposals); research PRs #270, #271, #272 closed with evidence records |
 | agent-map | research PRs #165, #174, #178, #179, #187 closed with evidence records |
 | agent-loop#1030 | **blocked** draft; reopen needs criterion 0 (need), then five security boundaries ([comment](https://github.com/voku/agent-loop/pull/1030#issuecomment-7048800098)) |
 | Learning effect | positive only for C1 (non-derivable fact, operator-written note): 0/6 → 3/3. Ceilings: H1, H2a, H2b, pipefail, worktree-hook |
@@ -159,6 +159,8 @@ Key records:
 
 ### T3 — Correct stale guidance about the in-process PHPStan rule (Learning workflow, stops at approval)
 
+> **Superseded 2026-11-21:** the owner rejected the correction candidates below and removed the rule and its MEMORY row instead (roadmap R3, task `REMOVE-INPROC-RULE`). The rest of this section is history.
+>
 > **Status (2026-11-20): at approval.** See PR #1115:
 > - Finding `finding.2026-11-20.0a3b45`;
 > - memory REPLACE candidate `proposal.2026-11-20.4b7e8f`;
@@ -304,6 +306,6 @@ Not allowed: `src/`, owner repositories, prompts, hooks. Widening this list is a
 | D3 | Should Learning ask at Finding time whether a conclusion is recoverable from code alone? Open an agent-learning issue first; no code | H2 record, "What the rounds together suggest" |
 | D4 | Keep the in-session harness in `tools/` (this PR) or move it to an archive branch | T2 |
 | D5 | Experiment budget for December per #901 | T6 budget line |
-| D6 | Constraint `2acd04`: **decided 2026-11-20: replace.** Remaining: approve or reject candidate `proposal.2026-11-20.9b62ae` | T3 status, PR #1115 |
+| D6 | Constraint `2acd04`: **decided 2026-11-21: retire** (the rule itself was removed; candidates `9b62ae` and `4b7e8f` rejected) | roadmap R3 |
 | D7 | T10: approve each real-task Contract the observation hosts submit | T10, roadmap R6–R8 |
 | D8 | T7: which machine downloads the expiring artifacts (before 2026-12-10), and where they are archived | T7 |
