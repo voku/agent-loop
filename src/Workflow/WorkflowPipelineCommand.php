@@ -14,6 +14,7 @@ use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionProfileSelectionStore;
 use voku\AgentLoop\Execution\ExecutionProjection;
 use voku\AgentLoop\Execution\ExecutionStageKind;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\StageExecutionBundle;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
@@ -140,6 +141,7 @@ final readonly class WorkflowPipelineCommand
             static fn ($h) => $h->toArray(),
             $projection->handoffs,
         );
+        $observations = (new ExecutionStateStore($this->rootPath))->find($taskId)?->reviewObservations() ?? [];
 
         $statusStr = "in_progress";
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -185,6 +187,7 @@ final readonly class WorkflowPipelineCommand
             "attention" => $projection->attention?->toArray(),
             "handoffs_count" => count($projection->handoffs),
             "handoffs" => $handoffs,
+            "review_observations" => $observations,
             "next_action" => $nextAction,
             "next_action_kind" => $nextActionKind,
         ];
@@ -207,6 +210,9 @@ final readonly class WorkflowPipelineCommand
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
+            }
+            foreach ($observations as $observation) {
+                echo "Review observation: " . $observation . "\n";
             }
             echo "Next: " . $nextAction . "\n";
         }
@@ -317,6 +323,7 @@ final readonly class WorkflowPipelineCommand
      */
     private function submit(string $taskIdString, array $tokens, string $format): int
     {
+        $this->assertKnownSubmitOptions($tokens);
         $taskId = (new WorkflowTaskId($taskIdString))->value;
         $outcomeRaw = OptionTokens::value($tokens, "outcome");
         if ($outcomeRaw === null) {
@@ -360,7 +367,7 @@ final readonly class WorkflowPipelineCommand
             }
         }
         $excludedArtifacts = OptionTokens::values($tokens, "exclude-artifact");
-        $observations = OptionTokens::values($tokens, "observation");
+        $observations = $this->observations($tokens);
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
         $candidateWorkspace = OptionTokens::value($tokens, "workspace");
 
@@ -463,6 +470,65 @@ final readonly class WorkflowPipelineCommand
         }
 
         return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles);
+    }
+
+    private const array SUBMIT_OPTIONS = [
+        'outcome', 'summary', 'candidate', 'context-id', 'artifact', 'artifacts-file',
+        'exclude-artifact', 'observation', 'auto-verify', 'workspace', 'format',
+    ];
+
+    /**
+     * A misspelled option (`--observations`) would otherwise be ignored and the
+     * finding it carried lost without notice.
+     *
+     * @param list<string> $tokens
+     */
+    private function assertKnownSubmitOptions(array $tokens): void
+    {
+        foreach ($tokens as $token) {
+            if (!str_starts_with($token, '--')) {
+                continue;
+            }
+            $name = explode('=', substr($token, 2), 2)[0];
+            if (!in_array($name, self::SUBMIT_OPTIONS, true)) {
+                throw new InvalidArgumentException('Unknown option for pipeline submit: --' . $name);
+            }
+        }
+    }
+
+    /**
+     * Every --observation must carry its text. The shared option reader drops an
+     * empty value and a value that starts with `--`; for an observation either
+     * would silently lose a finding, so both are refused instead.
+     *
+     * @param list<string> $tokens
+     *
+     * @return list<string>
+     */
+    private function observations(array $tokens): array
+    {
+        $observations = [];
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
+            if (str_starts_with($token, '--observation=')) {
+                $value = substr($token, strlen('--observation='));
+            } elseif ($token === '--observation') {
+                $value = $tokens[$i + 1] ?? '';
+                if (str_starts_with($value, '--')) {
+                    throw new InvalidArgumentException('--observation requires a value; use --observation="<text>" when the text starts with --.');
+                }
+                ++$i;
+            } else {
+                continue;
+            }
+            if (trim($value) === '') {
+                throw new InvalidArgumentException('--observation requires a non-empty value.');
+            }
+            $observations[] = $value;
+        }
+
+        return $observations;
     }
 
     /**

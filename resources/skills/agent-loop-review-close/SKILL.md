@@ -37,7 +37,7 @@ vendor/bin/agent-loop workflow status <task-id> --format=json
 
 Supply exactly one truthful conclusion when `finish` prompts for it:
 - `findings_recorded`: reusable evidence-backed findings exist (reference validated IDs).
-- `no_durable_learning`: changes are task-local or already covered by authoritative guidance.
+- `no_durable_learning`: changes are task-local or already covered by authoritative guidance, and no passing review recorded observations (`finish` refuses it while `review_observations` is non-empty).
 - `follow_up_required`: an unresolved item remains that cannot safely be closed in this Contract.
 
 ## Optional Reflection

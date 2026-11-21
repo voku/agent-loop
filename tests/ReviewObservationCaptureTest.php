@@ -129,6 +129,42 @@ final class ReviewObservationCaptureTest extends TestCase
         self::assertSame('investigate', (new ExecutionGateway($this->root))->projection('ABC-123')->currentStageId);
     }
 
+    public function testMalformedObservationOptionsAreRefusedInsteadOfDropped(): void
+    {
+        $this->start();
+        $candidate = $this->advanceToReview();
+        $base = ['submit', 'ABC-123', '--outcome', 'pass', '--candidate', $candidate, '--context-id', 'ctx:review', '--format=json'];
+
+        foreach ([
+            'value swallowed by the next flag' => [['--observation', '--summary', 'x'], '--observation requires a value'],
+            'empty value' => [['--observation='], '--observation requires a non-empty value'],
+            'trailing flag without value' => [['--observation'], '--observation requires a non-empty value'],
+            'misspelled option' => [['--observations', 'Budget 0 admits one target.'], 'Unknown option for pipeline submit: --observations'],
+        ] as $case => [$arguments, $message]) {
+            ob_start();
+            $exit = (new WorkflowPipelineCommand($this->root))->run([...$base, ...$arguments]);
+            $output = (string) ob_get_clean();
+            self::assertSame(1, $exit, $case);
+            self::assertStringContainsString($message, $output, $case);
+            self::assertSame('review', (new ExecutionGateway($this->root))->projection('ABC-123')->currentStageId, $case);
+        }
+
+        ob_start();
+        $exit = (new WorkflowPipelineCommand($this->root))->run([...$base, '--observation=--skip-git-config still writes hook files.']);
+        $output = (string) ob_get_clean();
+        self::assertSame(0, $exit, $output);
+
+        ob_start();
+        self::assertSame(0, (new WorkflowPipelineCommand($this->root))->run(['status', 'ABC-123', '--format=json']));
+        $status = json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($status);
+        self::assertSame(['--skip-git-config still writes hook files.'], $status['review_observations'] ?? null);
+
+        ob_start();
+        self::assertSame(0, (new WorkflowPipelineCommand($this->root))->run(['status', 'ABC-123']));
+        self::assertStringContainsString('Review observation: --skip-git-config still writes hook files.', (string) ob_get_clean());
+    }
+
     public function testPassingReviewObservationsPersistAndBlockNoDurableLearning(): void
     {
         $this->start();
@@ -173,7 +209,8 @@ final class ReviewObservationCaptureTest extends TestCase
         } catch (RuntimeException $exception) {
             self::assertStringContainsString('2 non-blocking observation(s)', $exception->getMessage());
             self::assertStringContainsString('Guide names a bare sync-githooks command.', $exception->getMessage());
-            self::assertStringContainsString('--follow-up-ref', $exception->getMessage());
+            self::assertStringContainsString('--follow-up-ref <ref>', $exception->getMessage());
+            self::assertStringContainsString('finish cannot record', $exception->getMessage());
         }
     }
 

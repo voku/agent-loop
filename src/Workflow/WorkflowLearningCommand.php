@@ -64,6 +64,7 @@ final readonly class WorkflowLearningCommand
                 $options['status'],
                 (new WorkflowLearningRecorder($this->rootPath))->reviewObservations($run),
                 $run->runId,
+                workflowLearn: true,
             );
 
             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);

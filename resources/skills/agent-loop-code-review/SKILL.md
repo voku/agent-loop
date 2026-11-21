@@ -56,6 +56,7 @@ HANDOFF: <code-review-* lens> <path>:<line> <why this concern is dominant>   # o
 
 ```text
 STATUS: clean
+OBSERVATION: <path>:<line> <non-blocking finding>   # zero or more: known limit, nit, follow-up
 ```
 
 ```text

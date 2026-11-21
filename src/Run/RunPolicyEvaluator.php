@@ -473,13 +473,17 @@ final readonly class RunPolicyEvaluator
             return $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
+            // Recorded review observations make no_durable_learning a refused
+            // choice, so the template does not offer it.
+            $observed = ($references['verification']['learning_disposition']['review_observations'] ?? []) !== [];
+
             return $this->command(
                 'agent-loop',
                 [
                     'finish',
                     $taskId,
                     '--learning',
-                    '<no_durable_learning|findings_recorded|follow_up_required>',
+                    $observed ? '<findings_recorded|follow_up_required>' : '<no_durable_learning|findings_recorded|follow_up_required>',
                     '--by',
                     '<actor>',
                     '[--finding',

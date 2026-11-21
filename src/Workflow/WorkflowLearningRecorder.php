@@ -9,7 +9,6 @@ use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\Execution\ExecutionStateStore;
-use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\RunLearningDecision;
@@ -156,19 +155,30 @@ final readonly class WorkflowLearningRecorder
      * Recorded review observations contradict that claim, so they must become
      * Findings or be carried by a follow-up reference instead.
      *
+     * The remedy names the flags of the command that refused, so a host can act
+     * on the message without translating between `finish` and `workflow learn`.
+     *
      * @param list<non-empty-string> $observations
      */
-    public static function assertObservationsDispositioned(RunLearningDecisionStatus $decision, array $observations, string $runId): void
-    {
+    public static function assertObservationsDispositioned(
+        RunLearningDecisionStatus $decision,
+        array $observations,
+        string $runId,
+        bool $workflowLearn = false,
+    ): void {
         if ($decision !== RunLearningDecisionStatus::NO_DURABLE_LEARNING || $observations === []) {
             return;
         }
 
         throw new RuntimeException(sprintf(
-            "Finish cannot record no_durable_learning: the review stages of %s recorded %d non-blocking observation(s):\n- %s\nRecord them as Findings (--finding-observation ... implies findings_recorded) or link the issue that tracks them (--follow-up-ref <ref>).",
+            "%s cannot record no_durable_learning: the review stages of %s recorded %d non-blocking observation(s):\n- %s\n%s",
+            $workflowLearn ? 'workflow learn' : 'finish',
             $runId,
             count($observations),
             implode("\n- ", $observations),
+            $workflowLearn
+                ? 'Capture them as Findings (learn capture, then --finding <id>) or link the issue that tracks them (--follow-up <ref>).'
+                : 'Record them as Findings (--finding-observation ... or --finding <id>, both imply findings_recorded) or link the issue that tracks them (--follow-up-ref <ref>, implies follow_up_required).',
         ));
     }
 
@@ -182,23 +192,8 @@ final readonly class WorkflowLearningRecorder
     public function reviewObservations(GovernedRun $run): array
     {
         $state = (new ExecutionStateStore($this->rootPath))->find($run->taskId);
-        if ($state === null || $state->runId !== $run->runId) {
-            return [];
-        }
 
-        // Every accepted passing review of the Run counts. Review stages run in
-        // fresh contexts that never see earlier observations, so a later pass
-        // without observations is no evidence that earlier ones were resolved.
-        $observations = [];
-        foreach ($state->history as $accepted) {
-            if ($accepted->result->outcome === StageOutcome::PASS) {
-                foreach ($accepted->result->observations as $observation) {
-                    $observations[] = $observation;
-                }
-            }
-        }
-
-        return array_values(array_unique($observations));
+        return $state === null || $state->runId !== $run->runId ? [] : $state->reviewObservations();
     }
 
     /**

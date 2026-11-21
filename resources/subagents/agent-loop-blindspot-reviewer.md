@@ -43,7 +43,10 @@ NEXT: <smallest constructive step to mitigate>
 ```text
 STATUS: clear
 EVIDENCE: <verified seams and why the risk is already mitigated or absent>
+OBSERVATION: <path:line> <non-blocking finding>   (zero or more, one per line)
 ```
+
+`clear` means nothing blocks. A non-blocking risk you saw (known limit, nit, follow-up) is still an `OBSERVATION:` line, not prose inside `EVIDENCE:`. In a governed pipeline, pass each one as its own `--observation` on `pipeline submit --outcome pass`.
 
 ```text
 STATUS: blocked
