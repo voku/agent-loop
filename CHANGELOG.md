@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- `pipeline submit --observation "<text>"` (repeatable) records a passing review stage's non-blocking findings as typed StageResult data instead of PASS-summary prose. The option is accepted only on review stages with `--outcome pass`, and review prompts ask for it. `finish --learning no_durable_learning` now fails closed while the Run's latest passing review results carry observations, and lists them. Record them as Findings, or pass `--follow-up-ref` to the issue that tracks them. In real use the reviews had seen the defects but filed them as a "known limit" or nit, so nothing reached Learning (voku/php-runtime-audit#46, #1119).
+
 ### Fixed
 
 - The `agent-loop-php-setup` skill and the PHP onboarding guide now pass `--skip-git-config` to `init install-assets`, so following them no longer registers Git hooks (`core.hooksPath`, `commit.template`) whenever `.agent-loop/githooks.json` exists. Git hook registration is a separate `init sync-githooks` step that needs its own approval, as the skill already required. Reported on voku/php-runtime-audit#32.

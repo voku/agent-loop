@@ -360,6 +360,7 @@ final readonly class WorkflowPipelineCommand
             }
         }
         $excludedArtifacts = OptionTokens::values($tokens, "exclude-artifact");
+        $observations = OptionTokens::values($tokens, "observation");
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
         $candidateWorkspace = OptionTokens::value($tokens, "workspace");
 
@@ -378,6 +379,9 @@ final readonly class WorkflowPipelineCommand
         }
 
         $bundle = $gateway->prepareStage($taskId, $currentStageId);
+        if ($observations !== []) {
+            $this->assertObservationsAllowed($taskId, $bundle, $outcome);
+        }
         // Only a completing submission claims the workspace; blocked/failed/clarification must stay reportable from any workspace.
         $completing = $outcome === StageOutcome::COMPLETED;
         $observedCandidate = $completing ? $gateway->observeStageCandidate($bundle, $candidate, $candidateWorkspace) : null;
@@ -435,6 +439,7 @@ final readonly class WorkflowPipelineCommand
             [],
             $summary,
             $contextId,
+            observations: $observations,
         );
 
         $newProjection = $gateway->submitStageResult($stageResult);
@@ -458,6 +463,24 @@ final readonly class WorkflowPipelineCommand
         }
 
         return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles);
+    }
+
+    /**
+     * Observations are a passing reviewer's non-blocking findings. A blocking
+     * finding is CHANGES_REQUIRED, and non-review stages have nothing to observe,
+     * so both are refused rather than silently stored.
+     */
+    private function assertObservationsAllowed(string $taskId, StageExecutionBundle $bundle, StageOutcome $outcome): void
+    {
+        $capabilities = $bundle->roleId === null
+            ? []
+            : (new ExecutionPlanStore($this->rootPath))->load($taskId)->role($bundle->roleId)->requiredCapabilities;
+        if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+            throw new InvalidArgumentException('--observation is only accepted on review stages; stage ' . $bundle->stageId . ' is not one.');
+        }
+        if ($outcome !== StageOutcome::PASS) {
+            throw new InvalidArgumentException('--observation records non-blocking findings of a passing review; use --outcome pass, or changes_required for a blocking finding.');
+        }
     }
 
     /**
@@ -632,7 +655,7 @@ Usage:
   agent-loop pipeline status <task-id> [--format text|json]
   agent-loop pipeline stage <task-id> [--format text|json]
   agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--workspace <path>] [--auto-verify] [--format text|json]
-  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--artifacts-file <path>] [--exclude-artifact <path>=<reason>] [--auto-verify] [--workspace <path>] [--format text|json]
+  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--artifacts-file <path>] [--exclude-artifact <path>=<reason>] [--observation "<non-blocking review finding>" ...] [--auto-verify] [--workspace <path>] [--format text|json]
   agent-loop pipeline recover <task-id> --candidate <content-addressed-revision> [--workspace <path>] [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.

@@ -8,6 +8,8 @@ use ItpContext\Attribute\Rule;
 use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Context\ArchitectureRules;
+use voku\AgentLoop\Execution\ExecutionStateStore;
+use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\RunLearningDecision;
@@ -92,6 +94,7 @@ final readonly class WorkflowLearningRecorder
         if (($findingInputs !== [] || $findingIds !== []) && $decision !== RunLearningDecisionStatus::FINDINGS_RECORDED) {
             throw new RuntimeException('Finish Finding content or ids are only valid with --learning findings_recorded.');
         }
+        self::assertObservationsDispositioned($decision, $this->reviewObservations($run), $run->runId);
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
         $validationSha256 = $boundary->validationEvidenceSha256();
@@ -146,6 +149,59 @@ final readonly class WorkflowLearningRecorder
             $validationSha256,
             $reviewSha256,
         );
+    }
+
+    /**
+     * no_durable_learning is a claim that nothing reusable came out of the Run.
+     * Recorded review observations contradict that claim, so they must become
+     * Findings or be carried by a follow-up reference instead.
+     *
+     * @param list<non-empty-string> $observations
+     */
+    public static function assertObservationsDispositioned(RunLearningDecisionStatus $decision, array $observations, string $runId): void
+    {
+        if ($decision !== RunLearningDecisionStatus::NO_DURABLE_LEARNING || $observations === []) {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            "Finish cannot record no_durable_learning: the review stages of %s recorded %d non-blocking observation(s):\n- %s\nRecord them as Findings (--finding-observation ... implies findings_recorded) or link the issue that tracks them (--follow-up-ref <ref>).",
+            $runId,
+            count($observations),
+            implode("\n- ", $observations),
+        ));
+    }
+
+    /**
+     * Observations of the current Run's latest accepted passing review results. The
+     * execution state belongs to one Run; a stale state from an earlier Run
+     * contributes nothing.
+     *
+     * @return list<non-empty-string>
+     */
+    public function reviewObservations(GovernedRun $run): array
+    {
+        $state = (new ExecutionStateStore($this->rootPath))->find($run->taskId);
+        if ($state === null || $state->runId !== $run->runId) {
+            return [];
+        }
+
+        // Only the latest accepted result of each stage counts: a later attempt
+        // reviewed a newer candidate, so its observations supersede earlier ones.
+        $latest = [];
+        foreach ($state->history as $accepted) {
+            $latest[$accepted->result->stageId] = $accepted->result;
+        }
+        $observations = [];
+        foreach ($latest as $result) {
+            if ($result->outcome === StageOutcome::PASS) {
+                foreach ($result->observations as $observation) {
+                    $observations[] = $observation;
+                }
+            }
+        }
+
+        return array_values(array_unique($observations));
     }
 
     /**

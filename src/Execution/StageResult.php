@@ -8,6 +8,9 @@ use InvalidArgumentException;
 
 final readonly class StageResult
 {
+    public const int MAX_OBSERVATIONS = 32;
+    public const int MAX_OBSERVATION_BYTES = 2000;
+
     public string $submissionId;
     public string $taskId;
     public string $runId;
@@ -28,9 +31,19 @@ final readonly class StageResult
     public ?string $contextId;
 
     /**
+     * Non-blocking findings a passing review stage reported. They are records,
+     * not prose: finish routes them to Learning instead of letting a PASS
+     * summary absorb them.
+     *
+     * @var list<non-empty-string>
+     */
+    public array $observations;
+
+    /**
      * @param list<non-empty-string> $artifactReferences
      * @param list<non-empty-string> $validationReferences
      * @param list<non-empty-string> $consistencyReferences
+     * @param list<string> $observations
      */
     public function __construct(
         string $submissionId,
@@ -47,6 +60,7 @@ final readonly class StageResult
         string $summary,
         ?string $contextId = null,
         array $consistencyReferences = [],
+        array $observations = [],
     ) {
         $this->submissionId = trim($submissionId);
         $this->taskId = trim($taskId);
@@ -59,6 +73,7 @@ final readonly class StageResult
         $this->consistencyReferences = self::normalizeReferences($consistencyReferences, 'consistency');
         $this->summary = trim($summary);
         $this->contextId = $contextId === null ? null : trim($contextId);
+        $this->observations = self::normalizeObservations($observations);
 
         if ($this->submissionId === '' || $this->taskId === '' || $this->runId === '') {
             throw new InvalidArgumentException('Stage result requires submission, task, and Run ids.');
@@ -102,8 +117,35 @@ final readonly class StageResult
         if ($this->consistencyReferences !== []) {
             $payload['consistency_references'] = $this->consistencyReferences;
         }
+        if ($this->observations !== []) {
+            $payload['observations'] = $this->observations;
+        }
 
         return $payload;
+    }
+
+    /**
+     * @param list<string> $observations
+     * @return list<non-empty-string>
+     */
+    private static function normalizeObservations(array $observations): array
+    {
+        $normalized = [];
+        foreach ($observations as $observation) {
+            $observation = trim($observation);
+            if ($observation === '') {
+                throw new InvalidArgumentException('Stage result observations must be non-empty strings.');
+            }
+            if (strlen($observation) > self::MAX_OBSERVATION_BYTES) {
+                throw new InvalidArgumentException('Stage result observation exceeds ' . self::MAX_OBSERVATION_BYTES . ' bytes.');
+            }
+            $normalized[] = $observation;
+        }
+        if (count($normalized) > self::MAX_OBSERVATIONS) {
+            throw new InvalidArgumentException('Stage result carries more than ' . self::MAX_OBSERVATIONS . ' observations.');
+        }
+
+        return $normalized;
     }
 
     /**
