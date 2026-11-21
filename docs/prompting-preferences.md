@@ -59,6 +59,9 @@ The CLI decision labels currently support English and German;
 unknown configured languages use English labels while preserving exact
 Contract text, commands, paths, and owner evidence. The host agent should still
 follow `prompting.language` for its own explanation and recommendation.
+A host session may override the language for itself only with
+`workflow interaction <host-session-id> --language=<BCP47>` (see
+`docs/workflow/interaction-preference.md`); the project setting stays unchanged.
 
 `language` accepts a BCP 47 language tag such as `en`, `de`, or `de-DE`. It defaults to `en`. The setting governs explanatory prose in the workflow prompt envelope and `workflow context` projection, the CLI decision labels when English or German is configured, and the explanatory prose an agent writes when presenting a workflow decision or execution-pipeline Attention to a developer. For a governed task, use the normalized `prompting` projection from `workflow context <task-id> --format=json`. Source text, technical names, paths, commands, citations, machine-readable tokens, and owner-provided evidence stay exact. The setting does not translate persisted Contract, audit, or Recall artifacts.
 

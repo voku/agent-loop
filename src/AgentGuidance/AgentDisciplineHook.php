@@ -196,7 +196,8 @@ final readonly class AgentDisciplineHook
         }
         $hint = "## Host interaction\nHost session identity: `" . $sessionId . "`.\n"
             . "Read task context with `AGENT_LOOP_HOST_SESSION_ID=" . $sessionId . " agent-loop workflow context <task-id> --format=json` (a task ID is required; the host session is distinct from the task Session).\n"
-            . "Set a preference with `agent-loop workflow interaction <host-session-id> <collaborative|autonomous> [task-id]`; clear a task override with `agent-loop workflow interaction <host-session-id> inherit <task-id>`.\n";
+            . "Set a preference with `agent-loop workflow interaction <host-session-id> <collaborative|autonomous> [task-id]`; clear a task override with `agent-loop workflow interaction <host-session-id> inherit <task-id>`.\n"
+            . "Present decision cards in this session's language with `agent-loop workflow interaction <host-session-id> --language=<BCP47>` (after a mode is set); keep `AGENT_LOOP_HOST_SESSION_ID=" . $sessionId . "` set for `enter`, `finish` and `workflow plan` so the card uses it.\n";
         $directory = getenv('AGENT_LOOP_INTERACTION_DIR');
         if (!is_string($directory) || $directory === '') {
             return $hint . "No preference directory is configured. Reuse the developer's stated preference.\n\n";
