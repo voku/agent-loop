@@ -1,8 +1,8 @@
-# T10: Recall and Map in real use (R6, R7; R8 not run)
+# T10: Recall and Map in real use (R6, R7, R8)
 
 Date: 2026-11-21. This follows the T10 protocol in [the plan](../plans/2026-11-20-next-steps.md) (section T10).
 
-**Result in one line:** Recall delivered a correct but generic 15 KB briefing to both tasks, and it changed no decision. It arrived after the hosts had already chosen scope and acceptance. Map provided nothing. The real cost and friction came from the lifecycle, not from context: a validation failure caused by the environment sealed the snapshot in both runs. That is now fixed as `finish --revalidate` in #1122.
+**Result in one line:** Recall delivered a correct but generic 15 KB briefing to both tasks, and it changed no decision. It arrived after the hosts had already chosen scope and acceptance. Map provided nothing. The real cost and friction came from the lifecycle, not from context: a validation failure caused by the environment sealed the snapshot in both runs. That is now fixed as `finish --revalidate` in #1122. R8, a multi-file owner-first task, repeated the pattern: Recall selected nothing, and Map was built but never queried. The new review-observation gate worked end to end.
 
 ## Setup
 
@@ -43,6 +43,33 @@ Counter (`audit_transcripts.py`, a hit finder, checked by hand):
 
 Hand check: R6 host 2 reported two Recall reads. The second was a Bash read, which the counter documents as a miss. The `map_cli` 0 is real, because no Map index existed. `plain_search` is not usable for claims.
 
+## R8 `2026-09-09.a958dd` (multi-file, owner-first)
+
+The same setup as above. The operator gave the Contract approval (`--by voku`) under the owner's R6 answer, at 21:01:38.
+
+| | R8 |
+| --- | --- |
+| **Outcome** | Owner first: voku/agent-recall-compiler#298 adds `CompiledRecallOutputPaths` and `VerificationPlanReader` (not yet released). Loop adds the project PHPStan rule `NoOwnerArtifactFilenameLiteralRule`, a fixture case, and `phpstan/owner-artifact-filename-baseline.neon`, which pins today's 6 hand-built sites. The migration that empties the baseline is #1128, because it needs the Recall release first. |
+| **Correct?** | Yes, checked by the operator independently. The rule fires on its fixture. With the baseline emptied, PHPStan reports exactly the 6 pinned sites. Both fresh reviews passed with 5 observations. |
+| **Governed state** | **Closed** (`complete: true`): standard profile, five stages, `follow_up_required` → #1128. |
+| **Recall: provided** | 0 of 11 evaluated guidance items selected. `system.md` is 34,468 B. It is inline in every stage prompt (about 460 lines each time). |
+| **Recall: received / used** | The host read sections of `system.md` and `validation-plan.md` after `enter`. **No impact demonstrated.** The host had found all sites with `rg`, and designed the owner API, before `enter` compiled Recall. |
+| **Map** | The index existed for the first time in T10. File timestamps show `enter` built it (lock at 21:01:50) and it was refreshed at 21:20. The host made **0 Map calls** and found the sites with two `rg` searches. The manifest later reports the index as `stale` for 2 changed files. |
+| **Elapsed time** | 20:58 → about 21:20 for the host work and pipeline. |
+| **Tokens** | 161,395 (host, cumulative) + 88,330 + 85,807 (reviewers) |
+| **`composer ci` runs** | 2 by the host, 1 by `finish` (194 s), 1 by `verify` |
+| **Proportionate?** | The reviews were worth it: 5 real rule limits, now in #1128. The four full validations for one rule and one baseline file were not. |
+
+R8 friction:
+
+| Observed | Owner | Disposition |
+| --- | --- | --- |
+| **The review-observation gate worked as designed.** `finish --learning no_durable_learning` was refused and listed the 5 observations. The template offered only `findings_recorded` or `follow_up_required`. | Loop | Positive. This is the #1121/#1122 path in real use. |
+| `install-assets` writes the permission policy into `.claude/settings.json`, so the sub-host refused to run it. | Loop setup | Recorded. |
+| The full Recall briefing repeats in every stage prompt. | Loop / Recall delivery | Recorded. It adds about 460 lines per stage, and nothing in it was selected guidance. |
+| The pipeline starts at the base commit after the work already exists, as in R6/R7. | Loop policy | Recorded with the R6/R7 row. |
+| The banner of the PHPStan agent format says "do not add baseline entries". That conflicts with a Contract whose approved deliverable is a baseline. | phpstan-agent-format | Recorded. |
+
 ## Friction, classified by owner
 
 | Observed | Evidence | Owner | Disposition |
@@ -66,5 +93,5 @@ Hand check: R6 host 2 reported two Recall reads. The second was a Bash read, whi
 - It does **not** show that Recall or Map are useless:
   - Map was never built, as the AGENTS rule "do not pre-build Map" intends.
   - R7's lesson was already in the task text.
-- R8 (`a958dd`, a multi-file change, owner-first through Recall typed path accessors) was **not run**. It needs a Recall release before a Loop change, and this session ran out of room for an honest observation of it.
+- R8 (below) is the multi-file case where Map could have helped find call sites. Map was available, and the host used `rg` instead.
 - Step 2 (an A/B): this record names an anomaly (Recall arrives after the decisions it could inform), but it rests on one confounded case. The next honest step is an unconfounded task: a lesson that is not in the issue text, delivered before `plan`. Building a benchmark is not that step.

@@ -41,3 +41,8 @@ function discardedProjectLayoutPath(): void
 {
     (new ProjectLayout(__DIR__))->learningRoot();
 }
+
+function ownerArtifactFilename(string $recallDirectory): string
+{
+    return $recallDirectory . '/verification-plan.json';
+}

@@ -37,3 +37,7 @@ services:
     class: voku\AgentLoop\PHPStan\Rules\NoGitDirectoryShapeAssumptionRule
     tags:
       - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoOwnerArtifactFilenameLiteralRule
+    tags:
+      - phpstan.rules.rule
