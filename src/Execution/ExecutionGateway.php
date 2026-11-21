@@ -15,6 +15,8 @@ use voku\AgentLoop\Workflow\DeclaredValidationShell;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowLearningRoot;
+use voku\AgentLearning\RunLearningDecisionStore;
 
 /**
  * Public typed boundary for external execution hosts.
@@ -151,7 +153,15 @@ final readonly class ExecutionGateway
      */
     public function recoverCompletedPipeline(string $taskId, string $observedCandidateRevision, ?string $candidateWorkspace = null): ExecutionProjection
     {
-        [$contract, , $plan] = $this->current($taskId);
+        [$contract, $run, $plan] = $this->current($taskId);
+        // A durable Learning decision is the Run's final conclusion on exactly this
+        // evidence, and normally closes it. Reopening the reviewed pipeline under it
+        // would let new review observations land where no decision covers them, and
+        // the Learning owner refuses to replace a decision whose binding is unchanged.
+        // A change after that point is a new Contract revision, not a recovery.
+        if ((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->rootPath, $run)))->find($run->runId) !== null) {
+            throw new RuntimeException('RECOVERY_BLOCKED: the governed Run already recorded its Learning decision; start a new Contract revision (agent-loop workflow plan ' . $taskId . ' ... --supersede) to change the implementation.');
+        }
 
         return (new CompletedPipelineRecovery($this->rootPath))->recover($plan, $contract, $observedCandidateRevision, $candidateWorkspace);
     }
