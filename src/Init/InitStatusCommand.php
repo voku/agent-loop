@@ -155,7 +155,7 @@ final readonly class InitStatusCommand
 
         foreach ($gitIntegrationChecks as $check) {
             if (str_starts_with($check->render(), '[WARN]')) {
-                $commands[] = $activation->syncGitHooksCommand();
+                $commands[] = $activation->commitTemplateRepairCommand();
 
                 break;
             }

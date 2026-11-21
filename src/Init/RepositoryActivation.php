@@ -113,6 +113,20 @@ final readonly class RepositoryActivation
         return $this->cliPath() . ' ' . implode(' ', ['init', 'sync-githooks', ...$this->syncGitHooksTokens()]);
     }
 
+    /**
+     * Without a declared hook policy only the commit template is agent-loop's to
+     * set; sync-githooks would also move core.hooksPath (and refuses when other
+     * hooks run), so the template gets its own exact command.
+     *
+     * @return non-empty-string
+     */
+    public function commitTemplateRepairCommand(): string
+    {
+        return $this->declaresGitHookPolicy()
+            ? $this->syncGitHooksCommand()
+            : 'git config commit.template ' . self::COMMIT_TEMPLATE_FILE;
+    }
+
     public function installAssetsCommand(): string
     {
         return $this->cliPath() . ' init install-assets --agent=<' . implode('|', InitAgent::canonicalNames()) . '>'
@@ -286,12 +300,12 @@ final readonly class RepositoryActivation
             if ($template === null || $template === '') {
                 $results[] = InitCheckResult::warn(
                     'Commit template: ' . self::COMMIT_TEMPLATE_FILE
-                    . ' exists but commit.template is unset; run ' . $this->syncGitHooksCommand(),
+                    . ' exists but commit.template is unset; run ' . $this->commitTemplateRepairCommand(),
                 );
             } elseif (!$this->configuredFileMatches($template, self::COMMIT_TEMPLATE_FILE)) {
                 $results[] = InitCheckResult::warn(
                     'Commit template: commit.template=' . $template
-                    . ' does not point to ' . self::COMMIT_TEMPLATE_FILE . '; run ' . $this->syncGitHooksCommand(),
+                    . ' does not point to ' . self::COMMIT_TEMPLATE_FILE . '; run ' . $this->commitTemplateRepairCommand(),
                 );
             } else {
                 $results[] = InitCheckResult::ok('Commit template: active via commit.template=' . $template);

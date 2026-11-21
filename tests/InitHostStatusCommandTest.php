@@ -387,6 +387,34 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('core.hooksPath is unset, so Git runs the executable hooks in .git/hooks', (string) $status['next_action']);
     }
 
+    public function testTemplateOnlyRepairConvergesWhileOtherHooksRun(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+        $runner->mustRun(['git', 'init', '--quiet']);
+        // No hook policy: only the commit template is agent-loop's to set.
+        file_put_contents($this->root . '/.gitmessage', "type: subject\n");
+        mkdir($this->root . '/.husky', 0o775, true);
+        file_put_contents($this->root . '/.husky/pre-commit', "#!/bin/sh\nexit 0\n");
+        chmod($this->root . '/.husky/pre-commit', 0o755);
+        $runner->mustRun(['git', 'config', 'core.hooksPath', '.husky']);
+
+        $this->installAssets('opencode');
+        $policy = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(0, $policy['exit'], $policy['output']);
+
+        $status = $this->hostStatus();
+        self::assertSame('command', $status['next_action_kind']);
+        self::assertSame('git config commit.template .gitmessage', $status['next_action']);
+
+        $runner->mustRun(['git', 'config', 'commit.template', '.gitmessage']);
+        $converged = $this->hostStatus();
+        self::assertNotSame('missing', $converged['integration']['git_integration'] ?? null);
+        self::assertSame(".husky\n", $runner->mustRun(['git', 'config', '--get', 'core.hooksPath'])['stdout']);
+    }
+
     public function testMultipleVisibleHostsRequireExplicitSelection(): void
     {
         $this->createExecutable('claude');

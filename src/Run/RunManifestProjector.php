@@ -1155,6 +1155,8 @@ final class RunManifestProjector
         if ($bindingFailure !== null) {
             $reference['state'] = 'stale';
             $reference['reason'] = $bindingFailure;
+            // A stale decision is re-taken, so the replacement must see the observations too.
+            $reference['review_observations'] = $this->reviewObservations($run->taskId, $run);
         }
 
         return $reference;

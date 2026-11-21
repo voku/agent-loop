@@ -816,7 +816,7 @@ final readonly class RepositorySetupService
 
         foreach ($checks as $check) {
             if (str_starts_with($check->render(), '[' . InitCheckLevel::WARN . ']')) {
-                return ['status' => 'missing', 'action' => $activation->syncGitHooksCommand()];
+                return ['status' => 'missing', 'action' => $activation->commitTemplateRepairCommand()];
             }
         }
 
