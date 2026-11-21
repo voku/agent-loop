@@ -27,6 +27,11 @@ calls to inspect; they are not evidence that something was or was not used. What
       search queries, commit messages, --goal prose) do not count. recall_compile counts only
       the `compile` subcommand; Loop compiles Recall in-process during enter/approve, so 0 is
       expected and does not mean Recall was absent. Usable as candidates, with the misses below.
+      Loop's own subcommands `agent-loop map ...` and `agent-loop recall ...` count ONLY as
+      loop_cli, never as map_cli or recall_compile. Hosts are told to use Map through Loop
+      (agent-loop-investigate and other skills), so for any Map or Recall claim, classify the
+      loop_cli calls by subcommand too. Loop also calls Map and Recall in-process, so map_cli 0
+      does not mean Map was unused.
   recall_artifact_read   Read tool: exact file_path under .agent-loop/recall/ (reliable).
       Bash: text-wide match of a reader word anywhere earlier on the line, NOT usable for
       claims. On a real transcript 5 of 6 Bash-based reads were accidental matches and about 14
