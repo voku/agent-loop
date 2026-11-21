@@ -71,8 +71,10 @@ To use the command keys in a result:
   1. List the tool_use inputs (not tool results or prose) that contain the word agent-map,
      agent-loop or agent-recall-compiler; ignore matches that are only .agent-loop/ paths,
      /home/user/agent-* repository paths or voku/agent-* package names. Compare that list with
-     the counted calls; every uncounted entry that really ran is a miss (this covers every
-     shape listed above, including variables, wrappers and PATH calls).
+     the counted calls; every uncounted entry that really ran is a miss. The name screen
+     does not necessarily find calls whose program name was assigned to a variable, alias or
+     function in another tool input or the environment; if such calls cannot be traced, the
+     count stays incomplete.
   2. Hand-check every counted call, since over-counts exist.
   3. If 1 or 2 cannot be done completely, mark the count incomplete.
 For "was Recall received", start from Recall's own artifacts (selection-report.json says what
