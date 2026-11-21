@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Removed
+
+- The in-process PHPStan test-case rule (`NoInProcessPhpstanRuleTestCaseRule`), its fixtures and its registrations, by owner decision. Its constraint (`proposal.2026-09-13.2acd04`) is retired and its active manifest deleted; the MEMORY.md row "Tooling test isolation" follows in a separate change. The broader rule that agent experiment files are not tests is pursued separately.
+
 ## [0.20.103] - 2026-11-20
 
 ### Changed

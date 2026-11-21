@@ -14,7 +14,7 @@ namespace voku\AgentLoop\Dogfood;
  *
  * Runs out of process because `PHPStan\Testing\RuleTestCase` cannot share a
  * process with the Composer-based PHPStan discovery agent-map performs in the
- * ordinary PHPUnit run - the rule that guards that is itself in this list.
+ * ordinary PHPUnit run.
  */
 final readonly class ProjectRuleFixtureCheck
 {
@@ -30,8 +30,6 @@ final readonly class ProjectRuleFixtureCheck
         'ProjectLayout::learningRoot() result is discarded.' => 1,
         'PHPDoc contract tags must be on separate lines' => 1,
         'Do not infer Git repository state from is_dir(.git)' => 1,
-        // Direct, aliased, sibling (TypeInferenceTestCase), intermediate base and indirect child.
-        'do not extend PHPStan\Testing\PHPStanTestCase (RuleTestCase, TypeInferenceTestCase) in the PHPUnit suite' => 5,
     ];
 
     public function __construct(private ProcessRunner $runner)
