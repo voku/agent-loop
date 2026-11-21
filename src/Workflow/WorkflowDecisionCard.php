@@ -23,6 +23,7 @@ final readonly class WorkflowDecisionCard
     public function __construct(
         public string $type,
         public string $language,
+        public string $requestedLanguage,
         public string $title,
         public string $authorizes,
         public array $subject,
@@ -41,7 +42,9 @@ final readonly class WorkflowDecisionCard
         return [
             'schema_version' => '1.0',
             'type' => $this->type,
+            // The language the text is written in; requested_language is what the session or project asked for.
             'language' => $this->language,
+            'requested_language' => $this->requestedLanguage,
             'title' => $this->title,
             'subject' => $this->subject,
             'why_now' => $this->whyNow,

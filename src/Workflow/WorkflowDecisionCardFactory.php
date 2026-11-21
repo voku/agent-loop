@@ -80,6 +80,7 @@ final readonly class WorkflowDecisionCardFactory
 
         return new WorkflowDecisionCard(
             'contract_approval',
+            $this->language->rendered(),
             $this->language->language,
             $this->t('Decision required: Contract approval', 'Entscheidung erforderlich: Contract-Freigabe'),
             $this->t(
@@ -117,7 +118,7 @@ final readonly class WorkflowDecisionCardFactory
             [$this->t(
                 'What led to this revision (the owner records no lifecycle trigger for a plan).',
                 'Was zu dieser Revision geführt hat (der Owner speichert für einen Plan keinen Auslöser).',
-            )],
+            ), ...$this->translationGap()],
         );
     }
 
@@ -241,6 +242,7 @@ final readonly class WorkflowDecisionCardFactory
 
         return new WorkflowDecisionCard(
             $type,
+            $this->language->rendered(),
             $this->language->language,
             $title,
             $authorizes,
@@ -250,8 +252,24 @@ final readonly class WorkflowDecisionCardFactory
             $outOfScope,
             $proof,
             $choices,
-            $unknown,
+            [...$unknown, ...$this->translationGap()],
         );
+    }
+
+    /**
+     * Decision text exists only in English and German. When another language was
+     * requested, say so instead of letting the card claim it.
+     *
+     * @return list<string>
+     */
+    private function translationGap(): array
+    {
+        $requested = $this->language->language;
+        if ($requested === $this->language->rendered() || str_starts_with($requested, $this->language->rendered() . '-')) {
+            return [];
+        }
+
+        return ['Card text is in ' . $this->language->rendered() . '; ' . $requested . ' was requested. Translate the explanatory text for the human; keep commands and identifiers verbatim.'];
     }
 
     /**

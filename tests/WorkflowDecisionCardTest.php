@@ -10,6 +10,7 @@ use RecursiveIteratorIterator;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\WorkflowDecisionCardFactory;
+use voku\AgentLoop\Workflow\WorkflowInteractionCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 /**
@@ -162,6 +163,24 @@ final class WorkflowDecisionCardTest extends TestCase
         $text = $this->plan(['--supersede', '--file', 'src/Foo.php', '--file', 'src/Bar.php']);
         self::assertStringContainsString('Validation: not_run', $text);
         self::assertStringContainsString('Decision required: Contract approval', $text);
+    }
+
+    public function testCardReportsTheLanguageItIsWrittenInNotOnlyTheRequestedOne(): void
+    {
+        $this->plan(['--file', 'src/Foo.php']);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->root . '/interaction');
+        putenv('AGENT_LOOP_HOST_SESSION_ID=sess-fr');
+        ob_start();
+        (new WorkflowInteractionCommand())->run(['sess-fr', 'collaborative']);
+        (new WorkflowInteractionCommand())->run(['sess-fr', '--language=fr-FR']);
+        ob_end_clean();
+
+        $card = $this->enterJson()['human_decision']['card'];
+
+        self::assertSame('en', $card['language']);
+        self::assertSame('fr-fr', $card['requested_language']);
+        self::assertSame('Decision required: Contract approval', $card['title']);
+        self::assertStringContainsString('fr-fr was requested', implode("\n", $card['unknown']));
     }
 
     /** @param list<string> $arguments */

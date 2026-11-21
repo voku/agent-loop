@@ -58,4 +58,10 @@ final readonly class WorkflowPresentationLanguage
     {
         return $this->language === 'de' || str_starts_with($this->language, 'de-');
     }
+
+    /** Decision text exists in English and German only; this is the language actually rendered. */
+    public function rendered(): string
+    {
+        return $this->isGerman() ? 'de' : 'en';
+    }
 }
