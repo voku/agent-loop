@@ -19,7 +19,7 @@ From the PHP project root, the agent uses the project's normal Composer process 
 ```bash
 composer require --dev voku/agent-loop
 vendor/bin/agent-loop init recommend --format=json
-vendor/bin/agent-loop init install-assets --agent=codex --dry-run
+vendor/bin/agent-loop init install-assets --agent=codex --dry-run --skip-git-config
 ```
 
 The `recommend` command is read-only and returns detected PHPStan/Composer scope, **declared Composer validation-script names (not executable approvals)**, PHP-CS-Fixer presence, existing Slop exclusions, prompting language and unresolved choices. The host is **not** expected to copy all of that into new configuration files.
@@ -27,10 +27,10 @@ The `recommend` command is read-only and returns detected PHPStan/Composer scope
 Select the actual host (`codex` above is an example; `init host-status --format=json` helps identify it) and inspect the dry-run. With approval for the proposed changes:
 
 ```bash
-vendor/bin/agent-loop init install-assets --agent=codex
+vendor/bin/agent-loop init install-assets --agent=codex --skip-git-config
 ```
 
-This projects the package's `agent-loop-php-setup` skill into the coding host. Executable hooks are **not** installed unless `--with-hooks` is separately requested. Project-owned `AGENTS.md` content must remain intact.
+This projects the package's `agent-loop-php-setup` skill into the coding host. Executable host hooks are **not** installed unless `--with-hooks` is separately requested. `--skip-git-config` keeps the command from registering Git hooks (`core.hooksPath`, `commit.template`), which it otherwise does whenever `.agent-loop/githooks.json` exists; run `init sync-githooks` only after a separate approval. Project-owned `AGENTS.md` content must remain intact.
 
 ## Tell the coding agent what to do
 
