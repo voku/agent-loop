@@ -83,15 +83,11 @@ final readonly class InitSyncGitHooksCommand
         }
 
         $activation = new RepositoryActivation($this->rootPath);
-        $configuredHooksPath = $activation->configuredHooksPath();
         $hooksAlreadyActive = $activation->hooksPathPointsTo($hooksDir);
         if (!OptionTokens::hasFlag($tokens, 'skip-git-config') && $activation->hooksPathRunsOtherHooks($hooksDir)) {
             // Re-pointing core.hooksPath silently disables the hooks Git runs now.
             // Whose hooks run is the repository owner's decision, not a sync side effect.
-            echo '[FAIL] sync githooks: core.hooksPath already points to ' . $configuredHooksPath
-                . ', so Git runs the executable hooks there; refusing to replace it with ' . $hooksDir . '. '
-                . 'Review those hooks, then either run git config core.hooksPath ' . $hooksDir
-                . ' yourself and re-run this command, or keep them and pass --skip-git-config.' . "\n";
+            echo '[FAIL] sync githooks: refusing to change core.hooksPath: ' . $activation->otherHooksDecision() . '.' . "\n";
 
             return 1;
         }
@@ -205,7 +201,7 @@ final readonly class InitSyncGitHooksCommand
 
         if ($hooksAlreadyActive) {
             echo '[INFO] sync githooks: core.hooksPath already points to ' . $hooksDir
-                . ', so these files are the hooks Git runs on the next commit'
+                . ($dryRun ? ', so these files would be' : ', so these files are') . ' the hooks Git runs on the next commit'
                 . (OptionTokens::hasFlag($tokens, 'skip-git-config') ? ' (--skip-git-config does not make them inactive).' : '.') . "\n";
         }
 

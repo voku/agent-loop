@@ -354,6 +354,37 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('decision_required', $status['next_action_kind']);
         self::assertStringContainsString('core.hooksPath=.husky runs other executable hooks', (string) $status['next_action']);
         self::assertSame(".husky\n", $runner->mustRun(['git', 'config', '--get', 'core.hooksPath'])['stdout']);
+
+        // Answering "keep them" through the named exit converges instead of asking again.
+        unlink($this->root . '/.agent-loop/githooks.json');
+        $kept = $this->hostStatus();
+        self::assertSame('not_declared', $kept['integration']['git_integration'] ?? null);
+        self::assertNotSame('decision_required', $kept['next_action_kind']);
+    }
+
+    public function testUnsetHooksPathWithHooksInTheGitDirectoryIsAnOwnerDecision(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+        $runner->mustRun(['git', 'init', '--quiet']);
+        if (!is_dir($this->root . '/.agent-loop')) {
+            mkdir($this->root . '/.agent-loop', 0o775, true);
+        }
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+        // Where CaptainHook or GrumPHP install their hook.
+        file_put_contents($this->root . '/.git/hooks/pre-commit', "#!/bin/sh\nexit 0\n");
+        chmod($this->root . '/.git/hooks/pre-commit', 0o755);
+
+        $this->installAssets('opencode');
+        $policy = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(0, $policy['exit'], $policy['output']);
+
+        self::assertSame(1, $runner->run(['git', 'config', '--get', 'core.hooksPath'])['exit_code']);
+        $status = $this->hostStatus();
+        self::assertSame('decision_required', $status['next_action_kind']);
+        self::assertStringContainsString('core.hooksPath is unset, so Git runs the executable hooks in .git/hooks', (string) $status['next_action']);
     }
 
     public function testMultipleVisibleHostsRequireExplicitSelection(): void

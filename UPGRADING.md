@@ -113,8 +113,9 @@ integration when the repository tracks `.agent-loop/githooks.json`; pass
 without touching Git configuration. With `--skip-git-config`, hook files that
 `core.hooksPath` already activates are left untouched; update them with the
 `init sync-githooks` command that `init status` prints. `sync-githooks` no
-longer re-points a `core.hooksPath` that runs other hooks (for example
-`.husky`); it refuses and names the value.
+longer disables hooks Git already runs from elsewhere (a `core.hooksPath` such
+as `.husky`, or CaptainHook/GrumPHP hooks in `.git/hooks`); it refuses and
+names the two ways forward.
 
 **Action:** rerun the asset installation once, then read the activation report:
 

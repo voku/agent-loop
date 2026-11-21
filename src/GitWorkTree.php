@@ -57,6 +57,21 @@ final readonly class GitWorkTree
         return self::ask($rootPath, ['git', 'config', '--get', $key]);
     }
 
+    /**
+     * A path-typed config value: Git expands a leading `~` the way it does when
+     * it uses the value itself.
+     */
+    public static function configPathValue(string $rootPath, string $key): ?string
+    {
+        return self::ask($rootPath, ['git', 'config', '--type=path', '--get', $key]);
+    }
+
+    /** The path Git uses for $name inside the repository's Git directory, e.g. "hooks". */
+    public static function gitPath(string $rootPath, string $name): ?string
+    {
+        return self::ask($rootPath, ['git', 'rev-parse', '--git-path', $name]);
+    }
+
     /** @param non-empty-list<string> $command */
     private static function ask(string $workingDirectory, array $command): ?string
     {

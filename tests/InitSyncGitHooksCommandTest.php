@@ -194,7 +194,7 @@ final class InitSyncGitHooksCommandTest extends TestCase
         $result = $this->runGitHooksSync([]);
 
         self::assertSame(1, $result['exit'], $result['output']);
-        self::assertStringContainsString('core.hooksPath already points to .husky', $result['output']);
+        self::assertStringContainsString('core.hooksPath=.husky runs other executable hooks', $result['output']);
         self::assertSame('.husky', $this->gitConfig('core.hooksPath'));
         self::assertDirectoryDoesNotExist($this->root . '/.githooks');
 
@@ -202,6 +202,25 @@ final class InitSyncGitHooksCommandTest extends TestCase
         $kept = $this->runGitHooksSync(['--skip-git-config']);
         self::assertSame(0, $kept['exit'], $kept['output']);
         self::assertSame('.husky', $this->gitConfig('core.hooksPath'));
+    }
+
+    public function testExpandsAHomeRelativeHooksPathBeforeDecidingWhoseHooksRun(): void
+    {
+        $home = $this->root . '/home';
+        mkdir($home . '/hooks', 0o775, true);
+        file_put_contents($home . '/hooks/pre-commit', "#!/bin/sh\nexit 0\n");
+        chmod($home . '/hooks/pre-commit', 0o755);
+        $previous = getenv('HOME');
+        putenv('HOME=' . $home);
+        try {
+            exec('git -C ' . escapeshellarg($this->root) . ' config core.hooksPath "~/hooks"');
+            $result = $this->runGitHooksSync([]);
+        } finally {
+            putenv($previous === false ? 'HOME' : 'HOME=' . $previous);
+        }
+
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertSame('~/hooks', $this->gitConfig('core.hooksPath'));
     }
 
     public function testRepointsAHooksPathThatRunsNothing(): void

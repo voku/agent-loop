@@ -131,35 +131,39 @@ final readonly class RepositoryActivation
     }
 
     /**
-     * The repository-local core.hooksPath, or null when it is unset.
+     * The effective core.hooksPath, or null when it is unset.
      */
     public function configuredHooksPath(): ?string
     {
-        $value = GitWorkTree::configValue($this->absolute(''), 'core.hooksPath');
+        $value = GitWorkTree::configPathValue($this->absolute(''), 'core.hooksPath');
 
         return $value === null || trim($value) === '' ? null : trim($value);
     }
 
     /**
-     * Whether core.hooksPath points somewhere other than the agent-loop hooks
-     * directory that holds executable hooks Git runs now. Switching it would
-     * silently disable those hooks, so that is the repository owner's decision,
-     * not a sync side effect. A missing directory or one holding only Git's
-     * `.sample` files runs nothing and does not count.
+     * Whether Git runs other executable hooks now, from core.hooksPath or, when
+     * it is unset, from the Git directory's hooks/ (where CaptainHook, GrumPHP,
+     * pre-commit and husky v4 install). Pointing core.hooksPath at $hooksDir
+     * would silently disable them, so that is the repository owner's decision,
+     * not a sync side effect. A missing directory, Git's `.sample` files and an
+     * older agent-loop hook directory do not count.
      */
     public function hooksPathRunsOtherHooks(string $hooksDir): bool
     {
-        $configured = $this->configuredHooksPath();
-        if ($configured === null || $this->hooksPathPointsTo($hooksDir)) {
+        if ($this->hooksPathPointsTo($hooksDir)) {
             return false;
         }
-        $directory = str_starts_with($configured, '/') ? $configured : $this->absolute(rtrim($configured, '/'));
-        if (!is_dir($directory)) {
+        $directory = $this->liveHooksDirectory();
+        if ($directory === null || !is_dir($directory) || is_file($directory . '/' . self::HOOK_MARKER_ENTRY)) {
             return false;
         }
         foreach (scandir($directory) ?: [] as $entry) {
             $path = $directory . '/' . $entry;
-            if ($entry[0] !== '.' && !str_ends_with($entry, '.sample') && is_file($path) && is_executable($path)) {
+            if ($entry[0] === '.' || str_ends_with($entry, '.sample') || !is_file($path)) {
+                continue;
+            }
+            // Windows has no execute bit for extensionless hook scripts.
+            if (DIRECTORY_SEPARATOR === '\\' || is_executable($path)) {
                 return true;
             }
         }
@@ -167,14 +171,42 @@ final readonly class RepositoryActivation
         return false;
     }
 
-    /** @return non-empty-string */
+    /**
+     * The owner decision when other hooks run, naming an exit for each answer
+     * so an obeyed host-status converges either way.
+     *
+     * @return non-empty-string
+     */
     public function otherHooksDecision(): string
     {
         $hooksDir = $this->gitHooksDirectory();
+        $configured = $this->configuredHooksPath();
+        $where = $configured === null
+            ? 'core.hooksPath is unset, so Git runs the executable hooks in ' . (GitWorkTree::gitPath($this->absolute(''), 'hooks') ?? '.git/hooks')
+            : 'core.hooksPath=' . $configured . ' runs other executable hooks';
 
-        return 'core.hooksPath=' . ($this->configuredHooksPath() ?? '') . ' runs other executable hooks; replacing it would disable them. '
-            . 'Whose hooks run is the repository owner\'s decision: review them, then run git config core.hooksPath ' . $hooksDir
-            . ' and ' . $this->syncGitHooksCommand() . ', or keep them';
+        return $where . '; pointing core.hooksPath at ' . $hooksDir . ' would disable them. '
+            . 'Whose hooks run is the repository owner\'s decision: either review them, then run git config core.hooksPath ' . $hooksDir
+            . ' and ' . $this->syncGitHooksCommand()
+            . '; or keep them and remove ' . self::HOOK_POLICY_FILE . ' so this repository stops declaring agent-loop Git hooks';
+    }
+
+    /** Absolute directory Git takes hooks from now. */
+    private function liveHooksDirectory(): ?string
+    {
+        $configured = $this->configuredHooksPath();
+        $path = $configured ?? GitWorkTree::gitPath($this->absolute(''), 'hooks');
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+        $path = rtrim(str_replace('\\', '/', trim($path)), '/');
+
+        return $this->isAbsolutePath($path) ? $path : $this->absolute($path);
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/') || preg_match('#^[A-Za-z]:/#', $path) === 1;
     }
 
     /**
@@ -192,7 +224,8 @@ final readonly class RepositoryActivation
 
             return str_starts_with($path, './') ? substr($path, 2) : $path;
         };
-        $configuredAbsolute = str_starts_with($configured, '/') ? $configured : $this->absolute($normalize($configured));
+        $configured = str_replace('\\', '/', $configured);
+        $configuredAbsolute = $this->isAbsolutePath($configured) ? $configured : $this->absolute($normalize($configured));
         $targetAbsolute = $this->absolute($normalize($hooksDir));
         $configuredReal = realpath($configuredAbsolute);
         $targetReal = realpath($targetAbsolute);
@@ -280,6 +313,10 @@ final readonly class RepositoryActivation
     {
         $hooksPath = GitWorkTree::configValue($this->absolute(''), 'core.hooksPath');
         if ($hooksPath === null || $hooksPath === '') {
+            if ($this->hooksPathRunsOtherHooks($this->gitHooksDirectory())) {
+                return InitCheckResult::warn('Git hooks: ' . $this->otherHooksDecision());
+            }
+
             return InitCheckResult::warn(
                 'Git hooks: project policy exists but core.hooksPath is unset; run ' . $this->syncGitHooksCommand(),
             );
