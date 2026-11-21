@@ -23,11 +23,16 @@ final class WorkflowDecisionCardTest extends TestCase
 {
     private string $root;
 
+    /** @var array<string, string|false> */
+    private array $environment = [];
+
     protected function setUp(): void
     {
         // A host session language must not leak into these English assertions.
-        putenv('AGENT_LOOP_INTERACTION_DIR');
-        putenv('AGENT_LOOP_HOST_SESSION_ID');
+        foreach (['AGENT_LOOP_INTERACTION_DIR', 'AGENT_LOOP_HOST_SESSION_ID'] as $name) {
+            $this->environment[$name] = getenv($name);
+            putenv($name);
+        }
         $this->root = sys_get_temp_dir() . '/agent-loop-card-' . bin2hex(random_bytes(5));
         mkdir($this->root . '/src', 0o775, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
@@ -39,6 +44,9 @@ final class WorkflowDecisionCardTest extends TestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->environment as $name => $value) {
+            putenv($value === false ? $name : $name . '=' . $value);
+        }
         if (!is_dir($this->root)) {
             return;
         }
@@ -145,8 +153,19 @@ final class WorkflowDecisionCardTest extends TestCase
         self::assertNotSame([], $supersession['unknown'], 'A missing owner reason is reported as unknown.');
     }
 
+    public function testAnUnreadableRunDoesNotBreakPlanningOrTheCard(): void
+    {
+        $this->plan(['--file', 'src/Foo.php']);
+        mkdir($this->root . '/.agent-loop/runs/DEMO-1', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/runs/DEMO-1/run.json', '{"schema_version":"0.1"}');
+
+        $text = $this->plan(['--supersede', '--file', 'src/Foo.php', '--file', 'src/Bar.php']);
+        self::assertStringContainsString('Validation: not_run', $text);
+        self::assertStringContainsString('Decision required: Contract approval', $text);
+    }
+
     /** @param list<string> $arguments */
-    private function plan(array $arguments): void
+    private function plan(array $arguments): string
     {
         ob_start();
         $exit = (new WorkflowPlanCommand($this->root))->run([
@@ -157,6 +176,8 @@ final class WorkflowDecisionCardTest extends TestCase
         ]);
         $output = (string) ob_get_clean();
         self::assertSame(0, $exit, $output);
+
+        return $output;
     }
 
     /** @return array<string, mixed> */

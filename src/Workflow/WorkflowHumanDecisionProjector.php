@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Throwable;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifest;
@@ -242,7 +243,12 @@ final readonly class WorkflowHumanDecisionProjector
      */
     private function decision(string $type, string $taskId, string $nextAction, array $subject, ?WorkflowDecisionCard $card = null): array
     {
-        $card ??= WorkflowDecisionCardFactory::forRoot($this->rootPath)->forDecision($type, $taskId, $nextAction, $subject);
+        try {
+            $card ??= WorkflowDecisionCardFactory::forRoot($this->rootPath)->forDecision($type, $taskId, $nextAction, $subject);
+        } catch (Throwable) {
+            // The card is presentation; failing to build it must not hide the gate itself.
+            $card = null;
+        }
 
         return [
             'schema_version' => '1.0',
@@ -252,7 +258,7 @@ final readonly class WorkflowHumanDecisionProjector
             'action' => $nextAction,
             'subject' => $subject,
             // Show this card verbatim before asking; it is presentation, never authority.
-            'card' => $card->toArray(),
+            'card' => $card?->toArray(),
             'recommendation' => (new WorkflowDecisionAdvisor($this->rootPath))->advise($type, $subject),
         ];
     }

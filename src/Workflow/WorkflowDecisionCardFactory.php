@@ -34,8 +34,13 @@ final readonly class WorkflowDecisionCardFactory
     {
         $contract = $presentation->contract;
         $delta = $presentation->revisionDelta();
-        $run = (new GovernedRunStore($this->rootPath))->find($contract->taskId);
-        $runBound = $run !== null && $run->contractRevision === $contract->revision;
+        try {
+            $run = (new GovernedRunStore($this->rootPath))->find($contract->taskId);
+            $runBound = $run !== null && $run->contractRevision === $contract->revision;
+        } catch (Throwable) {
+            // An unreadable Run (e.g. an older schema) must not break planning; it proves nothing.
+            $runBound = false;
+        }
 
         if ($delta === null) {
             $whyNow = [
@@ -120,7 +125,11 @@ final readonly class WorkflowDecisionCardFactory
     public function forDecision(string $type, string $taskId, string $action, array $subject): WorkflowDecisionCard
     {
         $proof = $this->manifestProof($taskId);
-        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        try {
+            $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        } catch (Throwable) {
+            $contract = null;
+        }
         $proof['validation']['planned'] = $contract === null ? [] : $contract->validation;
         $mayChange = [];
         $outOfScope = [];
