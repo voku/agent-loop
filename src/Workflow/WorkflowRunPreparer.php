@@ -513,20 +513,18 @@ final readonly class WorkflowRunPreparer
         return $resolved;
     }
 
+    /**
+     * The Session owner decides which Sessions are active: ephemeral exploration
+     * Sessions never are, and more than one open governed Session is refused by
+     * the owner itself (AmbiguousActiveSession).
+     */
     private function activeSession(string $taskId): ?Session
     {
         $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-        if (count($sessions) > 1) {
-            throw new RuntimeException("Multiple active Sessions found for {$taskId}.");
-        }
 
-        return $sessions[0] ?? null;
+        return (new SessionStore())->activeForTask($root, $taskId);
     }
 }
