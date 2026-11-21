@@ -57,14 +57,28 @@ COMMAND_RES = {
 # the rest of the opening line (e.g. "&& bin/agent-loop finish X") stays. <<- allows tab-indented
 # terminators.
 HEREDOC_RE = re.compile(r"(<<-?\s*(['\"]?)(\w+)\2[^\n]*\n).*?\n\t*\3\b", re.S)
-# Quoted text (commit messages, --goal/--summary prose, echo arguments) is not a command.
-QUOTED_RE = re.compile(r'"(?:\\.|[^"\\])*"|\'[^\']*\'', re.S)
+# Command calls only: quoted text (commit messages, --goal/--summary prose, echo arguments) is not
+# a command, except $(...) inside double quotes, which the shell runs. A backslash escape outside
+# quotes and a # comment are consumed first so an apostrophe in them cannot pair across lines.
+SHELL_TOKEN_RE = re.compile(r"""\\.|(?:^|(?<=\s))#[^\n]*|"(?:\\.|[^"\\])*"|'[^']*'""")
+SUBSHELL_RE = re.compile(r'\$\(((?:[^()]|\([^()]*\))*)\)')
+
+
+def without_heredoc_bodies(command):
+    """Drop heredoc bodies (code or text the agent writes); keep the rest of the opening line."""
+    return HEREDOC_RE.sub(lambda m: m.group(1), command)
 
 
 def executable_text(command):
-    """The parts of a Bash command that can run: heredoc bodies and quoted strings removed."""
-    without_heredocs = HEREDOC_RE.sub(lambda m: m.group(1), command)
-    return QUOTED_RE.sub('""', without_heredocs)
+    """The parts of a Bash command that can run as a command, for COMMAND_RES matching only."""
+    def token(m):
+        text = m.group(0)
+        if text.startswith('"'):
+            return ' ' + ' ; '.join('$(' + inner + ')' for inner in SUBSHELL_RE.findall(text)) + ' '
+        if text.startswith('\\'):
+            return text
+        return ' '
+    return SHELL_TOKEN_RE.sub(token, without_heredoc_bodies(command))
 
 
 SEARCH_RE = re.compile(r'(?:^|[\s;&|("])(?:rg|grep|find|git\s+grep)\s', re.M)
@@ -77,11 +91,13 @@ def owner_tool_calls(name, tool_input):
     """Counter keys one tool call adds, judged by what the tool does, not by text it carries."""
     keys = []
     if name == "Bash":
-        command = executable_text(str(tool_input.get("command", "")))
-        keys += [key for key, pattern in COMMAND_RES.items() if pattern.search(command)]
-        if SEARCH_RE.search(command):
+        raw = str(tool_input.get("command", ""))
+        runnable = executable_text(raw)
+        keys += [key for key, pattern in COMMAND_RES.items() if pattern.search(runnable)]
+        body = without_heredoc_bodies(raw)  # search and Recall-read rules: heredoc strip only
+        if SEARCH_RE.search(body):
             keys.append("plain_search")
-        if FILE_READER_RE.search(command):
+        if FILE_READER_RE.search(body):
             keys.append("recall_artifact_read")
     elif name == "Read" and RECALL_ARTIFACT_RE.search(str(tool_input.get("file_path", ""))):
         keys.append("recall_artifact_read")
