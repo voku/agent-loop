@@ -63,15 +63,15 @@ final readonly class WorkflowDecisionCardFactory
             ];
         }
 
-        $validation = $runBound
-            ? $this->manifestProof($contract->taskId)['validation']
+        $bound = $runBound ? $this->manifestProof($contract->taskId) : null;
+        $validation = $bound !== null
+            ? $bound['validation']
             : ['state' => self::NOT_RUN, 'detail' => $this->t(
                 sprintf('No Run exists for revision %d yet; nothing has been validated.', $contract->revision),
                 sprintf('Für Revision %d gibt es noch keinen Run; nichts wurde validiert.', $contract->revision),
             )];
-        $review = $runBound
-            ? $this->manifestProof($contract->taskId)['review']
-            : ['state' => self::NOT_RUN, 'detail' => null];
+        $review = $bound !== null ? $bound['review'] : ['state' => self::NOT_RUN, 'detail' => null];
+        $validation['planned'] = $contract->validation;
 
         return new WorkflowDecisionCard(
             'contract_approval',
@@ -92,7 +92,7 @@ final readonly class WorkflowDecisionCardFactory
             $contract->scope,
             $contract->nonGoals,
             [
-                'validation' => $validation + ['planned' => $contract->validation],
+                'validation' => $validation,
                 'review' => $review,
             ],
             [
@@ -145,9 +145,14 @@ final readonly class WorkflowDecisionCardFactory
                     'Acknowledging records that you read this exact report. It does not approve the implementation or Learning.',
                     'Die Bestätigung hält fest, dass du genau diesen Bericht gelesen hast. Sie genehmigt weder die Implementierung noch Learning.',
                 );
+                $digest = is_string($subject['review_sha256'] ?? null) ? $subject['review_sha256'] : null;
+                if ($digest === null) {
+                    $unknown[] = $this->t('The review report digest, so no acknowledgement command can be offered.', 'Der Digest des Review-Berichts; daher kann kein Bestätigungsbefehl angeboten werden.');
+                }
+                // Same template RunPolicyEvaluator routes for an unacknowledged report.
                 $choices = [
-                    $this->choice('acknowledge', $this->t('Acknowledge', 'Bestätigen'), $this->t('Bind the acknowledgement to this report digest.', 'Die Bestätigung an diesen Bericht-Digest binden.'), $action),
-                    $this->choice('inspect', $this->t('Inspect first', 'Erst ansehen'), $this->t('Open the report; nothing is recorded.', 'Den Bericht öffnen; nichts wird festgehalten.'), 'agent-loop workflow review ' . $taskId),
+                    $this->choice('acknowledge', $this->t('Acknowledge', 'Bestätigen'), $this->t('Bind the acknowledgement to this report digest.', 'Die Bestätigung an diesen Bericht-Digest binden.'), $digest === null ? null : 'agent-loop finish ' . $taskId . ' --reviewed-report-sha256 ' . $digest . ' --by <actor>'),
+                    $this->choice('inspect', $this->t('Inspect first', 'Erst ansehen'), $this->t('Open the report presentation; no decision is recorded.', 'Die Bericht-Darstellung öffnen; keine Entscheidung wird festgehalten.'), 'agent-loop workflow review ' . $taskId),
                 ];
                 break;
             case 'learning_disposition':
@@ -168,9 +173,14 @@ final readonly class WorkflowDecisionCardFactory
                     'findings_recorded' => $this->t('Record reviewed Findings for Learning.', 'Geprüfte Findings für Learning festhalten.'),
                     'follow_up_required' => $this->t('Link the issue that tracks the remaining work.', 'Das Issue verknüpfen, das die offene Arbeit verfolgt.'),
                 ];
+                $commands = [
+                    'no_durable_learning' => 'agent-loop finish ' . $taskId . ' --learning no_durable_learning --by <actor>',
+                    'findings_recorded' => 'agent-loop finish ' . $taskId . ' --learning findings_recorded --by <actor> --finding <finding-id>',
+                    'follow_up_required' => 'agent-loop finish ' . $taskId . ' --by <actor> --follow-up-ref <follow-up-ref>',
+                ];
                 $choices = [];
                 foreach ($allowed as $disposition) {
-                    $choices[] = $this->choice($disposition, $disposition, $effects[$disposition] ?? $disposition, $action);
+                    $choices[] = $this->choice($disposition, $disposition, $effects[$disposition] ?? $disposition, $commands[$disposition] ?? null);
                 }
                 break;
             case 'risk_acceptance':
@@ -207,6 +217,17 @@ final readonly class WorkflowDecisionCardFactory
                 $unknown[] = $this->t('The owner provides no typed subject for this gate.', 'Der Owner liefert für dieses Gate keinen typisierten Gegenstand.');
                 $authorizes = $this->t('Only the action below; nothing else is approved.', 'Nur die Aktion unten; sonst wird nichts genehmigt.');
                 $choices = [$this->choice('perform_action', $this->t('Perform the action', 'Aktion ausführen'), $this->t('Run the owner action as written.', 'Die Owner-Aktion wie angegeben ausführen.'), $action)];
+        }
+
+        // These two card types can sit behind a decision_required gate that another
+        // owner raised (e.g. a stopped execution contract); show that gate's action too.
+        if (in_array($type, ['review_acknowledgement', 'learning_disposition'], true) && $action !== '') {
+            $choices[] = $this->choice('gate_action', $this->t('Resolve the reported gate', 'Das gemeldete Gate auflösen'), $this->t('The owner reports this action as the current human gate.', 'Der Owner meldet diese Aktion als aktuelles menschliches Gate.'), $this->commandOrNull($action, $unknown));
+        }
+        foreach ($choices as $index => $choice) {
+            if ($choice['command'] !== null && $choice['command'] === $action) {
+                $choices[$index]['command'] = $this->commandOrNull($action, $unknown);
+            }
         }
 
         return new WorkflowDecisionCard(
@@ -266,6 +287,16 @@ final readonly class WorkflowDecisionCardFactory
             $lines[] = $this->t('Goal changed (was: ', 'Ziel geändert (vorher: ') . $delta['previous_goal'] . ')';
         }
         foreach ($delta['lists'] as $label => $changes) {
+            $label = $this->language->isGerman() ? match ($label) {
+                'Validation' => 'Validierung',
+                'Non-goals' => 'Ausgeschlossen',
+                'Acceptance criteria' => 'Abnahmekriterien',
+                'Behavior anchors' => 'Verhaltensanker',
+                'Operating prompt manifest' => 'Operating-Prompt-Manifest',
+                'Operating prompts' => 'Operating-Prompts',
+                'Operating prompt order' => 'Operating-Prompt-Reihenfolge',
+                default => $label,
+            } : $label;
             foreach ($changes['added'] as $item) {
                 $lines[] = $label . ': + ' . $item;
             }
@@ -299,6 +330,22 @@ final readonly class WorkflowDecisionCardFactory
     private function stringList(mixed $value): array
     {
         return is_array($value) ? array_values(array_filter($value, 'is_string')) : [];
+    }
+
+    /**
+     * The gate's next_action is sometimes prose ("revise the approved Contract ...")
+     * rather than a command; prose is never presented as a runnable command.
+     *
+     * @param list<string> $unknown
+     */
+    private function commandOrNull(string $action, array &$unknown): ?string
+    {
+        if (str_starts_with($action, 'agent-loop ')) {
+            return $action;
+        }
+        $unknown[] = $this->t('A runnable command for: ', 'Ein ausführbarer Befehl für: ') . $action;
+
+        return null;
     }
 
     /** @return array{id: string, label: string, effect: string, command: string|null} */

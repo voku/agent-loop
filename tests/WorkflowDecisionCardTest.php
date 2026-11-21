@@ -25,6 +25,9 @@ final class WorkflowDecisionCardTest extends TestCase
 
     protected function setUp(): void
     {
+        // A host session language must not leak into these English assertions.
+        putenv('AGENT_LOOP_INTERACTION_DIR');
+        putenv('AGENT_LOOP_HOST_SESSION_ID');
         $this->root = sys_get_temp_dir() . '/agent-loop-card-' . bin2hex(random_bytes(5));
         mkdir($this->root . '/src', 0o775, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
@@ -121,9 +124,19 @@ final class WorkflowDecisionCardTest extends TestCase
             self::assertNotSame('passed', $card['proof']['validation']['state'], $type);
         }
 
-        $learning = $factory->forDecision('learning_disposition', 'DEMO-1', 'agent-loop finish DEMO-1', $subjects['learning_disposition'])->toArray();
-        self::assertSame(['findings_recorded', 'follow_up_required'], array_column($learning['choices'], 'id'));
+        // The gate action here is prose from another owner; it is never offered as a command.
+        $gate = 'revise the approved Contract, then run agent-loop workflow plan DEMO-1 --supersede';
+        $learning = $factory->forDecision('learning_disposition', 'DEMO-1', $gate, $subjects['learning_disposition'])->toArray();
+        self::assertSame(['findings_recorded', 'follow_up_required', 'gate_action'], array_column($learning['choices'], 'id'));
+        self::assertSame('agent-loop finish DEMO-1 --learning findings_recorded --by <actor> --finding <finding-id>', $learning['choices'][0]['command']);
+        self::assertSame('agent-loop finish DEMO-1 --by <actor> --follow-up-ref <follow-up-ref>', $learning['choices'][1]['command']);
+        self::assertNull($learning['choices'][2]['command']);
+        self::assertNotSame([], $learning['unknown']);
         self::assertSame(['Budget 0 admits a target.'], $learning['why_now']['changes']);
+
+        $review = $factory->forDecision('review_acknowledgement', 'DEMO-1', $gate, ['review_sha256' => 'sha256:' . str_repeat('a', 64), 'report_status' => 'ok', 'findings' => []])->toArray();
+        self::assertSame('agent-loop finish DEMO-1 --reviewed-report-sha256 sha256:' . str_repeat('a', 64) . ' --by <actor>', $review['choices'][0]['command']);
+        self::assertSame('agent-loop workflow review DEMO-1', $review['choices'][1]['command']);
 
         $risk = $factory->forDecision('risk_acceptance', 'DEMO-1', 'agent-loop workflow close DEMO-1 --accept-risk', $subjects['risk_acceptance'])->toArray();
         self::assertSame(['Validation is stale.'], $risk['why_now']['changes']);
