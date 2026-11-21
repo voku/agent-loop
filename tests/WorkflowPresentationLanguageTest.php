@@ -76,11 +76,15 @@ final class WorkflowPresentationLanguageTest extends TestCase
         self::assertSame(0, $this->interaction(['sess-a', 'collaborative', '--language=de-DE']));
         self::assertSame(0, $this->interaction(['sess-a', 'autonomous']));
         $store = new InteractionPreferenceStore($this->root . '/interaction');
-        self::assertSame('de-de', $store->find('sess-a')?->language);
-        self::assertSame('autonomous', $store->find('sess-a')?->defaultMode);
+        $preference = $store->find('sess-a');
+        self::assertNotNull($preference);
+        self::assertSame('de-de', $preference->language);
+        self::assertSame('autonomous', $preference->defaultMode);
 
         self::assertSame(0, $this->interaction(['sess-a', '--language=inherit']));
-        self::assertNull($store->find('sess-a')?->language);
+        $cleared = $store->find('sess-a');
+        self::assertNotNull($cleared);
+        self::assertNull($cleared->language);
     }
 
     public function testLanguageWithoutASessionPreferenceOrWithABadTagIsRefused(): void
