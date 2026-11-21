@@ -8,6 +8,8 @@
 ### Fixed
 
 - The `agent-loop-php-setup` skill and the PHP onboarding guide now pass `--skip-git-config` to `init install-assets`, so following them no longer registers Git hooks (`core.hooksPath`, `commit.template`) whenever `.agent-loop/githooks.json` exists. Git hook registration is a separate `init sync-githooks` step that needs its own approval, as the skill already required. Reported on voku/php-runtime-audit#32.
+- Setup entry points now agree with that split (#1118). When the repository tracks `.agent-loop/githooks.json`, the asset action from `init host-status` and the `Next:` line of `init status` carry `--skip-git-config`; `host-status` then names the exact `init sync-githooks` command as its own next action. `init install-plan` states that `install-assets` registers Git hooks in that case.
+- `init install-assets --skip-git-config` no longer rewrites hook files that `core.hooksPath` already activates; it leaves them untouched and prints the `sync-githooks` command that would update them. `init sync-githooks` notes when the files it writes are already live, and refuses to re-point a `core.hooksPath` whose directory holds other executable hooks (for example `.husky`); `install-assets` leaves it untouched with a warning, and `host-status` returns that switch as `decision_required`. Previously `install-assets` silently switched it to `.githooks`, disabling the project's hooks. A missing directory or one with only `.sample` files is still re-pointed.
 
 ### Documentation
 

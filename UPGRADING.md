@@ -110,7 +110,11 @@ and `commit.template` are active. Its `Next:` lines are the exact commands for
 your repository. `init install-assets` additionally activates the local Git
 integration when the repository tracks `.agent-loop/githooks.json`; pass
 `--skip-git-config` to keep the previous behaviour of installing hook files
-without touching Git configuration.
+without touching Git configuration. With `--skip-git-config`, hook files that
+`core.hooksPath` already activates are left untouched; update them with the
+`init sync-githooks` command that `init status` prints. `sync-githooks` no
+longer re-points a `core.hooksPath` that runs other hooks (for example
+`.husky`); it refuses and names the value.
 
 **Action:** rerun the asset installation once, then read the activation report:
 

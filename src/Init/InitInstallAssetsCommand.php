@@ -261,8 +261,9 @@ final readonly class InitInstallAssetsCommand
      * Hook and commit-template activation used to be a separate, optional step
      * that only `init doctor` mentioned, so repositories that tracked a hook
      * policy routinely committed with the policy inert. It runs here only when
-     * `.agent-loop/githooks.json` exists - that file is how a repository opts in -
-     * and `--skip-git-config` still leaves Git configuration alone.
+     * `.agent-loop/githooks.json` exists - that file is how a repository opts in.
+     * `--skip-git-config` leaves Git configuration alone and writes inert hook
+     * files only while Git does not already run hooks from that directory.
      *
      * @param list<string> $tokens
      * @param list<string> $forwarded
@@ -274,8 +275,24 @@ final readonly class InitInstallAssetsCommand
             return 0;
         }
 
+        if ($activation->hooksPathRunsOtherHooks($activation->gitHooksDirectory())) {
+            // Assets are installed; switching Git to other hooks is the owner's decision.
+            echo '[WARN] install assets: left Git hooks untouched: ' . $activation->otherHooksDecision() . '.' . "\n";
+
+            return 0;
+        }
+
         $arguments = $activation->syncGitHooksTokens();
         if (OptionTokens::hasFlag($tokens, 'skip-git-config')) {
+            if ($activation->hooksPathPointsTo($activation->gitHooksDirectory())) {
+                // The hook files are live: rewriting them changes what Git runs, which
+                // is the Git integration step --skip-git-config defers.
+                echo '[INFO] install assets: left the active Git hooks in ' . $activation->gitHooksDirectory()
+                    . ' untouched (--skip-git-config; core.hooksPath points there). Updating them is the separate Git step: '
+                    . $activation->syncGitHooksCommand() . "\n";
+
+                return 0;
+            }
             $arguments[] = '--skip-git-config';
         }
 

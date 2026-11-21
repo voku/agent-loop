@@ -768,7 +768,8 @@ final readonly class RepositorySetupService
         ) {
             return [
                 'kind' => RepositorySetupNextActionKind::COMMAND,
-                'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init install-assets --agent=' . $host,
+                'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init install-assets --agent=' . $host
+                    . (new RepositoryActivation($this->rootPath))->installAssetsGitSuffix(),
             ];
         }
 
@@ -793,6 +794,11 @@ final readonly class RepositorySetupService
         }
 
         if ($integration->gitIntegration === RepositorySetupIntegrationState::MISSING && $gitIntegrationAction !== null) {
+            $activation = new RepositoryActivation($this->rootPath);
+            if ($activation->hooksPathRunsOtherHooks($activation->gitHooksDirectory())) {
+                return ['kind' => RepositorySetupNextActionKind::DECISION_REQUIRED, 'action' => $activation->otherHooksDecision() . '.'];
+            }
+
             return ['kind' => RepositorySetupNextActionKind::COMMAND, 'action' => $gitIntegrationAction];
         }
 

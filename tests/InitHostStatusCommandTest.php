@@ -301,6 +301,61 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('', $output, 'Inspection failure must not emit a normal host-status repair contract.');
     }
 
+    public function testDeclaredHookPolicyKeepsAssetInstallAndGitRegistrationSeparateSteps(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+        $runner->mustRun(['git', 'init', '--quiet']);
+        if (!is_dir($this->root . '/.agent-loop')) {
+            mkdir($this->root . '/.agent-loop', 0o775, true);
+        }
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+
+        $initial = $this->hostStatus();
+        self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode --skip-git-config', $initial['next_action']);
+
+        // Obeying the asset action registers nothing with Git.
+        $install = $this->capture(fn (): int => (new InitInstallAssetsCommand($this->root))->run(['--agent=opencode', '--skip-git-config']));
+        self::assertSame(0, $install['exit'], $install['output']);
+        self::assertSame(1, $runner->run(['git', 'config', '--get', 'core.hooksPath'])['exit_code']);
+        $policy = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(0, $policy['exit'], $policy['output']);
+
+        // The Git step is then named on its own, with the detected arguments.
+        $gitStep = $this->hostStatus();
+        self::assertSame('missing', $gitStep['integration']['git_integration'] ?? null);
+        self::assertSame('vendor/bin/agent-loop init sync-githooks --hooks-dir=.githooks', $gitStep['next_action']);
+    }
+
+    public function testHooksPathThatRunsOtherHooksIsAnOwnerDecisionNotACommand(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+        $runner->mustRun(['git', 'init', '--quiet']);
+        if (!is_dir($this->root . '/.agent-loop')) {
+            mkdir($this->root . '/.agent-loop', 0o775, true);
+        }
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+        mkdir($this->root . '/.husky', 0o775, true);
+        file_put_contents($this->root . '/.husky/pre-commit', "#!/bin/sh\nexit 0\n");
+        chmod($this->root . '/.husky/pre-commit', 0o755);
+        $runner->mustRun(['git', 'config', 'core.hooksPath', '.husky']);
+
+        $this->installAssets('opencode');
+        $policy = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(0, $policy['exit'], $policy['output']);
+
+        $status = $this->hostStatus();
+        self::assertSame('missing', $status['integration']['git_integration'] ?? null);
+        self::assertSame('decision_required', $status['next_action_kind']);
+        self::assertStringContainsString('core.hooksPath=.husky runs other executable hooks', (string) $status['next_action']);
+        self::assertSame(".husky\n", $runner->mustRun(['git', 'config', '--get', 'core.hooksPath'])['stdout']);
+    }
+
     public function testMultipleVisibleHostsRequireExplicitSelection(): void
     {
         $this->createExecutable('claude');

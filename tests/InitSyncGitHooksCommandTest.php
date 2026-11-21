@@ -184,6 +184,48 @@ final class InitSyncGitHooksCommandTest extends TestCase
         self::assertSame('', $this->gitConfig('core.hooksPath'));
     }
 
+    public function testRefusesToRepointAHooksPathThatRunsOtherHooksBeforeWritingAnything(): void
+    {
+        exec('git -C ' . escapeshellarg($this->root) . ' config core.hooksPath .husky');
+        mkdir($this->root . '/.husky', 0o775, true);
+        file_put_contents($this->root . '/.husky/pre-commit', "#!/bin/sh\necho husky\n");
+        chmod($this->root . '/.husky/pre-commit', 0o755);
+
+        $result = $this->runGitHooksSync([]);
+
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertStringContainsString('core.hooksPath already points to .husky', $result['output']);
+        self::assertSame('.husky', $this->gitConfig('core.hooksPath'));
+        self::assertDirectoryDoesNotExist($this->root . '/.githooks');
+
+        // Keeping the other hooks and writing inert files stays possible.
+        $kept = $this->runGitHooksSync(['--skip-git-config']);
+        self::assertSame(0, $kept['exit'], $kept['output']);
+        self::assertSame('.husky', $this->gitConfig('core.hooksPath'));
+    }
+
+    public function testRepointsAHooksPathThatRunsNothing(): void
+    {
+        // A missing directory runs no hooks, so pointing Git at agent-loop's hooks disables nothing.
+        exec('git -C ' . escapeshellarg($this->root) . ' config core.hooksPath gone-hooks');
+
+        $result = $this->runGitHooksSync([]);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertSame('.githooks', $this->gitConfig('core.hooksPath'));
+    }
+
+    public function testSaysWhenTheWrittenHooksAreAlreadyLive(): void
+    {
+        self::assertSame(0, $this->runGitHooksSync([])['exit']);
+
+        foreach ([[], ['--skip-git-config']] as $tokens) {
+            $result = $this->runGitHooksSync($tokens);
+            self::assertSame(0, $result['exit'], $result['output']);
+            self::assertStringContainsString('core.hooksPath already points to .githooks, so these files are the hooks Git runs', $result['output']);
+        }
+    }
+
     public function testCustomHooksDirectoryIsUsedForFilesAndGitConfig(): void
     {
         $result = $this->runGitHooksSync(['--hooks-dir=tools/githooks']);
