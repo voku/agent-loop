@@ -19,12 +19,27 @@ For each run it prints one JSON object:
                      plain_search (Grep/Glob or rg/grep/find/git grep). A count shows what the
                      host called or read, not whether it helped.
 
-owner_tool_calls counts RECOGNISED calls, not guaranteed all calls. A Bash command counts
-only at command position, after heredoc bodies and quoted literal text are removed, so
-mentions (repo names in loops, search queries, commit messages, --goal prose) do not count.
-Two kinds of error remain, so neither a 0 nor a non-zero count is proof on its own.
+owner_tool_calls is a HIT FINDER, not a measurement. Its numbers are candidates that point at
+calls to inspect; they are not evidence that something was or was not used. What each key is:
 
-MISSES (a real call counts 0). Shapes seen in real transcripts are marked [seen]:
+  map_cli, recall_compile, loop_cli   Bash only. A call counts at command position, after
+      heredoc bodies and quoted literal text are removed, so mentions (repo names in loops,
+      search queries, commit messages, --goal prose) do not count. recall_compile counts only
+      the `compile` subcommand; Loop compiles Recall in-process during enter/approve, so 0 is
+      expected and does not mean Recall was absent. Usable as candidates, with the misses below.
+  recall_artifact_read   Read tool: exact file_path under .agent-loop/recall/ (reliable).
+      Bash: text-wide match of a reader word anywhere earlier on the line, NOT usable for
+      claims. On a real transcript 5 of 6 Bash-based reads were accidental matches and about 14
+      real reads counted 0 (python3 -c across a newline, path in a variable, grep/awk reads,
+      reads inside heredocs). Grep/Glob on a Recall path count as plain_search, not as reads.
+  plain_search   Grep/Glob tools, plus a text-wide Bash match (heredocs stripped, quotes NOT):
+      quoted prose can count. Not usable for claims.
+
+Calls made by a sub-agent are not in the parent transcript; each transcript is audited on
+its own.
+
+Known shapes where the command keys miss a real call or over-count a mention:
+MISSES (a real call counts 0); [seen] = found in a real transcript:
   php bin/agent-map $c $I                    subcommand in a variable [seen: 9 runs, 2026-11-18]
   L=vendor/bin/agent-loop && $L enter X      program in a variable [seen, 2026-11-19]
   php bin/agent-loop --version               option before the subcommand [seen]
@@ -42,12 +57,16 @@ MISSES (a real call counts 0). Shapes seen in real transcripts are marked [seen]
 OVER-COUNTS (a mention counts 1):
   grep -rn foo \<newline> bin/agent-loop src   continuation: an argument looks like a call
 
-Before reporting a result:
-  1. grep the transcript for the bare names agent-map, agent-loop and agent-recall-compiler,
-     and compare those hits with the counted calls; every uncounted hit that really ran is a
-     miss (this finds all shapes above, including variables and wrappers).
+To use the command keys in a result:
+  1. List the tool_use inputs (not tool results or prose) that contain the word agent-map,
+     agent-loop or agent-recall-compiler; ignore matches that are only .agent-loop/ paths,
+     /home/user/agent-* repository paths or voku/agent-* package names. Compare that list with
+     the counted calls; every uncounted entry that really ran is a miss (this covers every
+     shape listed above, including variables, wrappers and PATH calls).
   2. Hand-check every counted call, since over-counts exist.
   3. If 1 or 2 cannot be done completely, mark the count incomplete.
+For "was Recall received", prefer Recall's own artifacts (selection-report.json) plus Read-tool
+reads, and hand-classify a sample of Bash calls; do not quote Bash-based recall_artifact_read.
 The robustness probes show bad input does not crash or hang the scanner; they do not make it
 a full shell parser.
 
