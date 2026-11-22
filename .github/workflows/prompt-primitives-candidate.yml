@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/agent-recall-compiler
-          ref: 0.29.9
+          ref: 0.29.11
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
 
@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/candidate-agent-recall-compiler rev-parse 'HEAD^{commit}')" = "065dcb1b277d2221421406c27a1769f2645a62f1"
+          test "$(git -C build/candidate-agent-recall-compiler rev-parse 'HEAD^{commit}')" = "a666f2a4036e0b7379be5786ca6e0d6d3ba59968"
 
       - uses: shivammathur/setup-php@v2
         with:

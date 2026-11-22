@@ -9,7 +9,7 @@
 
 ### Changed
 
-- Requires `voku/agent-map` `^0.25.0`.
+- Requires `voku/agent-map` `^0.25.1`, `voku/agent-edit` `^0.8.2` and `voku/agent-recall-compiler` `^0.29.11`.
 - Deterministic `agent-loop edit` stays PHP-only and now says so: it refuses a TypeScript target (`src/file.ts#Class::method`) and a map that indexes TypeScript, before it would rebuild that map as PHP-only.
 - The `map` command summary no longer calls the map a "PHP repository map".
 
