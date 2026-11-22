@@ -52,7 +52,8 @@
                 "issues": "https://github.com/doctrine/deprecations/issues",
                 "source": "https://github.com/doctrine/deprecations/tree/1.2.0"
             },
-            "time": "2026-11-11T10:04:49+00:00"
+            "time": "2026-11-11T10:04:49+00:00",
+            "published-time": "2026-11-11T10:12:24+00:00"
         },
         {
             "name": "fidry/cpu-core-counter",
@@ -114,7 +115,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-09-29T22:11:39+00:00"
+            "time": "2026-09-29T22:11:39+00:00",
+            "published-time": "2026-09-29T22:12:43+00:00"
         },
         {
             "name": "helgesverre/toon",
@@ -296,7 +298,8 @@
                 "issues": "https://github.com/phpDocumentor/ReflectionCommon/issues",
                 "source": "https://github.com/phpDocumentor/ReflectionCommon/tree/2.2.1"
             },
-            "time": "2025-11-10T21:21:55+00:00"
+            "time": "2025-11-10T21:21:55+00:00",
+            "published-time": "2026-09-27T10:14:49+00:00"
         },
         {
             "name": "phpdocumentor/reflection-docblock",
@@ -361,7 +364,8 @@
                 "issues": "https://github.com/phpDocumentor/ReflectionDocBlock/issues",
                 "source": "https://github.com/phpDocumentor/ReflectionDocBlock/tree/6.0.3"
             },
-            "time": "2026-03-18T20:49:53+00:00"
+            "time": "2026-03-18T20:49:53+00:00",
+            "published-time": "2026-03-18T20:51:16+00:00"
         },
         {
             "name": "phpdocumentor/type-resolver",
@@ -419,7 +423,8 @@
                 "issues": "https://github.com/phpDocumentor/TypeResolver/issues",
                 "source": "https://github.com/phpDocumentor/TypeResolver/tree/2.1.0"
             },
-            "time": "2026-09-27T19:32:54+00:00"
+            "time": "2026-09-27T19:32:54+00:00",
+            "published-time": "2026-09-28T18:39:55+00:00"
         },
         {
             "name": "phpstan/phpdoc-parser",
@@ -466,7 +471,8 @@
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
                 "source": "https://github.com/phpstan/phpdoc-parser/tree/2.4.1"
             },
-            "time": "2026-10-30T19:36:28+00:00"
+            "time": "2026-10-30T19:36:28+00:00",
+            "published-time": "2026-10-30T19:37:11+00:00"
         },
         {
             "name": "psr/simple-cache",
@@ -517,7 +523,8 @@
             "support": {
                 "source": "https://github.com/php-fig/simple-cache/tree/3.0.0"
             },
-            "time": "2021-10-29T13:26:27+00:00"
+            "time": "2021-10-29T13:26:27+00:00",
+            "published-time": "2021-10-29T13:27:19+00:00"
         },
         {
             "name": "symfony/polyfill-iconv",
@@ -969,23 +976,23 @@
         },
         {
             "name": "voku/agent-edit",
-            "version": "0.8.1",
+            "version": "0.8.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-edit.git",
-                "reference": "0e87ac182aa9ebdec40bbe42276b882f469d051d"
+                "reference": "65b56d26e3a83eb0e17ed45549144443ba69fbd2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-edit/zipball/0e87ac182aa9ebdec40bbe42276b882f469d051d",
-                "reference": "0e87ac182aa9ebdec40bbe42276b882f469d051d",
+                "url": "https://api.github.com/repos/voku/agent-edit/zipball/65b56d26e3a83eb0e17ed45549144443ba69fbd2",
+                "reference": "65b56d26e3a83eb0e17ed45549144443ba69fbd2",
                 "shasum": ""
             },
             "require": {
                 "helgesverre/toon": "^3.1",
                 "nikic/php-parser": "^5.2",
                 "php": "^8.3",
-                "voku/agent-map": "^0.20.0 || ^0.21.0 || ^0.22.0 || ^0.23.0 || ^0.24.0",
+                "voku/agent-map": "^0.20.0 || ^0.21.0 || ^0.22.0 || ^0.23.0 || ^0.24.0 || ^0.25.0",
                 "voku/simple-php-code-parser": "^0.22.14"
             },
             "require-dev": {
@@ -1027,7 +1034,8 @@
                 "issues": "https://github.com/voku/agent-edit/issues",
                 "source": "https://github.com/voku/agent-edit"
             },
-            "time": "2026-11-19T23:38:24+00:00"
+            "time": "2026-11-22T10:27:34+00:00",
+            "published-time": "2026-11-22T10:35:07+00:00"
         },
         {
             "name": "voku/agent-graph",
@@ -1679,7 +1687,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-04-24T00:48:22+00:00"
+            "time": "2026-04-24T00:48:22+00:00",
+            "published-time": "2026-04-24T00:49:08+00:00"
         },
         {
             "name": "voku/simple-php-code-parser",
@@ -1750,7 +1759,8 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2026-10-09T09:16:13+00:00"
+            "time": "2026-10-09T09:16:13+00:00",
+            "published-time": "2026-10-09T09:17:31+00:00"
         },
         {
             "name": "voku/stop-words",
@@ -1863,7 +1873,8 @@
                 "issues": "https://github.com/webmozarts/assert/issues",
                 "source": "https://github.com/webmozarts/assert/tree/2.5.1"
             },
-            "time": "2026-11-15T13:41:13+00:00"
+            "time": "2026-11-15T13:41:13+00:00",
+            "published-time": "2026-11-15T13:41:42+00:00"
         }
     ],
     "packages-dev": [
@@ -5524,7 +5535,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-04-10T16:19:22+00:00"
+            "time": "2026-04-10T16:19:22+00:00",
+            "published-time": "2026-04-26T14:44:50+00:00"
         },
         {
             "name": "symfony/polyfill-php80",
