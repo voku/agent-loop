@@ -1,0 +1,106 @@
+{
+    "id": "proposal.2026-11-21.c57f5b",
+    "created_at": "2026-11-21T22:35:17+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-19.049f83",
+        "finding.2026-08-19.82221f"
+    ],
+    "reason": "Replace the applied constraint proposal.2026-08-20.c2a001 whose declared target .github/workflows/f-gate-recovery-evidence.yml was removed as expired in 40b7a649. The invariant is unchanged and still enforced: the release-set-dogfood job in .github/workflows/ci.yml runs six recovery scenarios from tools/release-set-dogfood.php and its step 'Verify Phase-F recovery convergence evidence' gates their scenario list, next-action kinds and actions. c2a001's own applied_validation (2026-11-19, main 6c16f688) already records this move; only the active declaration is stale, which agent-learning 0.23 validate now rejects.",
+    "remaining_uncertainty": [
+        "The gate covers six fixed blocker states (absent discovery, failed validation, invalid Recall meta, invalid review report, blocked execution contract, preparation refusal). It does not prove that every possible recovery action converges.",
+        "Only recovery.review-report-invalid obeys the routed command and proves progress; recovery.absent-discovery proves progress after the one human decision; the other four assert the routed kind and that the action does not name the refusing command or a read-only diagnostic (string checks), not that obeying it advances the state.",
+        "The happy front-door journey separately gates repeated_same_state_commands <= 2; recovery paths outside these scenarios, such as a stuck finish loop not reproduced here, remain unproven by this constraint."
+    ],
+    "status": "applied",
+    "proposed_by": "consolidation",
+    "approved_by": "Lars",
+    "approved_at": "2026-11-21T22:36:08+00:00",
+    "target_type": "constraint",
+    "target": "workflow.recovery.next-action-must-advance",
+    "scope": [
+        "src/Run/RunPolicyEvaluator.php"
+    ],
+    "old": null,
+    "new": "Constraint workflow.recovery.next-action-must-advance is enforced by the release-set-dogfood job in .github/workflows/ci.yml ('Verify Phase-F recovery convergence evidence'), which runs the six recovery scenarios in tools/release-set-dogfood.php.",
+    "boundary": "A recovery result must not advertise a canonical next action that cannot advance or change its blocking state. decision_required may stay non-mutating; host_work must name the owner, cause and action that change the state rather than a read-only diagnostic loop. Enforcement is limited to the scenarios the gate runs.",
+    "validation": [
+        "composer ci",
+        "php tools/release-set-dogfood.php --workspace=build/constraint-recovery --report=build/constraint-recovery/report.json --keep"
+    ],
+    "scope_justification": "Replace the applied constraint proposal.2026-08-20.c2a001 whose declared target .github/workflows/f-gate-recovery-evidence.yml was removed as expired in 40b7a649. The invariant is unchanged and still enforced: the release-set-dogfood job in .github/workflows/ci.yml runs six recovery scenarios from tools/release-set-dogfood.php and its step 'Verify Phase-F recovery convergence evidence' gates their scenario list, next-action kinds and actions. c2a001's own applied_validation (2026-11-19, main 6c16f688) already records this move; only the active declaration is stale, which agent-learning 0.23 validate now rejects.",
+    "constraint": {
+        "rule_id": "workflow.recovery.next-action-must-advance",
+        "engine": "ci",
+        "rule_class_name": "RecoveryConvergenceGate",
+        "target_rule_path": ".github/workflows/ci.yml",
+        "registration_files": [
+            "tools/release-set-dogfood.php"
+        ],
+        "scope": [
+            "src/Run/RunPolicyEvaluator.php",
+            "src/Run/RunManifestProjector.php",
+            "tools/release-set-dogfood.php"
+        ],
+        "violation": "A recovery result advertises a canonical next action that cannot advance or change the blocking state, causing an obedient host to repeat the same state/action indefinitely.",
+        "allowed_boundaries": [
+            "decision_required may remain non-mutating because progress requires explicit judgment rather than a mechanical repair",
+            "host_work may require model work, but it must name the owner/cause/action needed to change the state rather than a read-only diagnostic loop"
+        ],
+        "detectability": "runtime",
+        "false_positive_risk": "low",
+        "validation_commands": [
+            "composer ci",
+            "php tools/release-set-dogfood.php --workspace=build/constraint-recovery --report=build/constraint-recovery/report.json --keep"
+        ],
+        "example_rule_paths": [
+            ".github/workflows/ci.yml",
+            "tools/release-set-dogfood.php"
+        ]
+    },
+    "applied_by": "Lars",
+    "applied_at": "2026-11-21T22:36:26+00:00",
+    "commit": "6ac69e318205e4b579cc0233a00be9db821e26b2",
+    "applied_validation": {
+        "generated_files": [
+            "tools/release-set-dogfood.php",
+            ".github/workflows/ci.yml",
+            "src/Run/RunPolicyEvaluator.php",
+            "src/Run/RunManifestProjector.php"
+        ],
+        "registration_file": "tools/release-set-dogfood.php",
+        "commit": "6ac69e318205e4b579cc0233a00be9db821e26b2",
+        "tests": [
+            {
+                "command": "CI job 'Installed release-set dogfood' (php tools/release-set-dogfood.php ... --keep, then 'Verify Phase-F recovery convergence evidence' gating the six recovery scenarios)",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44956498775/job/137005665908"
+            },
+            {
+                "command": "CI 'tests (8.3)' composer ci",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44956498775/job/137005665927"
+            },
+            {
+                "command": "CI 'tests (8.4)' composer ci",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44956498775/job/137005665678"
+            },
+            {
+                "command": "CI 'tests (8.5)' composer ci",
+                "result": "passed",
+                "url": "https://github.com/voku/agent-loop/actions/runs/44956498775/job/137005665854"
+            }
+        ],
+        "validation_result": {
+            "result": "passed",
+            "summary": "Adopts the existing enforcement on voku/agent-loop main 6ac69e31 (CI run 44956498775, push to main): the release-set-dogfood job in .github/workflows/ci.yml runs the six recovery scenarios in tools/release-set-dogfood.php and its step 'Verify Phase-F recovery convergence evidence' gates scenario list, next-action kinds and actions. tools/release-set-dogfood.php is byte-identical to the 2026-11-19 revalidation of proposal.2026-08-20.c2a001 (sha256:5e529362...). No new implementation was generated. Coverage is limited to those six scenarios; see remaining_uncertainty."
+        },
+        "content_hashes": {
+            "tools/release-set-dogfood.php": "sha256:5e529362bbe4413754ae16aff3c1847b561b238622978dc5b11c4c8ec3b10d0c",
+            ".github/workflows/ci.yml": "sha256:c2cb354bf32af877fbbe0a1b72bbb76c5834d3c4d0ca25100d279fb3a1c8e289",
+            "src/Run/RunPolicyEvaluator.php": "sha256:faf59fdf8e58494ff13263386d5e4994aa84b15e086aae8515aad58351173362",
+            "src/Run/RunManifestProjector.php": "sha256:b8a374694bbeafa82f4c6823f3d18381cd4cc63d2780314bb7e8576786314162"
+        }
+    }
+}

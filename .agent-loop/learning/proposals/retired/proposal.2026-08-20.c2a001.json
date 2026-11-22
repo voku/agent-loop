@@ -7,11 +7,11 @@
         "finding.2026-08-19.049f83",
         "finding.2026-08-19.82221f"
     ],
-    "reason": "Two independent dogfood runs reproduced the same forbidden lifecycle state: the canonical next action can be a command that cannot advance the blocker it names. The repository has since hardened this with release-set recovery-convergence assertions and a continuous F-GATE. Promote that existing executable enforcement into the reviewed Constraint lineage instead of adding another soft reminder or duplicate test.",
+    "reason": "Replaced by proposal.2026-11-21.c57f5b: its declared gate .github/workflows/f-gate-recovery-evidence.yml was removed in 40b7a649; the same invariant is enforced by the release-set-dogfood job in .github/workflows/ci.yml.",
     "remaining_uncertainty": [
         "This proposal intentionally adopts existing CI enforcement. The owner-side generation/activation path still has to prove that an already-existing hard constraint can be promoted without generating a duplicate implementation."
     ],
-    "status": "applied",
+    "status": "retired",
     "proposed_by": "agent-loop-roadmap",
     "approved_by": "Lars",
     "approved_at": "2026-08-20T06:43:00+00:00",
@@ -102,5 +102,9 @@
             ".github/workflows/ci.yml": "sha256:e3ded3d28757661aafadc0c2bf4b15ccd81011b36e3f6eeecc3832cd1be3a57e"
         },
         "supersedes_validation": ".agent-loop/learning/validation/proposal.2026-08-20.c2a001.json"
-    }
+    },
+    "proposal_reason": "Two independent dogfood runs reproduced the same forbidden lifecycle state: the canonical next action can be a command that cannot advance the blocker it names. The repository has since hardened this with release-set recovery-convergence assertions and a continuous F-GATE. Promote that existing executable enforcement into the reviewed Constraint lineage instead of adding another soft reminder or duplicate test.",
+    "retired_by": "Lars",
+    "retired_at": "2026-11-21T22:36:36+00:00",
+    "superseded_by": "proposal.2026-11-21.c57f5b"
 }
