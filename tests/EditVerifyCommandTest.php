@@ -155,7 +155,7 @@ final class EditVerifyCommandTest extends TestCase
         $result = json_decode((string) file_get_contents($this->bundle . '/agent-result.json'), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($result);
         $result['verification_plan_sha256'] = null;
-        $result['verification_plan_error'] = 'knowledge_probes must be a JSON array';
+        $result['verification_plan_error'] = 'Verification plan knowledge_probes must be a JSON array';
         file_put_contents($this->bundle . '/agent-result.json', json_encode($result, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
         // A repair can change the plan bytes while leaving the old key behind.
         file_put_contents($this->planFile(), "\n", FILE_APPEND);
@@ -168,6 +168,29 @@ final class EditVerifyCommandTest extends TestCase
         } catch (\RuntimeException $exception) {
             self::assertStringContainsString('knowledge_probes must be a JSON array', $exception->getMessage());
             self::assertStringContainsString('re-run the edit', $exception->getMessage());
+        }
+    }
+
+    public function testTamperedStoredPlanErrorCannotInjectVerifierOutput(): void
+    {
+        $this->runEdit();
+        $file = $this->bundle . '/agent-result.json';
+        $result = json_decode((string) file_get_contents($file), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($result);
+        $result['verification_plan_sha256'] = null;
+        $result['verification_plan_error'] = "SENSITIVE_MARKER\\nforged error";
+        file_put_contents($file, json_encode($result, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+
+        self::assertSame(2, $this->verifyExitCode());
+        self::assertFileDoesNotExist($this->bundle . '/verification-result.json');
+        try {
+            VerificationBundle::load($this->bundle);
+            self::fail('A result without a plan binding must not be graded.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('Verification plan is unreadable or invalid', $exception->getMessage());
+            self::assertStringContainsString('re-run the edit', $exception->getMessage());
+            self::assertStringNotContainsString('SENSITIVE_MARKER', $exception->getMessage());
+            self::assertStringNotContainsString('forged error', $exception->getMessage());
         }
     }
 

@@ -8,6 +8,7 @@ use JsonException;
 use RuntimeException;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputPaths;
 use voku\AgentRecallCompiler\Verification\VerificationPlanReader;
+use voku\AgentLoop\Edit\VerificationPlanBinding;
 
 /**
  * The five artifacts a verification reads, loaded and cross-checked before anything is graded.
@@ -58,7 +59,7 @@ final readonly class VerificationBundle
         $document = (new VerificationPlanReader())->read($recallDirectory);
         $planError = $result['verification_plan_error'] ?? null;
         if (($result['verification_plan_sha256'] ?? null) === null && is_string($planError) && $planError !== '') {
-            throw new RuntimeException('The verification plan was unreadable when the edit ran (' . $planError . '); re-run the edit.');
+            throw new RuntimeException('The verification plan was unreadable when the edit ran (' . VerificationPlanBinding::safeStoredError($planError) . '); re-run the edit.');
         }
         $keyFile = (new CompiledRecallOutputPaths($recallDirectory))->verificationKey();
         if ($document === null || !is_file($keyFile)) {

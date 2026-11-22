@@ -24,6 +24,39 @@ use voku\AgentRecallCompiler\Verification\VerificationPlanReader;
  */
 final readonly class VerificationPlanBinding
 {
+    private const string UNKNOWN_READER_ERROR = 'Verification plan is unreadable or invalid';
+    /** @var array<string, string> */
+    private const array FIXED_READER_ERRORS = [
+        'Verification plan is not a regular file:' => 'Verification plan is not a regular file',
+        'Verification plan is not readable:' => 'Verification plan is not readable',
+        'Unable to read verification plan:' => 'Unable to read verification plan',
+        'Verification plan JSON must decode to an object:' => 'Verification plan JSON must decode to an object',
+        'Verification plan analysis_fingerprint must be an object or null:' => 'Verification plan analysis_fingerprint must be an object or null',
+        'Verification plan required_evidence_types must be a non-empty JSON array:' => 'Verification plan required_evidence_types must be a non-empty JSON array',
+        'Verification plan required_evidence_types must contain only non-empty strings:' => 'Verification plan required_evidence_types must contain only non-empty strings',
+        'Verification plan generator must be an object:' => 'Verification plan generator must be an object',
+        'Cannot establish verification plan absence: output directory does not exist or cannot be reached:' => 'Cannot establish verification plan absence: output directory does not exist or cannot be reached',
+        'Cannot establish verification plan absence: output directory cannot be listed:' => 'Cannot establish verification plan absence: output directory cannot be listed',
+        'Verification plan is a symbolic link whose target cannot be reached:' => 'Verification plan is a symbolic link whose target cannot be reached',
+        'Verification plan exists but cannot be reached:' => 'Verification plan exists but cannot be reached',
+    ];
+    /** @var list<string> */
+    private const array STRING_FIELDS = ['map_digest', 'task_id', 'target'];
+    /** @var list<string> */
+    private const array GENERATOR_FIELDS = ['name', 'version', 'seed_sha256'];
+    /** @var list<string> */
+    private const array LIST_FIELDS = ['knowledge_probes', 'checklist', 'objective_gates', 'omitted_probe_candidates'];
+    /** @var list<string> */
+    private const array JSON_ERROR_REASONS = [
+        'maximum stack depth exceeded',
+        'invalid or malformed JSON state',
+        'unexpected control character',
+        'syntax error',
+        'malformed UTF-8',
+        'malformed UTF-16',
+        'invalid JSON',
+    ];
+
     /**
      * @param list<string> $probeIds
      * @param list<string> $checklistIds
@@ -59,42 +92,57 @@ final readonly class VerificationPlanBinding
         return new self($plan->sha256, $plan->probeIds, $plan->checklistIds);
     }
 
+    /**
+     * The result JSON is untrusted on read. Only exact messages emitted by safeReaderError()
+     * may be included in verifier output; arbitrary text must not enter logs.
+     */
+    public static function safeStoredError(string $error): string
+    {
+        $known = array_values(self::FIXED_READER_ERRORS);
+        $known[] = self::UNKNOWN_READER_ERROR;
+        $known[] = 'Unsupported verification plan schema version';
+        foreach (self::STRING_FIELDS as $field) {
+            $known[] = 'Verification plan ' . $field . ' must be a non-empty string';
+        }
+        foreach (self::GENERATOR_FIELDS as $field) {
+            $known[] = 'Verification plan generator.' . $field . ' must be a string';
+        }
+        foreach (self::LIST_FIELDS as $field) {
+            $prefix = 'Verification plan ' . $field;
+            $known[] = $prefix . ' must be a JSON array';
+            $known[] = $prefix . ' has a duplicate id';
+            $known[] = $prefix . ' contains an entry without a non-empty string id';
+            $known[] = $prefix . ' contains a non-object entry';
+        }
+        foreach (self::JSON_ERROR_REASONS as $reason) {
+            $known[] = 'Invalid verification plan JSON: ' . $reason;
+        }
+
+        return in_array($error, $known, true) ? $error : self::UNKNOWN_READER_ERROR;
+    }
+
     /** Reader messages can include plan values and paths; persist only fixed diagnostics. */
     private static function safeReaderError(RuntimeException $exception): string
     {
         $message = $exception->getMessage();
-        $fixed = [
-            'Verification plan is not a regular file:' => 'Verification plan is not a regular file',
-            'Verification plan is not readable:' => 'Verification plan is not readable',
-            'Unable to read verification plan:' => 'Unable to read verification plan',
-            'Verification plan JSON must decode to an object:' => 'Verification plan JSON must decode to an object',
-            'Verification plan analysis_fingerprint must be an object or null:' => 'Verification plan analysis_fingerprint must be an object or null',
-            'Verification plan required_evidence_types must be a non-empty JSON array:' => 'Verification plan required_evidence_types must be a non-empty JSON array',
-            'Verification plan required_evidence_types must contain only non-empty strings:' => 'Verification plan required_evidence_types must contain only non-empty strings',
-            'Verification plan generator must be an object:' => 'Verification plan generator must be an object',
-            'Cannot establish verification plan absence: output directory does not exist or cannot be reached:' => 'Cannot establish verification plan absence: output directory does not exist or cannot be reached',
-            'Cannot establish verification plan absence: output directory cannot be listed:' => 'Cannot establish verification plan absence: output directory cannot be listed',
-            'Verification plan is a symbolic link whose target cannot be reached:' => 'Verification plan is a symbolic link whose target cannot be reached',
-            'Verification plan exists but cannot be reached:' => 'Verification plan exists but cannot be reached',
-        ];
-        foreach ($fixed as $prefix => $diagnostic) {
+        foreach (self::FIXED_READER_ERRORS as $prefix => $diagnostic) {
             if (str_starts_with($message, $prefix)) {
                 return $diagnostic;
             }
         }
-        foreach (['map_digest', 'task_id', 'target'] as $field) {
+        foreach (self::STRING_FIELDS as $field) {
             $prefix = 'Verification plan ' . $field . ' must be a non-empty string:';
             if (str_starts_with($message, $prefix)) {
                 return rtrim($prefix, ':');
             }
         }
-        foreach (['name', 'version', 'seed_sha256'] as $field) {
+        foreach (self::GENERATOR_FIELDS as $field) {
             $prefix = 'Verification plan generator.' . $field . ' must be a string:';
             if (str_starts_with($message, $prefix)) {
                 return rtrim($prefix, ':');
             }
         }
-        foreach (['knowledge_probes', 'checklist', 'objective_gates', 'omitted_probe_candidates'] as $field) {
+        foreach (self::LIST_FIELDS as $field) {
             if (str_starts_with($message, 'Verification plan ' . $field . ' must be a JSON array:')) {
                 return 'Verification plan ' . $field . ' must be a JSON array';
             }
@@ -126,7 +174,7 @@ final readonly class VerificationPlanBinding
             return 'Invalid verification plan JSON: ' . $reason;
         }
 
-        return 'Verification plan is unreadable or invalid';
+        return self::UNKNOWN_READER_ERROR;
     }
 
     /** @return array<string, list<string>> */
