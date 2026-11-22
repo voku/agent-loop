@@ -275,7 +275,11 @@ final readonly class WorkflowPipelineCommand
                 $acceptedOutcomes,
             )) . '>"';
             $citations = $gateway->expectedArtifactCitations($bundle);
-            foreach ($citations === [] ? ['<candidate-file>'] : $citations as $citation) {
+            if (array_filter($citations, static fn (string $citation): bool => !str_starts_with($citation, 'deleted-file:')) === []) {
+                // CHANGES_REQUIRED needs one file that exists in the candidate; a deletion-only diff names none.
+                $citations[] = '<candidate-file>';
+            }
+            foreach ($citations as $citation) {
                 $artifactArguments .= ' --artifact ' . escapeshellarg($citation);
             }
         }
@@ -423,8 +427,12 @@ final readonly class WorkflowPipelineCommand
         }
         /** @var list<non-empty-string> $artifactReferences */
         $artifactReferences = [];
+        // A value may list several paths separated by commas, unless it is exactly the citation of one changed
+        // candidate file: a file name may contain a comma, and the stage template cites such a file as one value.
+        $literalCitations = $gateway->expectedArtifactCitations($bundle);
         foreach ($artifactPaths as $artifactPath) {
-            foreach (explode(',', $artifactPath) as $path) {
+            $listed = in_array(trim($artifactPath), $literalCitations, true) ? [$artifactPath] : explode(',', $artifactPath);
+            foreach ($listed as $path) {
                 $path = trim($path);
                 if ($path !== '') {
                     $artifactReferences[] = $gateway->recordStageArtifactPath($bundle, $path, $effectiveCandidate);

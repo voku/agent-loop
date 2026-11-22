@@ -74,7 +74,6 @@ final class WorkflowPlanUnclosableScopeTest extends TestCase
         yield 'workflow state file that does not exist yet' => ['.agent-loop/runs/NEW-1/manifest.json'];
         yield 'workflow root directory' => ['.agent-loop'];
         yield 'directory inside the workflow root' => ['.agent-loop/todo'];
-        yield 'learning root as a directory' => ['.agent-loop/learning'];
         yield 'learning history file' => ['.agent-loop/learning/history/run.json'];
         yield 'learning history directory' => ['.agent-loop/learning/history'];
         yield 'git directory' => ['.git'];
@@ -128,6 +127,28 @@ final class WorkflowPlanUnclosableScopeTest extends TestCase
         self::assertSame([$path], $contracts->load('CLOSABLE-1')->scope);
         $snapshot = ImplementationSnapshot::capture($this->root, $contracts->approve('CLOSABLE-1', 'fixture', 1));
         self::assertNotSame([], $snapshot->files);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function directoryScopeATaskMayDelete(): iterable
+    {
+        yield 'directory of the Learning root' => ['.agent-loop/learning/constraints'];
+        yield 'Learning root itself' => ['.agent-loop/learning'];
+    }
+
+    /**
+     * The snapshot refuses these only while they are directories; once the task
+     * deleted them it records the deletion, so planning must not refuse them.
+     */
+    #[DataProvider('directoryScopeATaskMayDelete')]
+    public function testPlanDefersDirectoryScopeTheSnapshotRefusesOnlyWhileItExists(string $path): void
+    {
+        self::assertTrue(is_dir($this->root . '/' . $path));
+
+        $result = $this->plan(['DEFERRED-1', '--by', 'fixture', '--file', $path, '--goal', 'Delete it.', '--validation', 'true', '--format', 'json']);
+
+        self::assertSame(0, $result['exit'], $result['stdout']);
+        self::assertSame([$path], (new TaskContractStore($this->root))->load('DEFERRED-1')->scope);
     }
 
     public function testSupersedeAndAddScopeRefuseMetadataScopeAndKeepTheCurrentRevision(): void

@@ -309,7 +309,7 @@ final class TaskContractStore
             if (ImplementationSnapshot::refusesScopeAsMetadata($this->rootPath, $path)) {
                 throw new RuntimeException(
                     'Contract scope is workflow/dependency metadata, not implementation content: ' . $path
-                    . '. The implementation snapshot refuses it at finish, so this Contract could never close;'
+                    . '. The implementation snapshot refuses it at finish whatever the task does with it, so this Contract could never close;'
                     . ' scope the implementation files the task changes instead.',
                 );
             }

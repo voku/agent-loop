@@ -334,6 +334,29 @@ final class ImplementationSnapshotTest extends TestCase
         ImplementationSnapshot::capture($this->root, $this->unplannedContract('SNAP-CUSTOM-LEARNING-DIR', ['infra/doc/agent-learning/history']));
     }
 
+    public function testLearningDirectoryScopeIsPlannableAndClosesOnceTheTaskDeletedIt(): void
+    {
+        $path = '.agent-loop/learning/constraints';
+        mkdir($this->root . '/' . $path, 0o775, true);
+        file_put_contents($this->root . '/' . $path . '/constraint.json', "{}\n");
+        // Planned through the store while the directory still exists: planning must defer to finish here.
+        $contract = $this->contractAt('SNAP-LEARNING-DIR-DELETE', ['src/A.php', $path], $this->commitAll());
+
+        try {
+            ImplementationSnapshot::capture($this->root, $contract);
+            self::fail('The snapshot accepted an existing Learning directory scope.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $path, $exception->getMessage());
+        }
+
+        unlink($this->root . '/' . $path . '/constraint.json');
+        rmdir($this->root . '/' . $path);
+        $afterDeletion = ImplementationSnapshot::capture($this->root, $contract);
+
+        self::assertSame(['src/A.php'], array_column($afterDeletion->files, 'path'));
+        self::assertSame([$path], $afterDeletion->deleted);
+    }
+
     public function testScopedFileDeletedSinceBaseCommitIsRecordedAsExplicitDeletion(): void
     {
         file_put_contents($this->root . '/src/Gone.php', "<?php\nreturn 'gone';\n");

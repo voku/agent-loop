@@ -340,6 +340,61 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame("build", json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR)["current_stage"]);
     }
 
+    public function testDeletionOnlyReviewTemplateAlsoAsksForAnExistingCandidateFile(): void
+    {
+        $this->prepareSurgicalRun("PIPE-TEMPLATE-5", validation: ["true"], files: ["src"]);
+        $command = new WorkflowPipelineCommand($this->root);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-5", "--outcome=completed"])["exit"]);
+        unlink($this->root . "/src/Foo.php");
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-5", "--outcome=completed", "--context-id=ctx:build"])["exit"]);
+
+        $stage = json_decode($this->captureRun($command, ["stage", "PIPE-TEMPLATE-5", "--format=json"])["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertStringEndsWith(' --artifact \'deleted-file:src/Foo.php\' --artifact \'<candidate-file>\'', $stage["next_action"]);
+        self::assertStringContainsString("any existing candidate file when the diff only deletes files", $stage["prompt"]);
+
+        // The deleted-file citation alone is refused for changes_required.
+        $deletedOnly = $this->captureRun($command, ["submit", "PIPE-TEMPLATE-5", "--outcome", "changes_required", "--context-id", "ctx:review", "--artifact", "deleted-file:src/Foo.php", "--format=json"]);
+        self::assertSame(1, $deletedOnly["exit"]);
+        self::assertStringContainsString("must cite current candidate files", $deletedOnly["stdout"]);
+
+        $result = $this->captureRun($command, [
+            ...$this->argumentsFromTemplate($stage["next_action"], "changes_required", "docs/CHANGELOG.md"),
+            "--format=json",
+        ]);
+        self::assertSame(0, $result["exit"], $result["stdout"]);
+        self::assertSame("build", json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR)["current_stage"]);
+    }
+
+    public function testTemplateCitationOfAFileNameWithACommaSurvivesSubmit(): void
+    {
+        $this->prepareSurgicalRun("PIPE-TEMPLATE-6", validation: ["true"], files: ["src"]);
+        $command = new WorkflowPipelineCommand($this->root);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-6", "--outcome=completed"])["exit"]);
+        file_put_contents($this->root . "/src/A,B.php", "<?php\n");
+        file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { }\n");
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-6", "--outcome=completed", "--context-id=ctx:build"])["exit"]);
+
+        $stage = json_decode($this->captureRun($command, ["stage", "PIPE-TEMPLATE-6", "--format=json"])["stdout"], true, 512, JSON_THROW_ON_ERROR);
+        self::assertStringEndsWith(' --artifact \'src/A,B.php\' --artifact \'src/Foo.php\'', $stage["next_action"]);
+
+        $result = $this->captureRun($command, [...$this->argumentsFromTemplate($stage["next_action"], "pass"), "--format=json"]);
+        self::assertSame(0, $result["exit"], $result["stdout"]);
+        self::assertSame("verify", json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR)["current_stage"]);
+    }
+
+    public function testCommaSeparatedArtifactListIsStillSplit(): void
+    {
+        $this->prepareSurgicalRun("PIPE-TEMPLATE-7", validation: ["true"], files: ["src"]);
+        $command = new WorkflowPipelineCommand($this->root);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-7", "--outcome=completed"])["exit"]);
+        file_put_contents($this->root . "/src/New.php", "<?php\n");
+        file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { }\n");
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-7", "--outcome=completed", "--context-id=ctx:build"])["exit"]);
+
+        $result = $this->captureRun($command, ["submit", "PIPE-TEMPLATE-7", "--outcome=pass", "--context-id=ctx:review", "--artifact=src/Foo.php, src/New.php", "--format=json"]);
+        self::assertSame(0, $result["exit"], $result["stdout"]);
+    }
+
     public function testReviewStageTemplateAsksForACandidateFileWhenNoChangedFileIsKnown(): void
     {
         $this->prepareSurgicalRun("PIPE-TEMPLATE-4");
@@ -572,13 +627,14 @@ final class WorkflowPipelineCommandTest extends TestCase
      *
      * @return list<string>
      */
-    private function argumentsFromTemplate(string $template, string $outcome): array
+    private function argumentsFromTemplate(string $template, string $outcome, string $candidateFile = "<candidate-file>"): array
     {
         self::assertStringStartsWith("agent-loop pipeline submit ", $template);
         $filled = strtr(substr($template, strlen("agent-loop pipeline ")), [
             "<pass|changes_required>" => $outcome,
             "<summary>" => "Reviewed the complete diff.",
             "<host-context-id>" => "ctx:review",
+            "<candidate-file>" => $candidateFile,
         ]);
         self::assertStringNotContainsString("<", $filled, "Every placeholder of the template must be one this test fills.");
         preg_match_all('/"([^"]*)"|\'([^\']*)\'|(\S+)/', $filled, $matches, PREG_SET_ORDER);

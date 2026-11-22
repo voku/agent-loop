@@ -1121,7 +1121,7 @@ final readonly class ExecutionGateway
             $lines[] = '';
             $lines[] = 'Review the complete raw diff against the approved Contract and task evidence.';
             $lines[] = 'Before returning PASS, list every changed candidate file path in artifact_references; the owner checks that this set covers the complete governed diff.';
-            $lines[] = 'For CHANGES_REQUIRED, artifact_references must hold at least one file that exists in the current candidate, ideally the files your findings are about; a path named only in the summary, an exclusion, or a deleted-file: entry alone is refused as MISSING_EVIDENCE.';
+            $lines[] = 'For CHANGES_REQUIRED, artifact_references must hold at least one file that exists in the current candidate, ideally the files your findings are about (any existing candidate file when the diff only deletes files); a path named only in the summary, an exclusion, or a deleted-file: entry alone is refused as MISSING_EVIDENCE.';
             $lines[] = 'artifact_references entries are workspace-relative paths, not owner evidence IDs; use deleted-file:<path> for a path removed from the candidate. On pipeline submit each entry is one --artifact <path>; a PASS may instead exclude a changed file with --exclude-artifact <path>=<reason>.';
             $lines[] = 'A PASS summary is not a record: pass each non-blocking finding (known limit, nit, follow-up) as its own --observation on pipeline submit, so finish routes it to Learning or a follow-up.';
         }

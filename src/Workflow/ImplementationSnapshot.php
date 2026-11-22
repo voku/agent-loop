@@ -138,10 +138,14 @@ final readonly class ImplementationSnapshot
     }
 
     /**
-     * Whether a Contract scope path is workflow/dependency metadata that
-     * capture() refuses. Planning asks this so a Contract that could never pass
-     * the snapshot at finish is refused before it is approved. A path that is
-     * not a plain repository-relative path is not this rule's question.
+     * Whether capture() refuses a Contract scope path as workflow/dependency
+     * metadata whatever the task does with it. Planning asks this so a Contract
+     * that can never pass the snapshot at finish is refused before approval.
+     *
+     * A path that is refused only while it is a directory (a directory of the
+     * Learning root outside its history) is not refused here: a task may delete
+     * it, and capture() then records the deletion. A path that is not a plain
+     * repository-relative path is not this rule's question either.
      */
     public static function refusesScopeAsMetadata(string $rootPath, string $scopePath): bool
     {
@@ -151,8 +155,10 @@ final readonly class ImplementationSnapshot
         if ($problem !== null) {
             return false;
         }
+        [$stateRelative, $learningRelative, $projectStateFiles] = self::metadataRoots($root);
 
-        return self::metadataScope($root . '/' . $relative, $relative, ...self::metadataRoots($root));
+        // Every path the explicit rule refuses is refused as a directory too, so this holds in any state.
+        return self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles);
     }
 
     /** @return array{schema_version:string,contract_revision:int,files:list<array{path:string,sha256:string}>,deleted?:list<string>,digest:string} */
