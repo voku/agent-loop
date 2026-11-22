@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Fixed
+
+- `workflow plan` (also with `--supersede` and `--add-scope`) and `quick` refuse a scope path that is workflow or dependency metadata: generated state below `.agent-loop/` such as a board card or Run file, Learning history, `.git`, or the root `vendor` directory. The error names the path and says that the implementation snapshot refuses it at `finish`, so the Contract could never close. Before, such a Contract was planned, approved and entered, and only `finish` failed. Planning asks the same rule the snapshot uses (`ImplementationSnapshot::refusesScopeAsMetadata()`); the check at `finish` is unchanged. `.agent-loop/init.json`, `.agent-loop/githooks.json` and files of the Learning root outside its history stay valid scope (#1142).
+- The `next_action` of `pipeline stage` on a review stage can be followed as written. It was `pipeline submit <task> --outcome changes_required --summary "<summary>" ...`, which the evidence owner refuses as `MISSING_EVIDENCE` for either review outcome. It now leaves the outcome open (`--outcome "<pass|changes_required>"`) and carries one `--artifact` per changed candidate file, in the `deleted-file:<path>` form for a file the candidate removed. When no changed file is known it asks for one with `--artifact '<candidate-file>'`. The review prompt states the rule for `changes_required` exactly: at least one cited file must exist in the current candidate; a path in the summary, an exclusion or a `deleted-file:` entry alone is refused (#1142).
+- `init scaffold` writes `*.lock` into `.agent-loop/.gitignore` instead of `/runs/*/*.lock` and `/.init-language.lock`. The old patterns missed `contracts/.contract-mutation-<sha>.lock` and the `execution-state.lock` of an archived Run below `runs/.history/`. An existing `.agent-loop/.gitignore` is not rewritten by any command; add the `*.lock` line by hand (#1142).
+
 ## [0.20.104] - 2026-11-22
 
 ### Added

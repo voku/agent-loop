@@ -113,9 +113,9 @@ final class ImplementationSnapshotTest extends TestCase
         file_put_contents($this->root . '/' . $path, "{}\n");
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('workflow/dependency metadata');
+        $this->expectExceptionMessage('Implementation snapshot scope is workflow/dependency metadata');
 
-        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-RUN-1', [$path]));
+        ImplementationSnapshot::capture($this->root, $this->unplannedContract('SNAP-RUN-1', [$path]));
     }
 
     public function testMissingExplicitGeneratedRunStateRemainsExcluded(): void
@@ -123,9 +123,9 @@ final class ImplementationSnapshotTest extends TestCase
         $path = '.agent-loop/runs/SNAP-RUN-MISSING/manifest.json';
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('workflow/dependency metadata');
+        $this->expectExceptionMessage('Implementation snapshot scope is workflow/dependency metadata');
 
-        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-RUN-MISSING-1', [$path]));
+        ImplementationSnapshot::capture($this->root, $this->unplannedContract('SNAP-RUN-MISSING-1', [$path]));
     }
 
     public function testExplicitLearningHistoryRemainsExcluded(): void
@@ -135,9 +135,9 @@ final class ImplementationSnapshotTest extends TestCase
         file_put_contents($this->root . '/' . $path, "{}\n");
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('workflow/dependency metadata');
+        $this->expectExceptionMessage('Implementation snapshot scope is workflow/dependency metadata');
 
-        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-HISTORY-1', [$path]));
+        ImplementationSnapshot::capture($this->root, $this->unplannedContract('SNAP-HISTORY-1', [$path]));
     }
 
     public function testExternalWorkflowStateRootDoesNotBecomeImplementationScope(): void
@@ -278,9 +278,9 @@ final class ImplementationSnapshotTest extends TestCase
     public function testRootVendorDirectoryRemainsExcludedAsDependencyMetadata(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('workflow/dependency metadata');
+        $this->expectExceptionMessage('Implementation snapshot scope is workflow/dependency metadata');
 
-        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-VENDOR-ROOT', ['vendor']));
+        ImplementationSnapshot::capture($this->root, $this->unplannedContract('SNAP-VENDOR-ROOT', ['vendor']));
     }
 
     public function testCustomLearningHistoryInsideScopedParentDirectoryDoesNotAffectSnapshot(): void
@@ -329,9 +329,9 @@ final class ImplementationSnapshotTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('workflow/dependency metadata');
+        $this->expectExceptionMessage('Implementation snapshot scope is workflow/dependency metadata');
 
-        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-CUSTOM-LEARNING-DIR', ['infra/doc/agent-learning/history']));
+        ImplementationSnapshot::capture($this->root, $this->unplannedContract('SNAP-CUSTOM-LEARNING-DIR', ['infra/doc/agent-learning/history']));
     }
 
     public function testScopedFileDeletedSinceBaseCommitIsRecordedAsExplicitDeletion(): void
@@ -396,6 +396,29 @@ final class ImplementationSnapshotTest extends TestCase
         $store->create($taskId, 'Snapshot fixture.', $scope, [], ['composer test'], 'fixture');
 
         return $store->approve($taskId, 'fixture', $store->load($taskId)->revision);
+    }
+
+    /**
+     * Planning refuses metadata scope up front, so the finish-time guard is
+     * exercised with a Contract that never went through the planning store.
+     *
+     * @param list<string> $scope
+     */
+    private function unplannedContract(string $taskId, array $scope): \voku\AgentLoop\Workflow\TaskContract
+    {
+        return new \voku\AgentLoop\Workflow\TaskContract(
+            $taskId,
+            'Snapshot fixture.',
+            $scope,
+            [],
+            ['composer test'],
+            \voku\AgentLoop\Workflow\TaskContract::APPROVED,
+            1,
+            '2026-01-01T00:00:00+00:00',
+            '2026-01-01T00:00:00+00:00',
+            $this->root . '/.agent-loop/contracts/' . $taskId . '/contract.json',
+            'fixture',
+        );
     }
 
     /** @param list<string> $scope */
