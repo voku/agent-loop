@@ -37,14 +37,7 @@ final readonly class ImplementationSnapshot
             throw new RuntimeException('Implementation snapshot project root does not exist: ' . $rootPath);
         }
         $root = rtrim(str_replace('\\', '/', $root), '/');
-        $layout = new ProjectLayout($root);
-        $stateRoot = str_replace('\\', '/', $layout->stateRoot());
-        $stateRelative = self::relativeIfOwned($root, $stateRoot);
-        $learningRelative = self::relativeIfOwned($root, $layout->learningRoot());
-        $projectStateFiles = array_values(array_filter([
-            self::relativeIfOwned($root, $layout->configPath()),
-            self::relativeIfOwned($root, $layout->gitHooksConfig()),
-        ]));
+        [$stateRelative, $learningRelative, $projectStateFiles] = self::metadataRoots($root);
 
         /** @var array<string, string> $files */
         $files = [];
@@ -60,18 +53,15 @@ final readonly class ImplementationSnapshot
             if (is_link($absolute)) {
                 throw new RuntimeException('Implementation snapshot refuses symlinked scope: ' . $relative);
             }
+            if (self::metadataScope($absolute, $relative, $stateRelative, $learningRelative, $projectStateFiles)) {
+                throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
+            }
             if (is_file($absolute)) {
-                if (self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
-                    throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
-                }
                 $files[$relative] = self::hashFile($absolute, $relative);
                 $regularFiles[$relative] = true;
                 continue;
             }
             if (!is_dir($absolute)) {
-                if (self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
-                    throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
-                }
                 // Deleting a scoped path is approved work too, but it is only
                 // provable against the commit the Contract was planned from: a
                 // path Git tracked there and that is gone now is recorded as a
@@ -84,9 +74,6 @@ final readonly class ImplementationSnapshot
                     'Implementation snapshot scoped path does not exist yet: ' . $relative
                     . ' (a deleted path needs a Contract base_commit that tracks it)',
                 );
-            }
-            if (self::excludedScopeDirectory($relative, $stateRelative, $learningRelative)) {
-                throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
             }
 
             $before = count($files);
@@ -150,6 +137,30 @@ final readonly class ImplementationSnapshot
         return new self($contract->taskId, $contract->revision, $entries, $digest, $deleted);
     }
 
+    /**
+     * Whether capture() refuses a Contract scope path as workflow/dependency
+     * metadata whatever the task does with it. Planning asks this so a Contract
+     * that can never pass the snapshot at finish is refused before approval.
+     *
+     * A path that is refused only while it is a directory (a directory of the
+     * Learning root outside its history) is not refused here: a task may delete
+     * it, and capture() then records the deletion. A path that is not a plain
+     * repository-relative path is not this rule's question either.
+     */
+    public static function refusesScopeAsMetadata(string $rootPath, string $scopePath): bool
+    {
+        $root = realpath($rootPath);
+        $root = rtrim(str_replace('\\', '/', $root === false ? $rootPath : $root), '/');
+        [$relative, $problem] = self::relativeScope($scopePath);
+        if ($problem !== null) {
+            return false;
+        }
+        [$stateRelative, $learningRelative, $projectStateFiles] = self::metadataRoots($root);
+
+        // Every path the explicit rule refuses is refused as a directory too, so this holds in any state.
+        return self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles);
+    }
+
     /** @return array{schema_version:string,contract_revision:int,files:list<array{path:string,sha256:string}>,deleted?:list<string>,digest:string} */
     public function toArray(): array
     {
@@ -168,20 +179,64 @@ final readonly class ImplementationSnapshot
 
     private static function normalizeRelative(string $path): string
     {
+        [$path, $problem] = self::relativeScope($path);
+        if ($problem !== null) {
+            throw new RuntimeException($problem . $path);
+        }
+
+        return $path;
+    }
+
+    /** @return array{string, ?string} the cleaned path and, when it is not a plain repository-relative path, why */
+    private static function relativeScope(string $path): array
+    {
         $path = trim(str_replace('\\', '/', $path));
         if (str_starts_with($path, './')) {
             $path = substr($path, 2);
         }
         if ($path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z]:\//', $path) === 1) {
-            throw new RuntimeException('Implementation snapshot scope must be repository-relative: ' . $path);
+            return [$path, 'Implementation snapshot scope must be repository-relative: '];
         }
         foreach (explode('/', $path) as $segment) {
             if ($segment === '' || $segment === '.' || $segment === '..') {
-                throw new RuntimeException('Implementation snapshot scope escapes or ambiguously addresses the repository: ' . $path);
+                return [$path, 'Implementation snapshot scope escapes or ambiguously addresses the repository: '];
             }
         }
 
-        return $path;
+        return [$path, null];
+    }
+
+    /** @return array{string, string, list<string>} state root, learning root and project state files, repository-relative */
+    private static function metadataRoots(string $root): array
+    {
+        $layout = new ProjectLayout($root);
+
+        return [
+            self::relativeIfOwned($root, $layout->stateRoot()),
+            self::relativeIfOwned($root, $layout->learningRoot()),
+            array_values(array_filter([
+                self::relativeIfOwned($root, $layout->configPath()),
+                self::relativeIfOwned($root, $layout->gitHooksConfig()),
+            ])),
+        ];
+    }
+
+    /**
+     * The one rule for metadata scope: a directory is judged as a directory,
+     * a file or a not-yet-existing path as an explicit path.
+     *
+     * @param list<string> $projectStateFiles
+     */
+    private static function metadataScope(
+        string $absolute,
+        string $relative,
+        string $stateRelative,
+        string $learningRelative,
+        array $projectStateFiles,
+    ): bool {
+        return is_dir($absolute)
+            ? self::excludedScopeDirectory($relative, $stateRelative, $learningRelative)
+            : self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles);
     }
 
     /**

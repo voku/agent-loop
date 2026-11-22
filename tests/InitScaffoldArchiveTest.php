@@ -8,6 +8,8 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Workflow\TaskContractStore;
 
 final class InitScaffoldArchiveTest extends TestCase
 {
@@ -49,7 +51,7 @@ final class InitScaffoldArchiveTest extends TestCase
         self::assertSame(0, $first['exit'], $first['output']);
         self::assertSame($rootIgnore, file_get_contents($this->root . '/.gitignore'));
         self::assertSame(
-            "/map/\n/recall/\n/sessions/\n/edit/\n/runs/*/*.lock\n/.init-language.lock\n/tool-inventory.json\n",
+            "/map/\n/recall/\n/sessions/\n/edit/\n*.lock\n/tool-inventory.json\n",
             file_get_contents($this->root . '/.agent-loop/.gitignore'),
         );
         self::assertStringContainsString('[CREATE] .agent-loop/.gitignore', $first['output']);
@@ -60,9 +62,45 @@ final class InitScaffoldArchiveTest extends TestCase
         self::assertStringContainsString('[SKIP] .agent-loop/.gitignore already exists', $second['output']);
         self::assertSame($rootIgnore, file_get_contents($this->root . '/.gitignore'));
         self::assertSame(
-            "/map/\n/recall/\n/sessions/\n/edit/\n/runs/*/*.lock\n/.init-language.lock\n/tool-inventory.json\n",
+            "/map/\n/recall/\n/sessions/\n/edit/\n*.lock\n/tool-inventory.json\n",
             file_get_contents($this->root . '/.agent-loop/.gitignore'),
         );
+    }
+
+    public function testScaffoldedVcsPolicyIgnoresEveryLockFileTheWorkflowRootCanHold(): void
+    {
+        self::assertSame(0, $this->dispatch(['agent-loop', 'init', 'scaffold', '--prefix=SHD'])['exit']);
+        exec('git -C ' . escapeshellarg($this->root) . ' init -q 2>&1', $output, $exit);
+        self::assertSame(0, $exit, implode("\n", $output));
+
+        // A real Contract mutation leaves its lock file behind; the other paths are named by their creator.
+        (new TaskContractStore($this->root))->create('LOCK-1', 'Lock fixture.', ['src'], [], ['true'], 'fixture');
+        $contractLocks = glob($this->root . '/.agent-loop/contracts/.contract-mutation-*.lock');
+        self::assertIsArray($contractLocks);
+        self::assertCount(1, $contractLocks);
+
+        $layout = new ProjectLayout($this->root);
+        $prefix = strlen($this->root) + 1;
+        $locks = [
+            // TaskContractStore::withMutationLock()
+            substr($contractLocks[0], $prefix),
+            // ExecutionStateStore::acquireLock() via ProjectLayout::executionStateLockPath()
+            substr($layout->executionStateLockPath('LOCK-1'), $prefix),
+            // GovernedRunStore::archive() moves the whole Run directory, lock included, below runs/.history/<task>/<run>/
+            substr($layout->runHistoryRoot('LOCK-1'), $prefix) . '/run-1/execution-state.lock',
+            // InitLanguageConfigWriter
+            '.agent-loop/.init-language.lock',
+        ];
+        self::assertSame('.agent-loop/runs/LOCK-1/execution-state.lock', $locks[1]);
+        self::assertSame('.agent-loop/runs/.history/LOCK-1/run-1/execution-state.lock', $locks[2]);
+
+        foreach ($locks as $lock) {
+            exec('git -C ' . escapeshellarg($this->root) . ' check-ignore -q -- ' . escapeshellarg($lock), $ignored, $exit);
+            self::assertSame(0, $exit, $lock . ' is not ignored by the scaffolded .agent-loop/.gitignore');
+        }
+        // The pattern is not a blanket ignore: durable state stays visible to Git.
+        exec('git -C ' . escapeshellarg($this->root) . ' check-ignore -q -- .agent-loop/contracts/LOCK-1/contract.json', $ignored, $exit);
+        self::assertSame(1, $exit);
     }
 
     public function testExplicitPrefixCreatesEmptyLifecycleCompleteBoard(): void

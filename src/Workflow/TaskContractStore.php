@@ -60,6 +60,7 @@ final class TaskContractStore
             $acceptanceObservations,
         ): TaskContract {
             $plannedBy = WorkflowActorAttribution::normalize($plannedBy, 'plan a Task Contract');
+            $this->assertClosableScope($scope);
             if ($this->find($taskId) !== null) {
                 throw new RuntimeException('Task ' . $taskId . ' already has a Contract. Use revise instead.');
             }
@@ -131,6 +132,7 @@ final class TaskContractStore
             $acceptanceObservations,
         ): TaskContract {
             $plannedBy = WorkflowActorAttribution::normalize($plannedBy, 'revise a Task Contract');
+            $this->assertClosableScope($scope);
             $previous = $this->load($taskId);
             $this->archive($previous);
             $now = $this->now();
@@ -292,6 +294,25 @@ final class TaskContractStore
     {
         if ($expectedHead !== null && (preg_match('/^[a-f0-9]{40,64}$/D', $expectedHead) !== 1 || !hash_equals($expectedHead, \voku\AgentLoop\GitWorkTree::headCommit($this->rootPath) ?? ''))) {
             throw new RuntimeException('Repository HEAD changed since the decision was reviewed.');
+        }
+    }
+
+    /**
+     * Refuse scope the implementation snapshot can never accept, before the
+     * Contract is written: otherwise only `finish` reports it, after approval.
+     *
+     * @param list<string> $scope
+     */
+    private function assertClosableScope(array $scope): void
+    {
+        foreach ($this->normalizedLines($scope) as $path) {
+            if (ImplementationSnapshot::refusesScopeAsMetadata($this->rootPath, $path)) {
+                throw new RuntimeException(
+                    'Contract scope is workflow/dependency metadata, not implementation content: ' . $path
+                    . '. The implementation snapshot refuses it at finish whatever the task does with it, so this Contract could never close;'
+                    . ' scope the implementation files the task changes instead.',
+                );
+            }
         }
     }
 

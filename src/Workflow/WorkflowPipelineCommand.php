@@ -265,14 +265,34 @@ final readonly class WorkflowPipelineCommand
         $bundle = $gateway->prepareStage($taskId, $currentStageId);
         $acceptedOutcomes = array_map(static fn (StageOutcome $o): string => $o->value, $bundle->acceptedOutcomes);
 
+        $outcomeArgument = $acceptedOutcomes[0] ?? "completed";
+        $artifactArguments = '';
+        if ($this->isReviewStage($taskId, $bundle)) {
+            // The evidence owner refuses a review PASS that does not cite every changed candidate file and a
+            // CHANGES_REQUIRED that cites no current candidate file, so the template carries both up front.
+            $outcomeArgument = '"<' . implode('|', array_intersect(
+                [StageOutcome::PASS->value, StageOutcome::CHANGES_REQUIRED->value],
+                $acceptedOutcomes,
+            )) . '>"';
+            $citations = $gateway->expectedArtifactCitations($bundle);
+            if (array_filter($citations, static fn (string $citation): bool => !str_starts_with($citation, 'deleted-file:')) === []) {
+                // CHANGES_REQUIRED needs one file that exists in the candidate; a deletion-only diff names none.
+                $citations[] = '<candidate-file>';
+            }
+            foreach ($citations as $citation) {
+                $artifactArguments .= ' --artifact ' . escapeshellarg($citation);
+            }
+        }
+
         $nextAction = sprintf(
-            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s%s",
+            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s%s%s",
             $taskId,
-            $acceptedOutcomes[0] ?? "completed",
+            $outcomeArgument,
             $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
             $bundle->kind === ExecutionStageKind::AGENT && $bundle->mayMutate
                 ? ' --workspace "<workspace-with-edits>"'
                 : '',
+            $artifactArguments,
         );
 
         $payload = [
@@ -407,8 +427,12 @@ final readonly class WorkflowPipelineCommand
         }
         /** @var list<non-empty-string> $artifactReferences */
         $artifactReferences = [];
+        // A value may list several paths separated by commas, unless it is exactly the citation of one changed
+        // candidate file: a file name may contain a comma, and the stage template cites such a file as one value.
+        $literalCitations = $gateway->expectedArtifactCitations($bundle);
         foreach ($artifactPaths as $artifactPath) {
-            foreach (explode(',', $artifactPath) as $path) {
+            $listed = in_array(trim($artifactPath), $literalCitations, true) ? [$artifactPath] : explode(',', $artifactPath);
+            foreach ($listed as $path) {
                 $path = trim($path);
                 if ($path !== '') {
                     $artifactReferences[] = $gateway->recordStageArtifactPath($bundle, $path, $effectiveCandidate);
@@ -550,15 +574,21 @@ final readonly class WorkflowPipelineCommand
      */
     private function assertObservationsAllowed(string $taskId, StageExecutionBundle $bundle, StageOutcome $outcome): void
     {
-        $capabilities = $bundle->roleId === null
-            ? []
-            : (new ExecutionPlanStore($this->rootPath))->load($taskId)->role($bundle->roleId)->requiredCapabilities;
-        if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+        if (!$this->isReviewStage($taskId, $bundle)) {
             throw new InvalidArgumentException('--observation is only accepted on review stages; stage ' . $bundle->stageId . ' is not one.');
         }
         if ($outcome !== StageOutcome::PASS) {
             throw new InvalidArgumentException('--observation records non-blocking findings of a passing review; use --outcome pass, or changes_required for a blocking finding.');
         }
+    }
+
+    private function isReviewStage(string $taskId, StageExecutionBundle $bundle): bool
+    {
+        $capabilities = $bundle->roleId === null
+            ? []
+            : (new ExecutionPlanStore($this->rootPath))->load($taskId)->role($bundle->roleId)->requiredCapabilities;
+
+        return in_array('review', $capabilities, true) || in_array('architecture-review', $capabilities, true);
     }
 
     /**

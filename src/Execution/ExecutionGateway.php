@@ -714,8 +714,25 @@ final readonly class ExecutionGateway
             ?? throw new RuntimeException('Unable to inspect changed candidate files.');
     }
 
+    /**
+     * The `--artifact` values that cite every changed candidate file of a stage:
+     * a path the candidate removed needs its `deleted-file:` form, because the
+     * plain path is read from the candidate tree and is refused there.
+     *
+     * @return list<string>
+     */
+    public function expectedArtifactCitations(StageExecutionBundle $bundle): array
+    {
+        $deleted = $this->observeChangedCandidateFiles($bundle->baseCommit, $bundle->candidateRevision, true) ?? [];
+
+        return array_map(
+            static fn (string $path): string => in_array($path, $deleted, true) ? 'deleted-file:' . $path : $path,
+            $bundle->expectedArtifacts,
+        );
+    }
+
     /** @return list<string>|null Null means the candidate could not be inspected. */
-    private function observeChangedCandidateFiles(?string $baseCommit, string $candidateRevision): ?array
+    private function observeChangedCandidateFiles(?string $baseCommit, string $candidateRevision, bool $deletedOnly = false): ?array
     {
         if ($baseCommit === null) {
             return null;
@@ -732,7 +749,7 @@ final readonly class ExecutionGateway
         }
 
         $process = proc_open(
-            ['git', '--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $baseCommit, $candidateTree, '--'],
+            ['git', '--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', ...($deletedOnly ? ['--diff-filter=D'] : []), $baseCommit, $candidateTree, '--'],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -1104,8 +1121,8 @@ final readonly class ExecutionGateway
             $lines[] = '';
             $lines[] = 'Review the complete raw diff against the approved Contract and task evidence.';
             $lines[] = 'Before returning PASS, list every changed candidate file path in artifact_references; the owner checks that this set covers the complete governed diff.';
-            $lines[] = 'For CHANGES_REQUIRED, cite at least one current candidate file that supports each material finding.';
-            $lines[] = 'artifact_references entries are workspace-relative paths, not owner evidence IDs; use deleted-file:<path> for a path removed from the candidate.';
+            $lines[] = 'For CHANGES_REQUIRED, artifact_references must hold at least one file that exists in the current candidate, ideally the files your findings are about (any existing candidate file when the diff only deletes files); a path named only in the summary, an exclusion, or a deleted-file: entry alone is refused as MISSING_EVIDENCE.';
+            $lines[] = 'artifact_references entries are workspace-relative paths, not owner evidence IDs; use deleted-file:<path> for a path removed from the candidate. On pipeline submit each entry is one --artifact <path>; a PASS may instead exclude a changed file with --exclude-artifact <path>=<reason>.';
             $lines[] = 'A PASS summary is not a record: pass each non-blocking finding (known limit, nit, follow-up) as its own --observation on pipeline submit, so finish routes it to Learning or a follow-up.';
         }
 
