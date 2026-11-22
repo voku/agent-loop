@@ -340,11 +340,6 @@ final readonly class WorkflowPipelineCommand
     }
 
     /**
-     * @param list<string> $tokens
-     *
-     * @SuppressWarnings("PHPMD.StaticAccess")
-     */
-    /**
      * `finish` cannot record an implementation whose Contract names a path that does not exist and was not
      * deleted. Refusing the completing submission of a mutating stage reports that before review and validation
      * are spent on the candidate.
@@ -367,6 +362,11 @@ final readonly class WorkflowPipelineCommand
         ));
     }
 
+    /**
+     * @param list<string> $tokens
+     *
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
     private function submit(string $taskIdString, array $tokens, string $format): int
     {
         // Malformed observations first: their message names the actual mistake.
