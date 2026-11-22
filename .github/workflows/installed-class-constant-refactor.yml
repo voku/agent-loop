@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/agent-map
-          ref: 0.24.2
+          ref: 0.25.0
           path: build/released-agent-map
           persist-credentials: false
 
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "2963a6a176bed1240fc87822a286240eabdd2ca3"
+          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "f3b8dd13bbdb569af977d9fced8e33ab7eb93d5d"
 
       - name: Run released class-constant plan through governed installed consumer
         shell: bash
@@ -71,7 +71,7 @@ jobs:
                 "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
                 "options": {
                   "symlink": false,
-                  "versions": {"voku/agent-map": "0.24.2"}
+                  "versions": {"voku/agent-map": "0.25.0"}
                 }
               }
             ],
@@ -147,7 +147,7 @@ jobs:
           cd "$root"
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
           composer show voku/agent-map --format=json > resolved-agent-map.json
-          jq -e '.versions | index("0.24.2") != null' resolved-agent-map.json >/dev/null
+          jq -e '.versions | index("0.25.0") != null' resolved-agent-map.json >/dev/null
 
           git init --initial-branch=main
           git config user.name 'Installed Class Constant Dogfood'
