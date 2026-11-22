@@ -375,6 +375,40 @@ final class ImplementationSnapshotTest extends TestCase
         self::assertSame($before->digest, ImplementationSnapshot::capture($this->root, $contract)->digest);
     }
 
+    public function testMissingScopePathsNamesOnlyPathsThatCaptureCouldNotRecord(): void
+    {
+        file_put_contents($this->root . '/src/Gone.php', "<?php\nreturn 'gone';\n");
+        $contract = $this->contractAt(
+            'SNAP-MISSING-1',
+            ['src/A.php', 'src', 'src/Gone.php', 'src/Planned.php', 'docs'],
+            $this->commitAll(),
+        );
+        unlink($this->root . '/src/Gone.php');
+
+        // An existing file, an existing directory and a deletion of a tracked path are all recordable.
+        self::assertSame(['src/Planned.php', 'docs'], ImplementationSnapshot::missingScopePaths($this->root, $contract));
+
+        try {
+            ImplementationSnapshot::capture($this->root, $contract);
+            self::fail('capture must be unavailable while a scope path is missing.');
+        } catch (ImplementationSnapshotUnavailable $exception) {
+            self::assertStringContainsString('src/Planned.php', $exception->getMessage());
+        }
+
+        file_put_contents($this->root . '/src/Planned.php', "<?php\nreturn 'planned';\n");
+        mkdir($this->root . '/docs');
+        file_put_contents($this->root . '/docs/note.md', "note\n");
+        self::assertSame([], ImplementationSnapshot::missingScopePaths($this->root, $contract));
+        ImplementationSnapshot::capture($this->root, $contract);
+    }
+
+    public function testMissingScopePathsWithoutABaseCommitReportsEveryAbsentPath(): void
+    {
+        $contract = $this->contract('SNAP-MISSING-2', ['src/A.php', 'src/Never.php']);
+
+        self::assertSame(['src/Never.php'], ImplementationSnapshot::missingScopePaths($this->root, $contract));
+    }
+
     public function testScopedDirectoryDeletedSinceBaseCommitIsRecordedEvenWhenNothingElseRemains(): void
     {
         mkdir($this->root . '/legacy/skill', 0o775, true);
