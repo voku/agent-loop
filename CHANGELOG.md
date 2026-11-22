@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.20.104] - 2026-11-22
+
 ### Added
 
 - Every `decision_required` gate now projects a typed decision card, `human_decision.card`, built only from owner state. It covers contract approval, review acknowledgement, Learning disposition, risk acceptance, Contract supersession and generic human authority. The card has these fields:
@@ -30,6 +32,7 @@
 
 ### Documentation
 
+- Review-stage evidence record `docs/dogfood/2026-11-21-review-stage-yield.md` (#1031): what correctness and blindspot review found and cost in real governed tasks, which defects only deterministic gates caught, and how much of each stage prompt is Recall (about 85 %).
 - T10 record `docs/dogfood/2026-11-21-recall-map-real-use.md`: two real #1082 tasks observed end to end. Recall delivered a generic briefing that changed no decision, Map provided nothing, and the lifecycle produced the friction. Their outcomes ship as regression tests: `ComposerScriptsShapeTest` (`@putenv` must set exactly one variable, finding `c2f7eb`), plus `WorkflowRunPreparerActiveSessionTest` and the invalid-JSON manifest cases in `NonAuthoritativeManifestCacheTest` (finding `5e1f07`). Follow-ups: #1123.
 - AGENTS.md names the Evidence Lab probe folder (`build/evidence/<task-id>/probes/`, `docs/testing/evidence-lab.md`): exploratory code is a probe, not a test, even when PHPUnit runs it. Two learning-effect pilot agents had written such a probe into `tests/` because no repository instruction named the place.
 
@@ -39,7 +42,7 @@
 
 ### Dependencies
 
-- Lock `voku/agent-recall-compiler` 0.29.10 (constraint `^0.29.8` unchanged, so the minimum-release dogfood pins stay valid). Its outcome logger accepts a draft that names guidance retired after the compilation (voku/agent-recall-compiler#299). Before, retiring `proposal.2026-08-20.c2a001` in favour of its successor after `enter` had compiled Recall left `finish --recall-outcome-draft` failing with "referenced guidance … does not exist", while `finish` kept routing that same command.
+- Require `voku/agent-recall-compiler ^0.29.9` (was `^0.29.8`; locked 0.29.10). 0.29.9 is the first release with `CompiledRecallOutputPaths` and `VerificationPlanReader`, which the migrated path sites use (#1128); the minimum-release CI jobs (`acceptance-criteria-candidate`, `prompt-primitives-candidate`) now check out 0.29.9. 0.29.10's outcome logger accepts a draft that names guidance retired after the compilation (voku/agent-recall-compiler#299). Before, retiring `proposal.2026-08-20.c2a001` in favour of its successor after `enter` had compiled Recall left `finish --recall-outcome-draft` failing with "referenced guidance … does not exist", while `finish` kept routing that same command.
 - Require `voku/agent-learning` `^0.22.0 || ^0.23.0` (0.23.0 locked). Its `validate` now fails on an active constraint whose declared target file is gone, and this repository's only active constraint, `workflow.recovery.next-action-must-advance` (`proposal.2026-08-20.c2a001`), still named `.github/workflows/f-gate-recovery-evidence.yml`, removed in 40b7a649. The constraint is kept, not dropped: the reviewed successor `proposal.2026-11-21.c57f5b` (approved by Lars) declares the gate that enforces it today, `.github/workflows/ci.yml` (`release-set-dogfood`, step "Verify Phase-F recovery convergence evidence"), with `tools/release-set-dogfood.php` as registration file, the same source findings, violation, boundaries and validation commands. `c2a001` is retired with `superseded_by` naming the successor; its approval and application record is unchanged, and the active manifest differs only in `source_proposal`. The successor states its limit: the gate covers six fixed recovery scenarios, of which one obeys the routed action and proves progress; it does not prove that every recovery action converges.
 - Require `voku/agent-learning ^0.22.0` (was `^0.21.0`; locked 0.22.0). Its default Finding task-id pattern now accepts every id a governed task can carry, in any letter case. Before, a Run named like `OBS-5E1F07` or `PROBE-POINTER` could not record a Finding, and found out only at its final Learning decision (#1123, T10 R7). Regression: `HostFinishFindingIdContractTest::testFindingCanBeRecordedForEveryGovernedTaskIdShape`, which fails with 0.21.0's "missing task references".
 - Require `voku/agent-recall-compiler ^0.29.8` (was `^0.29.7`; locked 0.29.8). Recall no longer selects an applied DELETE proposal as active guidance (voku/agent-recall-compiler#296); with 0.29.7 a deleted rule could still reach a task's context. The minimum-release CI jobs (`acceptance-criteria-candidate`, `prompt-primitives-candidate`) now check out 0.29.8.
