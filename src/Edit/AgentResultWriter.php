@@ -62,6 +62,10 @@ final readonly class AgentResultWriter
             ],
         ];
 
+        if ($binding->error !== null) {
+            $payload['verification_plan_error'] = $binding->error;
+        }
+
         $this->write_file($outputDirectory . '/' . self::FILE_NAME, $this->json($payload));
 
         return $payload;
