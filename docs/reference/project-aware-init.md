@@ -22,6 +22,19 @@ The JSON document reports:
 - **review**: the existing three-`changes_required` human Attention cap. This is a safety invariant, **not** an adjustable reviewer count;
 - **next_actions/questions**: safe preview commands and unresolved decisions for a human or an LLM. Commands use the Composer-installed `vendor/bin/agent-loop` executable, without requiring a globally installed CLI on `PATH`.
 
+## Node projects (`package.json`)
+
+When a `package.json` exists, the same document also reports Node evidence. A project without `package.json` gets no additional key.
+
+- **sources**: `package_json` and `tsconfig` (the path, or `null`);
+- **map.languages**: the proposed [`map.languages`](non-php-projects.md) value. `typescript` (agent-map's language for TypeScript and JavaScript) is proposed when a `tsconfig.json` exists or when `src`, `lib`, `app`, `test` or `tests` holds a file agent-map indexes as that language. `php` stays in the proposal only with PHP evidence: a PHPStan or Composer autoload scope, or PHP files in those directories. `map.languages_source` names the evidence (`tsconfig.json` or `directory-presence`);
+- **map.typescript_paths**: the existing directories among `src`, `lib`, `app`, `test` and `tests` that hold such files, with `typescript_paths_source: directory-presence`. They are added to `map.paths`. Without PHP evidence they replace the guessed PHP directory scope;
+- **map.command**: carries `--languages=...` next to `--paths=...`;
+- **map.init_config**: the exact `.agent-loop/init.json` fragment to add after review, and `map.current_languages` with what the project declares today;
+- **quality.package_scripts**: names of declared `package.json` scripts that look like validation: `typecheck`, `build`, `test`, `lint` and `verify`, also with a suffix such as `test:unit`. Like Composer script names they are declarations only. `init plan` lists each as a `package_script` candidate with `execution: not_authorized`.
+
+The map keys other than `sources` and `quality` appear only when the proposal differs from the PHP default. `tsconfig.json` is detected, not parsed. `package.json` scripts are never run, and no package manager is invoked. The directory scan follows no symlinks, skips `node_modules`, `vendor`, `.git`, `dist` and `build`, and stops after 20,000 entries.
+
 The exact-head Actions dogfood also runs the CLI against a Finder-only
 project and an empty repository. Both must yield bounded read-only evidence
 without inventing a PHP scope or executing a project-controlled PHP file;

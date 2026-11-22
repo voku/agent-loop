@@ -1,5 +1,18 @@
 ## [Unreleased]
 
+### Added
+
+- A TypeScript/JavaScript or mixed project can get Map-backed code facts. The new project setting `map.languages` in `.agent-loop/init.json` (default `["php"]`, values are agent-map's languages, for example `["typescript"]` or `["php", "typescript"]`) declares what the map indexes. With `typescript` declared, `enter` builds a current map for existing `.ts`/`.js` Contract scope, and Recall and `workflow context` receive its symbols. agent-map's incremental refresh covers PHP-only maps, so Loop asks for a full build with the declared languages wherever it would refresh: a missing map is built from the Contract scope, an existing one from its recorded paths plus the scope. A changed TypeScript file makes the map stale like a PHP file does. An unknown language, an empty list or a non-list is refused by `enter`, Run preparation and `map build` and shown as a warning by `init status`. A PHP-only project is unchanged: `.php` scope stays the only trigger and Markdown-only work builds no map. See `docs/reference/non-php-projects.md`.
+- `agent-loop map build` indexes the declared `map.languages` by default; an explicit `--languages=...` is passed through and wins.
+- When `typescript` is declared and Node.js or the `typescript` npm package is missing, `enter` stops for a Contract with TypeScript/JavaScript scope. The message carries agent-map's reason, the declaration that asked for the build and a retry command. This is the existing rule for a PHP map that cannot be built.
+- `init recommend` reports Node evidence when `package.json` exists: the proposed `map.languages`, TypeScript source directories added to the map paths, the `.agent-loop/init.json` fragment to add, and the names of `typecheck`, `build`, `test`, `lint` and `verify` scripts as `quality.package_scripts`. `init plan` lists those scripts as `package_script` candidates. Nothing is executed or written. A project without `package.json` gets the same report as before.
+
+### Changed
+
+- Requires `voku/agent-map` `^0.25.0`.
+- Deterministic `agent-loop edit` stays PHP-only and now says so: it refuses a TypeScript target (`src/file.ts#Class::method`) and a map that indexes TypeScript, before it would rebuild that map as PHP-only.
+- The `map` command summary no longer calls the map a "PHP repository map".
+
 ### Fixed
 
 - `workflow plan` (also with `--supersede` and `--add-scope`) and `quick` refuse a scope path that the implementation snapshot refuses at `finish` whatever the task does with it: generated state below `.agent-loop/` such as a board card or Run file, Learning history, `.git`, or the root `vendor` directory. The error names the path and says why. Before, such a Contract was planned, approved and entered, and only `finish` failed. Planning asks the snapshot's own rule (`ImplementationSnapshot::refusesScopeAsMetadata()`); the check at `finish` is unchanged. Planning does not refuse a path the snapshot refuses only while it is a directory, such as `.agent-loop/learning/constraints`: a task may delete it, and the snapshot then records the deletion. If the task keeps that directory, `finish` still refuses it. `.agent-loop/init.json`, `.agent-loop/githooks.json` and files of the Learning root outside its history stay valid scope. `--add-scope` re-checks the whole resulting scope; for a stored Contract that already holds a refused path, replace the scope with `workflow plan <task> --supersede --file ...` (#1142).

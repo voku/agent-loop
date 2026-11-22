@@ -632,4 +632,128 @@ NEON);
         self::assertSame(1, (new InitRecommendCommand($this->root))->run(['--apply']));
         self::assertFileDoesNotExist($this->root . '/.agent-loop/init.json');
     }
+
+    public function testNodeProjectGetsTypeScriptMapLanguageAndPackageScriptsAsEvidence(): void
+    {
+        mkdir($this->root . '/src/recognition', 0o775, true);
+        mkdir($this->root . '/test', 0o775, true);
+        mkdir($this->root . '/node_modules/typescript', 0o775, true);
+        mkdir($this->root . '/dist', 0o775, true);
+        file_put_contents($this->root . '/src/recognition/matcher.ts', "export const A = 1;\n");
+        file_put_contents($this->root . '/test/matcher.test.mjs', "import test from 'node:test';\n");
+        file_put_contents($this->root . '/dist/matcher.js', "export const A = 1;\n");
+        file_put_contents($this->root . '/tsconfig.json', "{ /* JSONC is never parsed */ }\n");
+        // Workflow tooling only: a composer.json without any PHP scope.
+        file_put_contents($this->root . '/composer.json', '{"require-dev": {"voku/agent-loop": "*"}}');
+        file_put_contents($this->root . '/package.json', json_encode(['scripts' => [
+            'typecheck' => 'tsc --noEmit',
+            'build' => 'tsc',
+            'test' => 'node --test test/*.test.mjs',
+            'test:unit' => 'node --test',
+            'lint' => 'eslint .',
+            'verify' => 'npm run typecheck && npm test',
+            'smoke:offline' => 'node scripts/offline-smoke.mjs',
+            'postinstall' => 'node scripts/setup.mjs',
+            'deploy' => '',
+        ]], JSON_THROW_ON_ERROR));
+        $before = $this->treeSnapshot();
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame('package.json', $report['sources']['package_json'] ?? null);
+        self::assertSame('tsconfig.json', $report['sources']['tsconfig'] ?? null);
+        self::assertSame(['typescript'], $report['map']['languages'] ?? null);
+        self::assertSame('tsconfig.json', $report['map']['languages_source'] ?? null);
+        self::assertSame(['src', 'test'], $report['map']['paths']);
+        self::assertSame(['src', 'test'], $report['map']['typescript_paths'] ?? null);
+        self::assertSame('directory-presence', $report['map']['typescript_paths_source'] ?? null);
+        self::assertSame('directory-presence', $report['map']['source']);
+        self::assertSame(['map' => ['languages' => ['typescript']]], $report['map']['init_config'] ?? null);
+        self::assertSame(['php'], $report['map']['current_languages'] ?? null);
+        self::assertSame('vendor/bin/agent-loop map build --paths=src,test --languages=typescript', $report['map']['command']);
+        self::assertContains($report['map']['command'], $report['next_actions']);
+        self::assertSame('package.json', $report['quality']['package_source'] ?? null);
+        self::assertSame(
+            ['build', 'lint', 'test', 'test:unit', 'typecheck', 'verify'],
+            $report['quality']['package_scripts'] ?? null,
+            'only validation-shaped, non-empty script declarations are reported',
+        );
+        self::assertSame([], $report['quality']['composer_scripts']);
+        self::assertStringContainsString('map.languages', implode("\n", $report['questions']));
+        self::assertSame($before, $this->treeSnapshot(), 'discovery must stay read-only');
+
+        $plan = (new \voku\AgentLoop\Init\InitPlanCommand($this->root))->inspect();
+        $packageProposals = array_values(array_filter(
+            $plan['proposals'],
+            static fn (array $proposal): bool => $proposal['kind'] === 'package_script',
+        ));
+        self::assertSame(
+            ['package.script.build', 'package.script.lint', 'package.script.test', 'package.script.test:unit', 'package.script.typecheck', 'package.script.verify'],
+            array_column($packageProposals, 'id'),
+        );
+        self::assertSame(['not_authorized'], array_values(array_unique(array_column($packageProposals, 'execution'))));
+    }
+
+    public function testMixedPhpAndTypeScriptProjectKeepsThePhpScopeAndAddsTypeScriptDirectories(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/app', 0o775, true);
+        file_put_contents($this->root . '/src/Greeter.php', "<?php\n");
+        file_put_contents($this->root . '/app/main.ts', "export const A = 1;\n");
+        file_put_contents($this->root . '/composer.json', '{"autoload": {"psr-4": {"App\\\\": "src/"}}}');
+        file_put_contents($this->root . '/package.json', '{"scripts": {"test": "node --test"}}');
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['php', 'typescript'], $report['map']['languages'] ?? null);
+        self::assertSame('directory-presence', $report['map']['languages_source'] ?? null, 'no tsconfig.json: the .ts files are the evidence');
+        self::assertSame(['src', 'app'], $report['map']['paths']);
+        self::assertSame('composer.json', $report['map']['source'], 'the PHP scope keeps its own provenance');
+        self::assertSame(['app'], $report['map']['typescript_paths'] ?? null);
+        self::assertSame('vendor/bin/agent-loop map build --paths=src,app --languages=php,typescript', $report['map']['command']);
+    }
+
+    public function testPackageJsonWithoutTypeScriptEvidenceLeavesTheMapProposalAlone(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/Greeter.php', "<?php\n");
+        file_put_contents($this->root . '/package.json', '{"scripts": {"build": "webpack"}}');
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertArrayNotHasKey('languages', $report['map']);
+        self::assertArrayNotHasKey('init_config', $report['map']);
+        self::assertSame('vendor/bin/agent-loop map build --paths=src', $report['map']['command']);
+        self::assertSame(['build'], $report['quality']['package_scripts'] ?? null);
+    }
+
+    public function testProjectWithoutPackageJsonReportsNoNodeKeys(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/matcher.ts', "export const A = 1;\n");
+        file_put_contents($this->root . '/tsconfig.json', "{}\n");
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['phpstan', 'php_cs_fixer', 'composer', 'slop', 'agent_loop'], array_keys($report['sources']));
+        self::assertSame(['paths', 'source', 'command', 'requires_confirmation'], array_keys($report['map']));
+        self::assertSame(['source', 'composer_scripts', 'requires_confirmation', 'note'], array_keys($report['quality']));
+        self::assertSame('vendor/bin/agent-loop map build --paths=src', $report['map']['command']);
+    }
+
+    /** @return array<string, string> */
+    private function treeSnapshot(): array
+    {
+        $snapshot = [];
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST,
+        );
+        foreach ($iterator as $item) {
+            $snapshot[$item->getPathname()] = $item->isDir() ? 'dir' : (string) hash_file('sha256', $item->getPathname());
+        }
+        ksort($snapshot);
+
+        return $snapshot;
+    }
 }

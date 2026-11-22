@@ -41,8 +41,8 @@ final readonly class InitPlanCommand
      *   evidence_sha256: string,
      *   proposals: list<array{
      *     id: string,
-     *     kind: 'map_command'|'composer_script',
-     *     owner: 'agent-map'|'composer',
+     *     kind: 'map_command'|'composer_script'|'package_script',
+     *     owner: 'agent-map'|'composer'|'package.json',
      *     source: string|null,
      *     confidence: 'literal_config'|'declared_config'|'directory_presence'|'unverified_script_name',
      *     current: null,
@@ -77,6 +77,10 @@ final readonly class InitPlanCommand
         array_push($proposals, ...$this->composerProposals(
             $evidence['quality']['composer_scripts'],
             $evidence['quality']['source'],
+        ));
+        array_push($proposals, ...$this->packageProposals(
+            $evidence['quality']['package_scripts'] ?? [],
+            $evidence['quality']['package_source'] ?? null,
         ));
 
         return [
@@ -176,6 +180,48 @@ final readonly class InitPlanCommand
                 'execution' => 'not_authorized',
                 'prerequisites' => [
                     'Inspect the complete Composer script body and CI dependencies.',
+                    'Authorize the exact execution command separately.',
+                ],
+            ];
+        }
+
+        return $proposals;
+    }
+
+    /**
+     * package.json script names, in the shape Composer quality scripts are proposed.
+     *
+     * @param list<string> $scriptNames
+     * @return list<array{
+     *   id: string,
+     *   kind: 'package_script',
+     *   owner: 'package.json',
+     *   source: string|null,
+     *   confidence: 'unverified_script_name',
+     *   current: null,
+     *   proposed: string,
+     *   requires_confirmation: true,
+     *   execution: 'not_authorized',
+     *   prerequisites: list<string>
+     * }>
+     */
+    private function packageProposals(array $scriptNames, ?string $source): array
+    {
+        $proposals = [];
+
+        foreach ($scriptNames as $scriptName) {
+            $proposals[] = [
+                'id' => 'package.script.' . $scriptName,
+                'kind' => 'package_script',
+                'owner' => 'package.json',
+                'source' => $source,
+                'confidence' => 'unverified_script_name',
+                'current' => null,
+                'proposed' => $scriptName,
+                'requires_confirmation' => true,
+                'execution' => 'not_authorized',
+                'prerequisites' => [
+                    'Inspect the complete package.json script body and its dependencies.',
                     'Authorize the exact execution command separately.',
                 ],
             ];
