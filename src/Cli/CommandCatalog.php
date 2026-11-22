@@ -127,7 +127,7 @@ final class CommandCatalog
                 id: CommandId::Map,
                 group: CommandGroup::Inspection,
                 owner: CommandOwner::Map,
-                summary: 'Deterministic PHP repository map, search-index, and code navigation (voku/agent-map). Run `agent-loop map help` for subcommands.',
+                summary: 'Deterministic repository map, search-index, and code navigation (voku/agent-map): PHP by default, TypeScript/JavaScript when declared in `map.languages` or passed as `map build --languages=php,typescript`. Run `agent-loop map help` for subcommands.',
                 usage: 'agent-loop map <query|build|search-index|refresh> [options]',
             ),
             new CommandDescriptor(

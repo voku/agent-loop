@@ -8,6 +8,7 @@ use JsonException;
 use RuntimeException;
 use stdClass;
 use voku\AgentLoop\Execution\ExecutionStateStore;
+use voku\AgentMap\IO\SourceLanguage;
 
 /**
  * Read-only setup evidence for a coding host or LLM to review.
@@ -48,9 +49,9 @@ final readonly class InitRecommendCommand
     /**
      * @return array{
      *   schema_version: int,
-     *   sources: array{phpstan: string|null, php_cs_fixer: string|null, composer: string|null, slop: string|null, agent_loop: string|null},
-     *   map: array{paths: list<string>, source: string|null, command: string|null, requires_confirmation: true},
-     *   quality: array{source: string|null, composer_scripts: list<string>, requires_confirmation: true, note: string},
+     *   sources: array{phpstan: string|null, php_cs_fixer: string|null, composer: string|null, slop: string|null, agent_loop: string|null, package_json?: string, tsconfig?: string|null},
+     *   map: array{paths: list<string>, source: string|null, command: string|null, requires_confirmation: true, languages?: list<string>, languages_source?: string|null, typescript_paths?: list<string>, typescript_paths_source?: string|null, init_config?: array{map: array{languages: list<string>}}, current_languages?: list<string>},
+     *   quality: array{source: string|null, composer_scripts: list<string>, requires_confirmation: true, note: string, package_source?: string, package_scripts?: list<string>, package_note?: string},
      *   exclusions: array{phpstan: list<string>, slop: list<string>, note: string},
      *   slop_policy: array{source: string|null, path_filters: list<string>, rule_ids: list<string>, override_count: int|null, ignore_error_count: int|null, requires_confirmation: true, note: string},
      *   prompting: array{language: string, source: string},
@@ -84,13 +85,25 @@ final readonly class InitRecommendCommand
         array_push($warnings, ...$config['warnings']);
         $language = $config['prompting']['language'];
 
-        $mapCommand = $paths === [] ? null : 'vendor/bin/agent-loop map build --paths=' . implode(',', $paths);
+        // A project without package.json gets exactly the PHP report: no Node key is added.
+        $packagePath = $this->firstExisting(['package.json']);
+        $node = $packagePath === null
+            ? null
+            : $this->nodeEvidence($packagePath, $paths, $source !== null && $source !== 'directory-presence');
+        if ($node !== null) {
+            $paths = $node['paths'];
+            $source ??= $node['typescript_paths'] === [] ? null : 'directory-presence';
+        }
+        $declaresLanguages = $node !== null && $node['languages'] !== [SourceLanguage::PHP];
+
+        $mapCommand = $paths === [] ? null : 'vendor/bin/agent-loop map build --paths=' . implode(',', $paths)
+            . ($declaresLanguages ? ' --languages=' . implode(',', $node['languages']) : '');
         $actions = ['vendor/bin/agent-loop init sync-tools --dry-run'];
         if ($mapCommand !== null) {
             $actions[] = $mapCommand;
         }
 
-        return [
+        $report = [
             'schema_version' => 1,
             'sources' => [
                 'phpstan' => $phpstanPath,
@@ -141,6 +154,92 @@ final readonly class InitRecommendCommand
                 'Keep the governed review Attention cap separate from any requested number of independent reviewers.',
             ],
             'warnings' => $warnings,
+        ];
+
+        if ($node === null) {
+            return $report;
+        }
+
+        $report['sources']['package_json'] = $packagePath;
+        $report['sources']['tsconfig'] = $node['tsconfig'];
+        $report['quality']['package_source'] = $packagePath;
+        $report['quality']['package_scripts'] = $node['scripts'];
+        $report['quality']['package_note'] = 'package.json script names are declarations, not verified safe commands. Inspect script bodies before proposing `npm run <name>` (or the project\'s package manager) as a Contract validation command; never run scripts during discovery.';
+        if ($declaresLanguages) {
+            $report['map']['languages'] = $node['languages'];
+            $report['map']['languages_source'] = $node['languages_source'];
+            $report['map']['typescript_paths'] = $node['typescript_paths'];
+            $report['map']['typescript_paths_source'] = $node['typescript_paths'] === [] ? null : 'directory-presence';
+            $report['map']['init_config'] = ['map' => ['languages' => $node['languages']]];
+            $report['map']['current_languages'] = $config['map']['languages'] ?? [SourceLanguage::PHP];
+            $report['questions'][] = 'Confirm `map.languages` for .agent-loop/init.json: the TypeScript/JavaScript map needs Node.js and the `typescript` npm package, and loading the project\'s own copy executes it (set AGENT_MAP_TYPESCRIPT_PATH to a trusted compiler otherwise).';
+        }
+
+        return $report;
+    }
+
+    /**
+     * Node evidence next to the PHP evidence: which languages agent-map could index here, where
+     * their files live, and which package.json scripts look like validation.
+     *
+     * `typescript` (agent-map's language for TypeScript and JavaScript) is proposed when a
+     * tsconfig.json exists or a conventional source directory holds files agent-map indexes as
+     * that language. `php` stays in the proposal only with PHP evidence: a PHPStan or Composer
+     * autoload scope, or PHP files in those directories.
+     *
+     * @param list<string> $phpPaths
+     *
+     * @return array{
+     *   tsconfig: string|null,
+     *   scripts: list<string>,
+     *   languages: list<string>,
+     *   languages_source: string|null,
+     *   paths: list<string>,
+     *   typescript_paths: list<string>
+     * }
+     */
+    private function nodeEvidence(string $packagePath, array $phpPaths, bool $declaredPhpScope): array
+    {
+        $evidence = new InitNodeProjectEvidence();
+        $tsconfig = $this->firstExisting(['tsconfig.json']);
+        $directories = $evidence->sourceDirectories($this->rootPath);
+        $typeScriptPaths = $directories[SourceLanguage::TYPESCRIPT] ?? [];
+
+        $languages = [];
+        if ($declaredPhpScope || ($directories[SourceLanguage::PHP] ?? []) !== []) {
+            $languages[] = SourceLanguage::PHP;
+        }
+        $languagesSource = null;
+        if ($tsconfig !== null || $typeScriptPaths !== []) {
+            $languages[] = SourceLanguage::TYPESCRIPT;
+            $languagesSource = $tsconfig ?? 'directory-presence';
+        }
+
+        if (!in_array(SourceLanguage::TYPESCRIPT, $languages, true)) {
+            // Nothing to add to the map: keep the PHP proposal untouched.
+            return [
+                'tsconfig' => $tsconfig,
+                'scripts' => $evidence->scriptNames($this->readJson($packagePath)),
+                'languages' => [SourceLanguage::PHP],
+                'languages_source' => null,
+                'paths' => $phpPaths,
+                'typescript_paths' => [],
+            ];
+        }
+
+        // Without PHP evidence the directory-presence fallback above guessed a PHP scope that
+        // holds no PHP; the map paths are then the TypeScript directories alone.
+        $paths = in_array(SourceLanguage::PHP, $languages, true)
+            ? array_values(array_unique([...$phpPaths, ...$typeScriptPaths]))
+            : $typeScriptPaths;
+
+        return [
+            'tsconfig' => $tsconfig,
+            'scripts' => $evidence->scriptNames($this->readJson($packagePath)),
+            'languages' => SourceLanguage::normalize($languages),
+            'languages_source' => $languagesSource,
+            'paths' => $paths,
+            'typescript_paths' => $typeScriptPaths,
         ];
     }
 

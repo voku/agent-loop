@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use Closure;
 use RuntimeException;
+use voku\AgentLoop\Map\ProjectMapBuilder;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
@@ -98,15 +99,17 @@ final readonly class WorkflowRunPreparer
     /**
      * Rebuild through the Map owner's own API.
      *
-     * Automatic preparation proves only the already-approved, existing PHP
-     * Contract scope plus any stale map entries that need refreshing. It never
+     * Automatic preparation proves only the already-approved, existing Contract
+     * scope in the declared map languages (PHP unless `map.languages` says more)
+     * plus any stale map entries that need refreshing. It never
      * performs an unbounded repository-wide discovery or carries unrelated entries
      * forward from an unreadable snapshot. Explicit Map commands remain the front
      * door for intentionally broader discovery.
      */
     private function rebuildMap(TaskContract $contract, MapReadiness $readiness): void
     {
-        $scope = $this->existingPhpScope($contract);
+        $maps = ProjectMapBuilder::forProject($this->rootPath);
+        $scope = $this->existingMapScope($contract, $maps);
         $stale = array_column($readiness->staleEntries, 'path');
         $rebuildPaths = array_values(array_unique([...$scope, ...$stale]));
         if ($rebuildPaths === []) {
@@ -117,6 +120,17 @@ final readonly class WorkflowRunPreparer
             $this->rootPath,
             (new ProjectLayout($this->rootPath))->mapRoot(),
         );
+
+        if ($maps->indexesBeyondPhp()) {
+            // agent-map's incremental prepare/refresh cover PHP-only maps and refuse the rest;
+            // a map that indexes another language is brought up to date by a full owner build.
+            (new SearchMaintenanceService())->refreshIfPresent(new SearchMaintenanceRequest(
+                index: $maps->rebuild($artifacts, $scope),
+                artifacts: $artifacts,
+            ));
+
+            return;
+        }
 
         try {
             $prepared = (new MapPreparationService())->prepare(new MapPreparationRequest(
@@ -238,10 +252,24 @@ final readonly class WorkflowRunPreparer
 
     private function discoveryBlocker(TaskContract $contract, MapReadiness $readiness): ?DiscoveryRepair
     {
-        $existingPhpScope = $this->existingPhpScope($contract);
+        $maps = ProjectMapBuilder::forProject($this->rootPath);
+        $existingPhpScope = $this->existingMapScope($contract, $maps);
         if ($existingPhpScope === []) {
             return null;
         }
+        // A PHP-only project keeps its wording and repair commands byte for byte.
+        $subject = $maps->indexesBeyondPhp()
+            ? 'Existing map scope (' . $maps->languagesOption() . ')'
+            : 'Existing PHP scope';
+        // `map refresh` is the owner's PHP-only incremental path and refuses any other map, so a
+        // project that declared more names the full build that keeps the map's recorded scope.
+        $build = $maps->indexesBeyondPhp()
+            ? $maps->rebuildCommand(
+                MapArtifactPaths::forProject($this->rootPath, (new ProjectLayout($this->rootPath))->mapRoot()),
+                $existingPhpScope,
+            )
+            : 'agent-loop map build --paths=src,tests';
+        $refresh = $maps->indexesBeyondPhp() ? $build : 'agent-loop map refresh';
         // Every refusal below names the index agent-map judged. A repository can
         // hold more than one - a repository-local `.agent-map/` beside the
         // governed `.agent-loop/map/` - and a message that reports only which
@@ -250,27 +278,27 @@ final readonly class WorkflowRunPreparer
         $index = ' (index: ' . $readiness->mapPath . ')';
         if ($readiness->mapState === 'missing') {
             return new DiscoveryRepair(
-                'Existing PHP scope requires agent-map discovery before governed preparation: '
+                $subject . ' requires agent-map discovery before governed preparation: '
                 . implode(', ', $existingPhpScope) . $index . '.',
-                'agent-loop map build --paths=src,tests',
+                $build,
             );
         }
         if ($readiness->mapState === 'invalid') {
             return new DiscoveryRepair(
-                'Existing PHP scope requires a readable agent-map snapshot before governed preparation: '
+                $subject . ' requires a readable agent-map snapshot before governed preparation: '
                 . ($readiness->mapFailure ?? 'agent-map reported an invalid snapshot') . $index . '.',
-                'agent-loop map build --paths=src,tests',
+                $build,
             );
         }
         if ($readiness->mapState === 'stale') {
             $stale = array_column($readiness->staleEntries, 'path');
             $visible = array_slice($stale, 0, 5);
             return new DiscoveryRepair(
-                'Existing PHP scope is not covered by a fresh agent-map snapshot before governed preparation (stale map entries: '
+                $subject . ' is not covered by a fresh agent-map snapshot before governed preparation (stale map entries: '
                 . implode(', ', $visible)
                 . (count($stale) > count($visible) ? sprintf(' (+%d more)', count($stale) - count($visible)) : '')
                 . ')' . $index . '.',
-                'agent-loop map refresh',
+                $refresh,
             );
         }
 
@@ -278,7 +306,7 @@ final readonly class WorkflowRunPreparer
         if ($map === null) {
             return new DiscoveryRepair(
                 'agent-map reported a ready snapshot without a readable current map' . $index . '.',
-                'agent-loop map build --paths=src,tests',
+                $build,
             );
         }
 
@@ -290,17 +318,21 @@ final readonly class WorkflowRunPreparer
         }
         if ($missingScope !== []) {
             return new DiscoveryRepair(
-                'Existing PHP scope is not covered by a fresh agent-map snapshot before governed preparation (scope not indexed: '
+                $subject . ' is not covered by a fresh agent-map snapshot before governed preparation (scope not indexed: '
                 . implode(', ', $missingScope) . ')' . $index . '.',
-                'agent-loop map refresh',
+                $refresh,
             );
         }
 
         return null;
     }
 
-    /** @return list<string> */
-    private function existingPhpScope(TaskContract $contract): array
+    /**
+     * Existing Contract scope files in a language the project declared for its map.
+     *
+     * @return list<string>
+     */
+    private function existingMapScope(TaskContract $contract, ProjectMapBuilder $maps): array
     {
         $projectRoot = realpath($this->rootPath);
         if (!is_string($projectRoot)) {
@@ -319,7 +351,7 @@ final readonly class WorkflowRunPreparer
                 continue;
             }
             $relative = substr($absolute, strlen($projectRoot) + 1);
-            if ($relative === '' || !str_ends_with(strtolower($relative), '.php') || !is_file($absolute)) {
+            if ($relative === '' || !$maps->requiresMap($relative) || !is_file($absolute)) {
                 continue;
             }
             $existingPhpScope[$relative] = true;

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit;
 
 use RuntimeException;
+use Throwable;
+use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexReader;
+use voku\AgentMap\IO\SourceLanguage;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentMap\Prepare\MapPreparationException;
 use voku\AgentMap\Prepare\MapPreparationRequest;
@@ -22,6 +25,13 @@ final readonly class EditMapPreparer implements EditMapProvider
 
     public function prepare(EditRequest $request): AgentMapIndex
     {
+        $this->assertPhpTarget($request->target);
+        if (is_file($request->mapIndex)) {
+            // Checked before any rebuild: rebuilding here is PHP-only and would replace a map
+            // that indexes another language with one that silently lacks those files.
+            $this->assertPhpOnlyMap($request->mapIndex);
+        }
+
         if ($request->forceMapRebuild || !is_file($request->mapIndex)) {
             if (!$request->allowMapRebuild) {
                 throw new RuntimeException('Agent map is missing and automatic rebuilding is disabled: ' . $request->mapIndex);
@@ -76,6 +86,41 @@ final readonly class EditMapPreparer implements EditMapProvider
             ))->index;
         } catch (MapPreparationException $exception) {
             throw new RuntimeException($exception->getMessage() . ' Recovery: ' . $exception->recoveryCommand, 0, $exception);
+        }
+    }
+
+    /**
+     * Deterministic edit is a PHP method contract. agent-map names a TypeScript/JavaScript symbol
+     * `<file>#<Name>`; such a target is refused here instead of failing later as "not found".
+     */
+    private function assertPhpTarget(string $target): void
+    {
+        $separator = strpos($target, '#');
+        $language = $separator === false ? null : SourceLanguage::ofPath(substr($target, 0, $separator));
+        if ($language !== null && $language !== SourceLanguage::PHP) {
+            throw new RuntimeException(
+                'agent-loop edit supports PHP methods only; "' . $target . '" names a ' . $language
+                . ' symbol. Edit that file directly within the governed Contract scope instead.',
+            );
+        }
+    }
+
+    private function assertPhpOnlyMap(string $mapIndex): void
+    {
+        try {
+            $backend = $this->reader->readSections($mapIndex, ['files'])->backend;
+        } catch (Throwable) {
+            return; // An unreadable map stays the existing read/rebuild path's to report.
+        }
+
+        $languages = AgentMapBuilder::languagesForBackend($backend);
+        if ($languages !== [SourceLanguage::PHP]) {
+            throw new RuntimeException(
+                'agent-loop edit supports PHP-only maps; ' . $mapIndex . ' indexes ' . implode(', ', $languages)
+                . ' (backend "' . $backend . '"). Its map refresh and method resolution do not cover those files.'
+                . ' Pass --map-index with a separate path to let the edit build its own PHP-only map,'
+                . ' or edit the file directly within the governed Contract scope.',
+            );
         }
     }
 

@@ -15,6 +15,7 @@ use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\Decision\DecisionRouteCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
+use voku\AgentLoop\Map\ProjectMapBuilder;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContract;
@@ -193,10 +194,44 @@ final class Dispatcher
     /** @param list<string> $rest */
     private function dispatchMap(string $scriptName, array $rest): int
     {
+        try {
+            $rest = $this->withDeclaredMapLanguages($rest);
+        } catch (\RuntimeException $exception) {
+            fwrite(STDERR, '[FAIL] map build: ' . $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
         return (new AgentMapCli(
             projectRoot: $this->rootPath,
             mapRoot: $this->layout()->mapRoot(),
         ))->run($this->subArgv($scriptName, $rest));
+    }
+
+    /**
+     * `map build` indexes the languages the project declared in `map.languages` unless the
+     * caller passes `--languages` itself. A PHP-only project hands agent-map its arguments
+     * unchanged; an invalid declaration stops the build instead of indexing the default.
+     *
+     * @param list<string> $rest
+     *
+     * @return list<string>
+     */
+    private function withDeclaredMapLanguages(array $rest): array
+    {
+        if (($rest[0] ?? null) !== 'build'
+            || $this->hasOption($rest, 'languages')
+            || $this->hasOption($rest, 'help')
+            || in_array('-h', $rest, true)) {
+            return $rest;
+        }
+
+        $maps = ProjectMapBuilder::forProject($this->rootPath);
+        if (!$maps->indexesBeyondPhp()) {
+            return $rest;
+        }
+
+        return [...$rest, '--languages=' . $maps->languagesOption()];
     }
 
     /** @param list<string> $tokens */

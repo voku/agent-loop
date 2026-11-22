@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
+use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Init\InitConfigLoader;
+use voku\AgentMap\IO\SourceLanguage;
 use voku\AgentMap\MapArtifactPaths;
 
 /**
@@ -397,6 +399,37 @@ final readonly class ProjectLayout
         }
 
         return PathResolver::join($this->projectRoot(), $configured);
+    }
+
+    /**
+     * The source languages this project declared for its map (`map.languages` in the init
+     * config; PHP when nothing is declared).
+     *
+     * Fails closed on an invalid declaration: indexing the default instead would publish a map
+     * that silently lacks what the project asked for.
+     *
+     * @return list<string> agent-map `SourceLanguage` names in the owner's canonical order
+     */
+    public function mapLanguages(): array
+    {
+        $map = $this->config()['map'];
+        $error = $map['languages_error'];
+        $languages = [SourceLanguage::PHP];
+        if ($error === null && $map['languages'] !== null) {
+            try {
+                $languages = SourceLanguage::normalize($map['languages']);
+            } catch (InvalidArgumentException $exception) {
+                $error = 'map.languages is invalid. ' . $exception->getMessage();
+            }
+        }
+        if ($error !== null) {
+            throw new RuntimeException(
+                'Invalid map configuration in ' . self::CONFIG_RELATIVE . ': ' . $error
+                . ' Fix map.languages before building or using the map.',
+            );
+        }
+
+        return $languages;
     }
 
     public function mapIndex(): string
@@ -901,7 +934,8 @@ final readonly class ProjectLayout
      *     warnings: list<string>,
      *     paths: array<string, string>,
      *     agents: array<string, array<string, string>>,
-     *     recall: array{document_manifests: list<string>}
+     *     recall: array{document_manifests: list<string>},
+     *     map: array{languages: list<string>|null, languages_error: string|null}
      * }
      */
     private function config(): array

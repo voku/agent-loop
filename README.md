@@ -341,6 +341,7 @@ Start here:
 - [Cross-package lifecycle and ownership](docs/workflow/lifecycle.md)
 - [Agent assets and host integration](docs/reference/agent-assets.md)
 - [Git hooks: where the commit rules live](docs/reference/git-hooks.md)
+- [TypeScript/JavaScript (non-PHP) projects](docs/reference/non-php-projects.md)
 - [Learning and durable-memory boundary](docs/workflow/learning-boundary.md)
 - [Pre-1.0 compatibility and durable-state contract](docs/compatibility.md)
 
