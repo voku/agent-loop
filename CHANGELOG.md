@@ -1,10 +1,18 @@
 ## [Unreleased]
 
+## [0.20.106] - 2026-11-22
+
 ### Fixed
 
 - `workflow plan` now refuses an explicit `--scope` that excludes any `--file` path, using the existing Contract-scope matcher (including directory containment). Previously an explicit scope silently replaced the file list, allowing declared changes to disappear from the approved candidate. Rejected new or superseding plans leave the Contract unchanged; valid `--scope tests/` covering `--file tests/FooTest.php` still works (#1142, NG-10).
 - `pipeline submit --outcome completed` on a stage that may edit refuses with `SCOPE_PATH_MISSING` while the Contract scope names a path that does not exist in the workspace and is not a deletion of a path the base commit tracks. The message names the paths and the two ways out: create them, or replace the scope with `workflow plan <task> --supersede --file ...`. Before, such a Contract passed build, both reviews and validation, and only `finish` failed with `Implementation snapshot scoped path does not exist yet`, after which the superseded Contract needed every stage again. Read-only stages and non-completing outcomes are not checked (#1142).
 - `workflow attention` accepts `--format text|json` (also `--format=json`) like the other commands a host runs from a `next_action`. With `json` it prints the resolved Attention, the actor, the current stage and attempt and the next action, and reports a failure as a JSON error object. Before, a host that appended `--format=json` got `Unknown option: --format=json` (#1142).
+
+- An unreadable or invalid verification plan at edit time now produces a fixed safe diagnostic instead of looking absent; verification refuses to grade when that edit-time error was recorded. Persisted diagnostics are validated again before display, to avoid reflecting forged result text (#1147).
+
+### Tests
+
+- The real Phase-F recovery evidence gate has a regression test for missing, extra, malformed, reordered and truncated recovery scenarios. The test invokes the CI gate rather than duplicating its logic (#1149).
 
 ## [0.20.105] - 2026-11-22
 
