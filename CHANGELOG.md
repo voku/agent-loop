@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.20.105] - 2026-11-22
+
 ### Added
 
 - A TypeScript/JavaScript or mixed project can get Map-backed code facts. The new project setting `map.languages` in `.agent-loop/init.json` (default `["php"]`, values are agent-map's languages, for example `["typescript"]` or `["php", "typescript"]`) declares what the map indexes. With `typescript` declared, `enter` builds a current map for existing `.ts`/`.js` Contract scope, and Recall and `workflow context` receive its symbols. agent-map's incremental refresh covers PHP-only maps, so Loop asks for a full build with the declared languages wherever it would refresh: a missing map is built from the Contract scope, an existing one from its recorded paths plus the scope. A changed TypeScript file makes the map stale like a PHP file does. An unknown language, an empty list or a non-list is refused by `enter`, Run preparation and `map build` and shown as a warning by `init status`. A PHP-only project is unchanged: `.php` scope stays the only trigger and Markdown-only work builds no map. See `docs/reference/non-php-projects.md`.
