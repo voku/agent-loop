@@ -440,6 +440,72 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         return ['exit' => proc_close($process), 'stdout' => $stdout, 'stderr' => $stderr];
     }
 
+    public function testCompletingTheBuildStageIsRefusedWhileAScopePathWasNeverCreated(): void
+    {
+        ob_start();
+        try {
+            $exits = [
+                (new WorkflowPlanCommand($this->root))->run([
+                    'SUB-2', '--by', 'planner', '--file', 'src/Foo.php', '--file', 'src/Planned.php',
+                    '--goal', 'Change Foo and add Planned.', '--validation', 'php -l src/Foo.php',
+                    '--base-commit', $this->base,
+                ]),
+                (new WorkflowApproveCommand($this->root))->run(['SUB-2', '--revision', '1', '--by', 'approver']),
+                (new WorkflowExecutionProfileCommand($this->root))->run(['SUB-2', '--profile', 'surgical', '--by', 'approver']),
+                (new HostFrontDoorCommand($this->root))->run('enter', ['SUB-2', '--format=json']),
+            ];
+        } finally {
+            $output = (string) ob_get_clean();
+        }
+        self::assertSame([0, 0, 0, 0], $exits, $output);
+        $submit = function (): array {
+            ob_start();
+            try {
+                $exit = (new WorkflowPipelineCommand($this->root))->run([
+                    'submit', 'SUB-2', '--outcome', 'completed', '--context-id', 'ctx:sub-2',
+                    '--workspace', $this->workspace, '--format=json',
+                ]);
+            } finally {
+                $printed = (string) ob_get_clean();
+            }
+            $decoded = json_decode($printed, false, 512, JSON_THROW_ON_ERROR);
+            self::assertInstanceOf(stdClass::class, $decoded);
+
+            return [$exit, $decoded];
+        };
+        $stage = fn (): ?string => (new ExecutionGateway($this->root))->projection('SUB-2')->currentStageId;
+
+        // The read-only investigate stage is not asked for files the build has yet to create.
+        [$exit] = $submit();
+        self::assertSame(0, $exit);
+        self::assertSame('build', $stage());
+
+        $this->changeWorkspace();
+        [$exit, $refused] = $submit();
+        self::assertSame(1, $exit);
+        self::assertSame('error', $refused->status ?? null);
+        self::assertIsString($refused->message ?? null);
+        self::assertStringContainsString('SCOPE_PATH_MISSING', $refused->message);
+        self::assertStringContainsString('src/Planned.php', $refused->message);
+        self::assertStringNotContainsString('src/Foo.php,', $refused->message);
+        self::assertSame('build', $stage(), 'a refused submission must not advance the stage');
+
+        file_put_contents($this->workspace . '/src/Planned.php', "<?php\nfinal class Planned {}\n");
+        [$exit, $accepted] = $submit();
+        self::assertSame(0, $exit, (string) json_encode($accepted));
+        self::assertSame('review', $stage());
+    }
+
+    public function testCompletingTheBuildStageAcceptsADeletedTrackedScopePath(): void
+    {
+        unlink($this->workspace . '/src/Foo.php');
+
+        [$exit] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
+
+        self::assertSame(0, $exit);
+        self::assertSame('review', $this->projection()->currentStageId);
+    }
+
     private function buildBundle(): \voku\AgentLoop\Execution\StageExecutionBundle
     {
         return (new ExecutionGateway($this->root))->prepareStage('SUB-1', 'build');
