@@ -54,6 +54,7 @@ final class AgentResultContractTest extends TestCase
         $binding = VerificationPlanBinding::fromRecallDirectory($this->root . '/recall');
 
         self::assertNull($binding->planSha256);
+        self::assertNull($binding->error);
         self::assertSame([], $binding->emptyProbeAnswers());
         self::assertSame([], $binding->emptyChecklistEvidence());
     }
@@ -75,7 +76,69 @@ final class AgentResultContractTest extends TestCase
         $binding = VerificationPlanBinding::fromRecallDirectory($this->root . '/recall');
 
         self::assertNull($binding->planSha256, 'without a plan hash, edit verify refuses this result');
+        self::assertStringContainsString('knowledge_probes must be a JSON array', (string) $binding->error);
         self::assertSame([], $binding->emptyProbeAnswers());
+
+        $payload = (new AgentResultWriter())->write(
+            $this->root,
+            $this->request('EDIT-RESULT'),
+            new EditRunResult('prepared'),
+            $binding,
+            WorkingTreeSnapshot::unavailable(),
+            WorkingTreeSnapshot::unavailable(),
+            [],
+            'method:Demo\\UserService::save',
+        );
+        self::assertSame($binding->error, $payload['verification_plan_error']);
+    }
+
+    public function testReaderDiagnosticsNeverPersistPlanValues(): void
+    {
+        $plan = VerificationPlanFixture::shape(['schema_version' => ['secret' => 'SENSITIVE_MARKER']]);
+        file_put_contents($this->root . '/recall/verification-plan.json', json_encode($plan, JSON_THROW_ON_ERROR));
+        $binding = VerificationPlanBinding::fromRecallDirectory($this->root . '/recall');
+        self::assertSame('Unsupported verification plan schema version', $binding->error);
+
+        $payload = (new AgentResultWriter())->write(
+            $this->root,
+            $this->request('EDIT-RESULT'),
+            new EditRunResult('prepared'),
+            $binding,
+            WorkingTreeSnapshot::unavailable(),
+            WorkingTreeSnapshot::unavailable(),
+            [],
+            'method:Demo\\UserService::save',
+        );
+        self::assertSame($binding->error, $payload['verification_plan_error']);
+        self::assertStringNotContainsString('SENSITIVE_MARKER', (string) file_get_contents($this->root . '/agent-result.json'));
+
+        $plan = VerificationPlanFixture::shape(['knowledge_probes' => [['id' => 'SENSITIVE_MARKER'], ['id' => 'SENSITIVE_MARKER']]]);
+        file_put_contents($this->root . '/recall/verification-plan.json', json_encode($plan, JSON_THROW_ON_ERROR));
+        $binding = VerificationPlanBinding::fromRecallDirectory($this->root . '/recall');
+        self::assertSame('Verification plan knowledge_probes has a duplicate id', $binding->error);
+        self::assertStringNotContainsString('SENSITIVE_MARKER', (string) $binding->error);
+
+        foreach ([
+            [['map_digest' => ''], 'Verification plan map_digest must be a non-empty string'],
+            [['generator' => ['name' => 'ok']], 'Verification plan generator.version must be a string'],
+            [['required_evidence_types' => []], 'Verification plan required_evidence_types must be a non-empty JSON array'],
+            [['knowledge_probes' => [['id' => '']]], 'Verification plan knowledge_probes contains an entry without a non-empty string id'],
+        ] as [$overrides, $expected]) {
+            file_put_contents($this->root . '/recall/verification-plan.json', json_encode(VerificationPlanFixture::shape($overrides), JSON_THROW_ON_ERROR));
+            $error = VerificationPlanBinding::fromRecallDirectory($this->root . '/recall')->error;
+            self::assertSame($expected, $error);
+            self::assertStringNotContainsString($this->root, (string) $error);
+        }
+    }
+
+    public function testInvalidJsonReportsSafeDistinctCauses(): void
+    {
+        foreach ([['{', 'syntax error'], ["{\"x\":\"\xFF\"}", 'malformed UTF-8']] as [$raw, $reason]) {
+            file_put_contents($this->root . '/recall/verification-plan.json', $raw);
+            $error = VerificationPlanBinding::fromRecallDirectory($this->root . '/recall')->error;
+            self::assertSame('Invalid verification plan JSON: ' . $reason, $error);
+            self::assertStringNotContainsString($this->root, (string) $error);
+        }
     }
 
     public function testResultRecordsObservedFactsAndNoVerdict(): void

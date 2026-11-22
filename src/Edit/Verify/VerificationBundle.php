@@ -56,6 +56,10 @@ final readonly class VerificationBundle
         // The Recall owner reader fails closed on a plan it cannot establish as absent or that lacks the
         // writer's shape; only a genuinely absent plan reaches the "nothing to verify" refusal.
         $document = (new VerificationPlanReader())->read($recallDirectory);
+        $planError = $result['verification_plan_error'] ?? null;
+        if (($result['verification_plan_sha256'] ?? null) === null && is_string($planError) && $planError !== '') {
+            throw new RuntimeException('The verification plan was unreadable when the edit ran (' . $planError . '); re-run the edit.');
+        }
         $keyFile = (new CompiledRecallOutputPaths($recallDirectory))->verificationKey();
         if ($document === null || !is_file($keyFile)) {
             throw new RuntimeException(
