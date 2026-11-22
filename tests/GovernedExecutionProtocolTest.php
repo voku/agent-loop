@@ -547,23 +547,7 @@ final class GovernedExecutionProtocolTest extends TestCase
             'What should happen?',
         ));
         self::assertNotNull($waiting->attention);
-        /**
-         * @param list<string> $arguments
-         *
-         * @return array{int, string, string}
-         */
-        $run = function (array $arguments): array {
-            $command = [PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', 'workflow', 'attention', 'ABC-123', ...$arguments];
-            $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
-            self::assertIsResource($process);
-            fclose($pipes[0]);
-            $stdout = (string) stream_get_contents($pipes[1]);
-            $stderr = (string) stream_get_contents($pipes[2]);
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            return [proc_close($process), $stdout, $stderr];
-        };
+        $run = fn (array $arguments): array => $this->runAttentionCli($arguments);
 
         [$exit, $stdout] = $run(['--resolve', 'attention:unknown', '--by', 'lars', '--format=json']);
         self::assertSame(1, $exit);
@@ -588,6 +572,29 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame('investigate', $payload['current_stage']);
         self::assertSame(2, $payload['attempt']);
         self::assertSame('agent-loop pipeline stage ABC-123', $payload['next_action']);
+    }
+
+    /**
+     * @param array<array-key, mixed> $arguments
+     *
+     * @return array{int, string, string}
+     */
+    private function runAttentionCli(array $arguments): array
+    {
+        $command = [PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', 'workflow', 'attention', 'ABC-123'];
+        foreach ($arguments as $argument) {
+            self::assertIsString($argument);
+            $command[] = $argument;
+        }
+        $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
+        self::assertIsResource($process);
+        fclose($pipes[0]);
+        $stdout = (string) stream_get_contents($pipes[1]);
+        $stderr = (string) stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return [proc_close($process), $stdout, $stderr];
     }
 
     public function testCliResolutionSuppliesResponseToResumedStageAndRejectsReplay(): void
