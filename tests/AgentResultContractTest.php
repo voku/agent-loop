@@ -12,6 +12,7 @@ use voku\AgentLoop\Edit\AgentResultWriter;
 use voku\AgentLoop\Edit\EditRequest;
 use voku\AgentLoop\Edit\EditRunResult;
 use voku\AgentLoop\Edit\VerificationPlanBinding;
+use voku\AgentLoop\Tests\Support\VerificationPlanFixture;
 
 final class AgentResultContractTest extends TestCase
 {
@@ -62,6 +63,19 @@ final class AgentResultContractTest extends TestCase
         file_put_contents($this->root . '/recall/verification-plan.json', '{ not json');
 
         self::assertNull(VerificationPlanBinding::fromRecallDirectory($this->root . '/recall')->planSha256);
+    }
+
+    public function testAStructurallyDamagedPlanBindsNoPlanInsteadOfSeedingEmptySlots(): void
+    {
+        file_put_contents(
+            $this->root . '/recall/verification-plan.json',
+            (string) json_encode(VerificationPlanFixture::shape(['knowledge_probes' => 'kaputt']), JSON_THROW_ON_ERROR),
+        );
+
+        $binding = VerificationPlanBinding::fromRecallDirectory($this->root . '/recall');
+
+        self::assertNull($binding->planSha256, 'without a plan hash, edit verify refuses this result');
+        self::assertSame([], $binding->emptyProbeAnswers());
     }
 
     public function testResultRecordsObservedFactsAndNoVerdict(): void
@@ -135,14 +149,13 @@ final class AgentResultContractTest extends TestCase
 
     private function writePlan(): string
     {
-        $plan = json_encode([
-            'schema_version' => '1.0',
+        $plan = json_encode(VerificationPlanFixture::shape([
             'knowledge_probes' => [
                 ['id' => 'probe:type-definition:002', 'question' => 'q2'],
                 ['id' => 'probe:incoming-call:001', 'question' => 'q1'],
             ],
             'checklist' => [['id' => 'check:contract', 'statement' => 's']],
-        ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        ]), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
         file_put_contents($this->root . '/recall/verification-plan.json', $plan);
 
         return $plan;

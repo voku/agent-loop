@@ -15,6 +15,7 @@ use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\Transparency\ApprovedScope;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputPaths;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -323,7 +324,7 @@ final readonly class WorkflowReportCommand
         try {
             $layout = new ProjectLayout($this->rootPath);
             $recallRoot = $layout->recallRoot();
-            $relative = $this->relativePath(rtrim($recallRoot, '/') . '/' . $taskId . '/meta.json');
+            $relative = $this->relativePath((new CompiledRecallOutputPaths(rtrim($recallRoot, '/') . '/' . $taskId))->identity());
             $directory = $layout->recallTaskDirectory($taskId);
         } catch (RuntimeException) {
             return [

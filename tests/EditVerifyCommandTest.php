@@ -7,7 +7,9 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLoop\Edit\EditCommand;
+use voku\AgentLoop\Edit\Verify\VerificationBundle;
 use PHPUnit\Framework\Attributes\Group;
 
 /**
@@ -144,6 +146,45 @@ final class EditVerifyCommandTest extends TestCase
 
         self::assertSame(2, $this->verifyExitCode(), 'a mismatched binding is a hard stop, not a failed gate');
         self::assertFileDoesNotExist($this->bundle . '/verification-result.json');
+    }
+
+    public function testRefusesAResultThatBoundNoPlanBecauseThePlanWasUnreadableAtEditTime(): void
+    {
+        $this->runEdit();
+        // What VerificationPlanBinding writes when the owner reader rejected the plan during the edit.
+        $result = json_decode((string) file_get_contents($this->bundle . '/agent-result.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($result);
+        $result['verification_plan_sha256'] = null;
+        file_put_contents($this->bundle . '/agent-result.json', json_encode($result, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+
+        self::assertSame(2, $this->verifyExitCode(), 'a result without a plan binding is refused, even against an intact plan');
+        self::assertFileDoesNotExist($this->bundle . '/verification-result.json');
+    }
+
+    public function testRefusesToGradeAgainstAStructurallyDamagedPlanEvenWhenEveryHashAgrees(): void
+    {
+        $this->runEdit();
+        $plan = json_decode((string) file_get_contents($this->planFile()), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($plan);
+        // Valid JSON, wrong shape: before the owner reader this graded as a plan without probes.
+        $plan['knowledge_probes'] = 'kaputt';
+        $damaged = (string) json_encode($plan, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        file_put_contents($this->planFile(), $damaged);
+        $sha = 'sha256:' . hash('sha256', $damaged);
+        foreach ([$this->bundle . '/recall/verification-key.json' => 'plan_sha256', $this->bundle . '/agent-result.json' => 'verification_plan_sha256'] as $file => $field) {
+            $document = json_decode((string) file_get_contents($file), true, 512, JSON_THROW_ON_ERROR);
+            self::assertIsArray($document);
+            $document[$field] = $sha;
+            file_put_contents($file, json_encode($document, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+        }
+
+        self::assertSame(2, $this->verifyExitCode(), 'a damaged plan is a hard stop, not a graded run');
+        self::assertFileDoesNotExist($this->bundle . '/verification-result.json');
+
+        // The refusal is the owner reader's shape check, not any other verify precondition.
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('knowledge_probes must be a JSON array');
+        VerificationBundle::load($this->bundle);
     }
 
     public function testVerificationDoesNotTouchTheSharedMapIndex(): void

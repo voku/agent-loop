@@ -22,7 +22,7 @@
     "voku/agent-kanban": "^0.4.6",
     "voku/agent-learning": "^0.22.0 || ^0.23.0",
     "voku/agent-map": "^0.24.2",
-    "voku/agent-recall-compiler": "^0.29.8",
+    "voku/agent-recall-compiler": "^0.29.9",
     "voku/agent-session": "^0.7.2",
     "voku/portable-utf8": "^6.1"
   },
