@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- `workflow attention` accepts `--format text|json` (also `--format=json`) like the other commands a host runs from a `next_action`. With `json` it prints the resolved Attention, the actor, the current stage and attempt and the next action, and reports a failure as a JSON error object. Before, a host that appended `--format=json` got `Unknown option: --format=json` (#1142).
+
 ## [0.20.105] - 2026-11-22
 
 ### Added

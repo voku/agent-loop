@@ -527,6 +527,69 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame('operator-1', $resolution->actor);
     }
 
+    public function testCliResolutionAcceptsJsonFormatAndReportsErrorsAsJson(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+        $bundle = $gateway->prepareStage('ABC-123', 'investigate');
+        $waiting = $gateway->submitStageResult(new StageResult(
+            'submission:cli-json',
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            StageOutcome::NEEDS_CLARIFICATION,
+            $bundle->candidateRevision,
+            [],
+            [],
+            'What should happen?',
+        ));
+        self::assertNotNull($waiting->attention);
+        /**
+         * @param list<string> $arguments
+         *
+         * @return array{int, string, string}
+         */
+        $run = function (array $arguments): array {
+            $command = [PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', 'workflow', 'attention', 'ABC-123', ...$arguments];
+            $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+            $stdout = (string) stream_get_contents($pipes[1]);
+            $stderr = (string) stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            return [proc_close($process), $stdout, $stderr];
+        };
+
+        [$exit, $stdout] = $run(['--resolve', 'attention:unknown', '--by', 'lars', '--format=json']);
+        self::assertSame(1, $exit);
+        $error = json_decode($stdout, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($error);
+        self::assertSame('error', $error['status']);
+        self::assertSame('workflow attention', $error['command']);
+        self::assertNotSame('', $error['message']);
+
+        [$exit, , $stderr] = $run(['--resolve', $waiting->attention->id, '--by', 'lars', '--format', 'yaml']);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('--format accepts text or json.', $stderr);
+
+        [$exit, $stdout] = $run(['--resolve', $waiting->attention->id, '--by', 'lars', '--format', 'json']);
+        self::assertSame(0, $exit, $stdout);
+        $payload = json_decode($stdout, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($payload);
+        self::assertSame('ok', $payload['status']);
+        self::assertSame('ABC-123', $payload['task_id']);
+        self::assertSame($waiting->attention->id, $payload['attention_id']);
+        self::assertSame('lars', $payload['resolved_by']);
+        self::assertSame('investigate', $payload['current_stage']);
+        self::assertSame(2, $payload['attempt']);
+        self::assertSame('agent-loop pipeline stage ABC-123', $payload['next_action']);
+    }
+
     public function testCliResolutionSuppliesResponseToResumedStageAndRejectsReplay(): void
     {
         $this->prepareSurgicalRun();
