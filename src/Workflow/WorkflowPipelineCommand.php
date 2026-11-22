@@ -344,6 +344,29 @@ final readonly class WorkflowPipelineCommand
      *
      * @SuppressWarnings("PHPMD.StaticAccess")
      */
+    /**
+     * `finish` cannot record an implementation whose Contract names a path that does not exist and was not
+     * deleted. Refusing the completing submission of a mutating stage reports that before review and validation
+     * are spent on the candidate.
+     */
+    private function assertScopePathsExist(string $taskId, ?string $candidateWorkspace): void
+    {
+        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+        $missing = ImplementationSnapshot::missingScopePaths($candidateWorkspace ?? $this->rootPath, $contract);
+        if ($missing === []) {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            'SCOPE_PATH_MISSING: the Contract scope names %s, which %s not exist in the workspace and %s not a deletion of a tracked path, so `finish` could not record the implementation. Create %s, or replace the scope with `agent-loop workflow plan %s --supersede --file <path> ...` before completing this stage.',
+            implode(', ', $missing),
+            count($missing) === 1 ? 'does' : 'do',
+            count($missing) === 1 ? 'is' : 'are',
+            count($missing) === 1 ? 'it' : 'them',
+            $taskId,
+        ));
+    }
+
     private function submit(string $taskIdString, array $tokens, string $format): int
     {
         // Malformed observations first: their message names the actual mistake.
@@ -415,6 +438,9 @@ final readonly class WorkflowPipelineCommand
         }
         // Only a completing submission claims the workspace; blocked/failed/clarification must stay reportable from any workspace.
         $completing = $outcome === StageOutcome::COMPLETED;
+        if ($completing && $bundle->mayMutate) {
+            $this->assertScopePathsExist($taskId, $candidateWorkspace);
+        }
         $observedCandidate = $completing ? $gateway->observeStageCandidate($bundle, $candidate, $candidateWorkspace) : null;
         $effectiveCandidate = $observedCandidate === null ? ($candidate ?? $bundle->candidateRevision) : $observedCandidate->candidateRevision;
         if ($observedCandidate !== null && $observedCandidate->changesOutsideScope) {

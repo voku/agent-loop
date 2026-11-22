@@ -138,6 +138,40 @@ final readonly class ImplementationSnapshot
     }
 
     /**
+     * Scope paths that would make `capture()` unavailable at `finish`: neither a file nor a directory in the
+     * work tree, and not a deletion of a path the Contract's base commit tracks. A stage that claims the
+     * implementation is complete asks this first, so a planned file that was never created is reported at the
+     * build stage and not after review and validation.
+     *
+     * @return list<string>
+     */
+    public static function missingScopePaths(string $rootPath, TaskContract $contract): array
+    {
+        $root = realpath($rootPath);
+        if ($root === false || !is_dir($root)) {
+            return [];
+        }
+        $root = rtrim(str_replace('\\', '/', $root), '/');
+        $missing = [];
+        foreach ($contract->scope as $scopePath) {
+            [$relative, $problem] = self::relativeScope($scopePath);
+            if ($problem !== null) {
+                continue;
+            }
+            $absolute = $root . '/' . $relative;
+            if (is_link($absolute) || is_file($absolute) || is_dir($absolute)) {
+                continue;
+            }
+            if ($contract->baseCommit !== null && GitWorkTree::tracksPathAt($root, $contract->baseCommit, $relative)) {
+                continue;
+            }
+            $missing[] = $relative;
+        }
+
+        return $missing;
+    }
+
+    /**
      * Whether capture() refuses a Contract scope path as workflow/dependency
      * metadata whatever the task does with it. Planning asks this so a Contract
      * that can never pass the snapshot at finish is refused before approval.
