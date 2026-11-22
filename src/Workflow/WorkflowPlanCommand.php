@@ -445,11 +445,23 @@ final readonly class WorkflowPlanCommand
             throw new InvalidArgumentException('--operating-prompt-manifest requires at least one --operating-prompt.');
         }
 
+        $normalizedScope = $this->normalizeScope($scopeOnly ? $scopeAdditions : ($scope === [] ? $files : $scope));
+        if (!$scopeOnly && $scope !== []) {
+            $outside = ApprovedScope::fromEntries($normalizedScope)
+                ->partition($this->normalizeScope($files))['outside'];
+            if ($outside !== []) {
+                throw new InvalidArgumentException(
+                    '--scope excludes --file path(s): ' . implode(', ', $outside)
+                    . '. Include them in --scope or omit --scope.',
+                );
+            }
+        }
+
         return [
             'by' => $by,
             'files' => $files,
             'goal' => $goal ?? '',
-            'scope' => $this->normalizeScope($scopeOnly ? $scopeAdditions : ($scope === [] ? $files : $scope)),
+            'scope' => $normalizedScope,
             'scopeOnly' => $scopeOnly,
             'nonGoals' => $nonGoals,
             'validation' => $validation,
