@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.20.104] - 2026-11-22
+
 ### Added
 
 - Every `decision_required` gate now projects a typed decision card, `human_decision.card`, built only from owner state. It covers contract approval, review acknowledgement, Learning disposition, risk acceptance, Contract supersession and generic human authority. The card has these fields:
@@ -28,6 +30,7 @@
 
 ### Documentation
 
+- Review-stage evidence record `docs/dogfood/2026-11-21-review-stage-yield.md` (#1031): what correctness and blindspot review found and cost in real governed tasks, which defects only deterministic gates caught, and how much of each stage prompt is Recall (about 85 %).
 - T10 record `docs/dogfood/2026-11-21-recall-map-real-use.md`: two real #1082 tasks observed end to end. Recall delivered a generic briefing that changed no decision, Map provided nothing, and the lifecycle produced the friction. Their outcomes ship as regression tests: `ComposerScriptsShapeTest` (`@putenv` must set exactly one variable, finding `c2f7eb`), plus `WorkflowRunPreparerActiveSessionTest` and the invalid-JSON manifest cases in `NonAuthoritativeManifestCacheTest` (finding `5e1f07`). Follow-ups: #1123.
 - AGENTS.md names the Evidence Lab probe folder (`build/evidence/<task-id>/probes/`, `docs/testing/evidence-lab.md`): exploratory code is a probe, not a test, even when PHPUnit runs it. Two learning-effect pilot agents had written such a probe into `tests/` because no repository instruction named the place.
 
