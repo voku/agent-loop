@@ -1,6 +1,5 @@
 includes:
   - vendor/voku/phpstan-agent-format/extension.neon
-  - phpstan/owner-artifact-filename-baseline.neon
 
 parameters:
   errorFormat: agent

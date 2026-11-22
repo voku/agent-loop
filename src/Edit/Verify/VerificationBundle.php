@@ -6,6 +6,8 @@ namespace voku\AgentLoop\Edit\Verify;
 
 use JsonException;
 use RuntimeException;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputPaths;
+use voku\AgentRecallCompiler\Verification\VerificationPlanReader;
 
 /**
  * The five artifacts a verification reads, loaded and cross-checked before anything is graded.
@@ -51,24 +53,25 @@ final readonly class VerificationBundle
             throw new RuntimeException('execution.json does not record a recall directory: ' . $directory);
         }
 
-        $planFile = rtrim($recallDirectory, '/') . '/verification-plan.json';
-        $keyFile = rtrim($recallDirectory, '/') . '/verification-key.json';
-        if (!is_file($planFile) || !is_file($keyFile)) {
+        // The Recall owner reader fails closed on a plan it cannot establish as absent or that lacks the
+        // writer's shape; only a genuinely absent plan reaches the "nothing to verify" refusal.
+        $document = (new VerificationPlanReader())->read($recallDirectory);
+        $keyFile = (new CompiledRecallOutputPaths($recallDirectory))->verificationKey();
+        if ($document === null || !is_file($keyFile)) {
             throw new RuntimeException(
                 'This edit was compiled without a verification plan, so there is nothing to verify: ' . $recallDirectory,
             );
         }
 
-        $planRaw = (string) file_get_contents($planFile);
-        $planSha256 = 'sha256:' . hash('sha256', $planRaw);
-        $plan = self::decode($planRaw, $planFile);
+        $planSha256 = $document->sha256;
+        $plan = $document->plan;
         $key = self::json($keyFile);
 
         self::assertSame($planSha256, $key['plan_sha256'] ?? null, 'verification-key.json was cut from a different plan');
         self::assertSame($planSha256, $result['verification_plan_sha256'] ?? null, 'agent-result.json answers a different plan');
 
-        $taskId = self::string($plan['task_id'] ?? null, 'verification-plan.json task_id');
-        $target = self::string($plan['target'] ?? null, 'verification-plan.json target');
+        $taskId = $document->taskId;
+        $target = $document->target;
         self::assertSame($taskId, $result['task_id'] ?? null, 'agent-result.json belongs to a different task');
         self::assertSame($target, $result['target'] ?? null, 'agent-result.json answers a different target');
         self::assertSame($taskId, $execution['task_id'] ?? null, 'execution.json belongs to a different task');
@@ -185,14 +188,5 @@ final readonly class VerificationBundle
                 $message . ' (expected ' . $expected . ', got ' . (is_string($actual) ? $actual : gettype($actual)) . ').',
             );
         }
-    }
-
-    private static function string(mixed $value, string $what): string
-    {
-        if (!is_string($value) || $value === '') {
-            throw new RuntimeException('Missing ' . $what . '.');
-        }
-
-        return $value;
     }
 }
