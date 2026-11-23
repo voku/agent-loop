@@ -146,7 +146,8 @@ final class WorkflowPipelineCommandTest extends TestCase
         $briefing = json_decode($response["stdout"], true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(ExecutionStageKind::DETERMINISTIC->value, $briefing["kind"]);
         self::assertTrue($briefing["may_mutate"]);
-        self::assertStringNotContainsString("--workspace", $briefing["next_action"]);
+        self::assertSame('command_template', $briefing['next_action_kind']);
+        self::assertSame('agent-loop pipeline run ' . $taskId . ' --workspace "<workspace-with-candidate>"', $briefing['next_action']);
         self::assertStringNotContainsString("Use --workspace <path>", $briefing["prompt"]);
         self::assertStringNotContainsString('Experiments are not automatically regression tests', $briefing["prompt"]);
     }

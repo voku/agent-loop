@@ -14,6 +14,7 @@ final readonly class StageExecutionBundle
      * @param list<StageOutcome> $acceptedOutcomes
      * @param array{path: non-empty-string, sha256: non-empty-string}|null $executionContractSource
      * @param list<string> $expectedArtifacts
+     * @param list<AttentionResolution> $routedReviewAttentionResolutions
      */
     public function __construct(
         public string $taskId,
@@ -42,6 +43,7 @@ final readonly class StageExecutionBundle
         public bool $contextIdRequired = false,
         public array $expectedArtifacts = [],
         public ?AttentionResolution $attentionResolution = null,
+        public array $routedReviewAttentionResolutions = [],
     ) {
     }
 }

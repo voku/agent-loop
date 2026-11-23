@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 use voku\AgentLoop\Execution\AttentionKind;
+use voku\AgentLoop\Execution\AttentionResolution;
 use voku\AgentLoop\Execution\AttentionResolutionStore;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
@@ -164,6 +165,91 @@ final class ExecutionReviewRoundCapTest extends TestCase
         [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review-after-cap']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         self::assertNull($gateway->prepareStage('SUB-1', 'build')->attentionResolution, 'The response is not carried beyond the next review.');
+    }
+
+    public function testCappedReviewResponseSurvivesASeparateBuildClarification(): void
+    {
+        $this->changeWorkspace();
+        for ($round = 1; $round <= ExecutionStateStore::MAX_REVIEW_ROUNDS; ++$round) {
+            $this->buildAndRequestChanges($round);
+        }
+        $reviewAttention = $this->projection()->attention;
+        self::assertNotNull($reviewAttention);
+        (new WorkflowHumanDecisionService($this->root))->resolveAttention(
+            'SUB-1',
+            $reviewAttention->id,
+            'lars',
+            'Keep the requested change in scope.',
+        );
+
+        // Simulate a Run state written by the earlier schema, before routed
+        // review response ids were persisted.
+        $statePath = (new ExecutionStateStore($this->root))->path('SUB-1');
+        $stateJson = file_get_contents($statePath);
+        self::assertNotFalse($stateJson);
+        $legacyState = json_decode($stateJson, true, 512, JSON_THROW_ON_ERROR);
+        unset($legacyState['routed_review_attention_ids']);
+        self::assertNotFalse(file_put_contents($statePath, json_encode($legacyState, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)));
+
+        [$exit, $payload] = $this->submit([
+            '--outcome', 'needs_clarification', '--summary', 'Clarify the implementation choice.', '--context-id', 'ctx:build-clarification',
+        ]);
+        self::assertSame(1, $exit, (string) json_encode($payload));
+        $buildAttention = $this->projection()->attention;
+        self::assertNotNull($buildAttention);
+        (new WorkflowHumanDecisionService($this->root))->resolveAttention(
+            'SUB-1',
+            $buildAttention->id,
+            'lars',
+            'Implement Foo::X as 4.',
+        );
+
+        $bundle = (new ExecutionGateway($this->root))->prepareStage('SUB-1', 'build');
+        self::assertSame('Implement Foo::X as 4.', $bundle->attentionResolution?->response);
+        self::assertSame(['Keep the requested change in scope.'], array_map(
+            static fn (AttentionResolution $resolution): ?string => $resolution->response,
+            $bundle->routedReviewAttentionResolutions,
+        ));
+        self::assertStringContainsString('Implement Foo::X as 4.', $bundle->prompt);
+        self::assertStringContainsString('Keep the requested change in scope.', $bundle->prompt);
+
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after-clarification', '--auto-verify']);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        $reviewBundle = (new ExecutionGateway($this->root))->prepareStage('SUB-1', 'review');
+        self::assertSame('Keep the requested change in scope.', $reviewBundle->attentionResolution?->response);
+        self::assertStringContainsString('Keep the requested change in scope.', $reviewBundle->prompt);
+    }
+
+    public function testHumanResponseSurvivesFailedValidationRepairAndReachesTheNextReview(): void
+    {
+        $this->changeWorkspace();
+        for ($round = 1; $round <= ExecutionStateStore::MAX_REVIEW_ROUNDS; ++$round) {
+            $this->buildAndRequestChanges($round);
+        }
+        $attention = $this->projection()->attention;
+        self::assertNotNull($attention);
+        $resumed = (new WorkflowHumanDecisionService($this->root))
+            ->resolveAttention('SUB-1', $attention->id, 'lars', 'Keep the requested change in scope.');
+        self::assertSame('build', $resumed->currentStageId);
+
+        // A failed lint after the capped response returns to the ordinary build
+        // stage and keeps the human decision available to that repair.
+        file_put_contents($this->workspace . '/src/Foo.php', "<?php\nthis is broken\n");
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-invalid', '--auto-verify']);
+        self::assertNotSame(0, $exit, (string) json_encode($payload));
+        self::assertSame('build', $this->projection()->currentStageId);
+        $gateway = new ExecutionGateway($this->root);
+        self::assertSame('Keep the requested change in scope.', $gateway->prepareStage('SUB-1', 'build')->attentionResolution?->response);
+
+        file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$y = 2; }\n");
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-repaired', '--auto-verify']);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame('Keep the requested change in scope.', $gateway->prepareStage('SUB-1', 'review')->attentionResolution?->response);
+
+        [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review-after-repair']);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        self::assertNull($gateway->prepareStage('SUB-1', 'build')->attentionResolution, 'The response is consumed by the next review even when validation failed once.');
     }
 
     private function reviewHandoffCount(): int

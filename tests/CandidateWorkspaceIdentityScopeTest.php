@@ -207,6 +207,47 @@ final class CandidateWorkspaceIdentityScopeTest extends TestCase
         (new CandidateWorkspaceIdentity())->assertHolds($this->root, $this->base, $this->base, null, ['src/Foo.php']);
     }
 
+    public function testExportCheckRecognizesNonAsciiUntrackedPathsInsideApprovedScope(): void
+    {
+        $identity = new CandidateWorkspaceIdentity();
+        $candidate = $identity->observe($this->root, $this->base);
+        $export = sys_get_temp_dir() . '/agent-loop-unicode-export-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($export, 0777, true));
+        $identity->exportCandidate($this->root, $this->base, $candidate, $export);
+        mkdir($export . '/src/Übung', 0777, true);
+        self::assertNotFalse(file_put_contents($export . '/src/Übung/Generated.php', "<?php\n"));
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('CANDIDATE_MISMATCH');
+            $identity->assertExportHolds($this->root, $this->base, $candidate, $export, ['src/Übung']);
+        } finally {
+            exec('rm -rf ' . escapeshellarg($export));
+        }
+    }
+
+    public function testExportCheckDoesNotTrimAChangedTrackedWhitespaceFilename(): void
+    {
+        self::assertNotFalse(file_put_contents($this->root . '/ ', 'before'));
+        $this->git(['add', '--', ' ']);
+        $this->git(['-c', 'user.name=t', '-c', 'user.email=t@example.org', 'commit', '-q', '-m', 'space path']);
+        $base = trim($this->git(['rev-parse', 'HEAD']));
+        $identity = new CandidateWorkspaceIdentity();
+        $candidate = $identity->observe($this->root, $base);
+        $export = sys_get_temp_dir() . '/agent-loop-space-export-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($export, 0777, true));
+        $identity->exportCandidate($this->root, $base, $candidate, $export);
+        self::assertNotFalse(file_put_contents($export . '/ ', 'changed'));
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('CANDIDATE_MISMATCH');
+            $identity->assertExportHolds($this->root, $base, $candidate, $export, []);
+        } finally {
+            exec('rm -rf ' . escapeshellarg($export));
+        }
+    }
+
     /** @return iterable<string, array{string}> */
     public static function unsafeScopeEntries(): iterable
     {

@@ -47,10 +47,22 @@ hardened
 
 New surgical and standard plans run the approved Contract commands on each accepted build candidate before review. Hardened plans do the same before correctness review and again after the mutating hardening stage before independent verification. Failure returns to the corresponding mutation stage with the command output; a revised candidate is validated again. Final verify still runs independently. Persisted plans retain their original stage graph, and manual has no pipeline.
 
-Candidate identity is checked before validation and after each declared command.
-Like the existing workspace checks, these are observations between processes:
-they cannot detect a temporary change that one shell command makes and restores
-before it exits. They do not provide an execution sandbox.
+The new pre-review gates check candidate identity before validation and after
+each declared command. Like the existing workspace checks, these are observations
+between processes: they cannot detect a temporary change that one shell command
+makes and restores before it exits. They do not provide an execution sandbox.
+Final `verify` retains its existing post-sequence candidate check, including for
+persisted plans; it does not inherit the new per-command gate. A failed pre-review
+validation returns to its mutation stage with the command and bounded output in
+the repair briefing. `pipeline stage --format=json` reports a `pipeline run`
+command template for deterministic stages; use it with the workspace that holds
+the accepted candidate.
+
+The repair briefing retains the latest failed validation for the same candidate
+if the build stage asks for human clarification and then resumes. A newer
+candidate replaces that diagnostic. Long command strings are identified by
+Contract command order, byte length, digest, and a bounded preview; the failure
+output and exit code remain available in the repair briefing.
 
 For a separate candidate worktree, retain `--workspace <path>` when running a
 deferred deterministic stage. If a validation command or another process changes
@@ -113,10 +125,12 @@ causes `CANDIDATE_MISMATCH`.
   never inside the export. Its `consistency` receipt is still required for PASS,
   but it describes the checkout, not the exported tree; only the declared
   validation commands describe the exported candidate.
-- Tracked candidate files in an export must also remain unchanged during
-  validation. Otherwise validation runs in place and the whole tree must be unchanged
-  afterwards. In both modes the accepted candidate is proven again after
-  validation.
+- For the new pre-review gates, tracked files and new untracked files inside the
+  approved scope in an export must remain unchanged after each declared command.
+  An in-scope untracked file makes that gate fail with `CANDIDATE_MISMATCH`; it
+  is not copied back into the candidate. Final `verify` retains its existing
+  post-sequence behavior. In both modes the accepted candidate is proven again
+  after validation.
 - Edits outside the scope, whether the builder's own or another task's, are not
   part of the accepted candidate, and a PASS does not cover them. That is the
   point of the scope boundary, so review the scope when approving the Contract.
@@ -230,19 +244,29 @@ This is distinct from `workflow handoff`:
 
 ## Attention
 
-`BLOCKED`, `NEEDS_CLARIFICATION`, or `FAILED` stage results do not advance the
-plan. They create typed pending Attention and leave the current stage bound to
-its current candidate. Resolving such Attention starts a new attempt of that
-stage.
+`BLOCKED` and `NEEDS_CLARIFICATION` results, and `FAILED` results without an
+ordinary mutating recovery route, create typed pending Attention and leave the
+current stage bound to its current candidate. A failed pre-review validation is
+an ordinary transition back to its mutation stage and does not create Attention.
+Resolving pending Attention starts a new attempt of its routed stage.
 
 A review that requests changes once too often (every `MAX_REVIEW_ROUNDS`-th
 `CHANGES_REQUIRED`) creates `review_changes_required` Attention instead of
 returning to build on its own. Resolving it follows the review's own
 changes-required route, normally build, with its next attempt, so a fix made
 after the Attention becomes the next candidate. The capped review's findings
-are that stage's prior handoff. The human response reaches the resumed stage
-and the next attempt of the review, so a human can also ask the reviewer to
-accept a request as out of scope.
+are that stage's prior handoff. The human response reaches the resumed mutation
+stage and the next attempt of the review that raised Attention. If other reviews
+sit between them, those reviewers do not receive the response. Deterministic
+validation and repair retries keep it bound until that review runs. If the
+repair build asks a separate clarification, its new human response and the still
+pending review response both appear on the resumed build and target review.
+The accepted result from that target-review attempt consumes the routed
+response; any subsequent Attention has its own human decision.
+Existing execution-state files without routed-response ids remain readable. If
+such a Run's repair build opens another Attention, the owner restores the prior
+review response only when the persisted review result, attempt, plan binding,
+and changes-required route all match.
 
 A candidate workspace may hold commits on top of the governed base: the
 candidate is the workspace's files laid over the base, so committed and

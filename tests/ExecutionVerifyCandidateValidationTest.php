@@ -59,6 +59,39 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
         self::assertCount(1, $verify->validationReferences);
     }
 
+    public function testPersistedFinalVerifyRetainsItsExistingPostSequenceCandidateCheck(): void
+    {
+        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", [
+            'php -r "file_put_contents(\'temporary-validation-output.txt\', \'temporary\');"',
+            'php -r "unlink(\'temporary-validation-output.txt\');"',
+        ]);
+
+        $projection = (new ExecutionGateway($this->run->root))->runDeterministicStage('VER-1', 'verify', $this->run->workspace);
+
+        self::assertTrue($projection->complete(), 'An existing persisted verify plan checks the final candidate after all declared commands, as before.');
+        self::assertFileDoesNotExist($this->run->workspace . '/temporary-validation-output.txt');
+    }
+
+    public function testPersistedFinalVerifyKeepsItsEarlierSuccessfulCommandInFailureSummary(): void
+    {
+        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", [
+            'php -l src/Foo.php',
+            'php -r "fwrite(STDERR, \'the second check failed\'); exit(7);"',
+        ]);
+
+        $projection = (new ExecutionGateway($this->run->root))->runDeterministicStage('VER-1', 'verify', $this->run->workspace);
+
+        self::assertNotNull($projection->attention);
+        $message = $projection->attention->message;
+        $successPosition = strpos($message, '[OK] php -l src/Foo.php');
+        $failurePosition = strpos($message, '[FAIL] php -r');
+        self::assertIsInt($successPosition);
+        self::assertIsInt($failurePosition);
+        self::assertLessThan($failurePosition, $successPosition);
+        self::assertStringContainsString('(exit 7)', $message);
+        self::assertStringContainsString('the second check failed', $message);
+    }
+
     public function testUndeclaredDependencyIsMissingInTheFreshWorktreeAndStopsThePlan(): void
     {
         $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", ['vendor/bin/check']);

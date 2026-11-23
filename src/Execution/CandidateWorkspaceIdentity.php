@@ -127,10 +127,10 @@ final readonly class CandidateWorkspaceIdentity
         $environment = ['GIT_INDEX_FILE' => $index];
         try {
             $this->git($workspace, ['read-tree', $tree], $environment);
-            $changed = $this->git($workspace, ['--work-tree=' . $destination, 'diff', '--no-ext-diff', '--name-only', '--'], $environment);
-            $untracked = $this->git($workspace, ['--work-tree=' . $destination, 'ls-files', '--others', '--exclude-standard', '--', '.'], $environment);
+            $changed = $this->git($workspace, ['--work-tree=' . $destination, 'diff', '--no-ext-diff', '--name-only', '-z', '--'], $environment, false);
+            $untracked = $this->git($workspace, ['--work-tree=' . $destination, 'ls-files', '--others', '--exclude-standard', '-z', '--', '.'], $environment, false);
             $untrackedCandidateFile = false;
-            foreach (explode("\n", $untracked) as $path) {
+            foreach (explode("\0", $untracked) as $path) {
                 foreach ($scopePaths as $scope) {
                     if ($path === $scope || str_starts_with($path, rtrim($scope, '/') . '/')) {
                         $untrackedCandidateFile = true;

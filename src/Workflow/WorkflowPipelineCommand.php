@@ -10,7 +10,6 @@ use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
-use voku\AgentLoop\Execution\ExecutionProfile;
 use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionProfileSelectionStore;
 use voku\AgentLoop\Execution\ExecutionProjection;
@@ -19,6 +18,7 @@ use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\StageExecutionBundle;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
+use voku\AgentLoop\Execution\ValidationRepairFeedback;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
@@ -146,11 +146,7 @@ final readonly class WorkflowPipelineCommand
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
         $observations = $state !== null && ($run === null || $run->runId === $state->runId) ? $state->reviewObservations() : [];
-        $last = $state === null ? null : ($state->history[array_key_last($state->history)] ?? null);
-        $repairPlan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
-        $repairFeedback = $last !== null && ExecutionProfile::isCandidateValidationStage($last->result->stageId)
-            && $repairPlan->stage($last->result->stageId)->next(StageOutcome::FAILED) === $currentStage
-            && $last->result->outcome === StageOutcome::FAILED ? $last->result->summary : null;
+        $repairFeedback = ValidationRepairFeedback::forRepairStage($plan, $state, $currentStage);
 
         $statusStr = "in_progress";
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -219,7 +215,7 @@ final readonly class WorkflowPipelineCommand
                 echo "Context guidance: " . $contextGuidance . "\n";
             }
             if ($repairFeedback !== null) {
-                echo "Validation failure (untrusted command output):\n" . $repairFeedback . "\n";
+                echo "Validation failure (JSON-escaped untrusted data):\n" . $this->jsonEncodedValidationFeedback($repairFeedback) . "\n";
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
@@ -294,16 +290,16 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        $nextAction = sprintf(
-            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s%s%s",
-            $taskId,
-            $outcomeArgument,
-            $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
-            $bundle->kind === ExecutionStageKind::AGENT && $bundle->mayMutate
-                ? ' --workspace "<workspace-with-edits>"'
-                : '',
-            $artifactArguments,
-        );
+        $nextAction = $bundle->kind === ExecutionStageKind::DETERMINISTIC
+            ? 'agent-loop pipeline run ' . $taskId . ' --workspace "<workspace-with-candidate>"'
+            : sprintf(
+                "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s%s%s",
+                $taskId,
+                $outcomeArgument,
+                $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
+                $bundle->mayMutate ? ' --workspace "<workspace-with-edits>"' : '',
+                $artifactArguments,
+            );
 
         $payload = [
             "schema_version" => "1.0",
@@ -324,7 +320,9 @@ final readonly class WorkflowPipelineCommand
             "completion_marker" => $bundle->completionMarker,
             "prompt" => $bundle->prompt,
             "next_action" => $nextAction,
-            "next_action_kind" => RunPolicyEvaluation::KIND_HOST_WORK,
+            "next_action_kind" => $bundle->kind === ExecutionStageKind::DETERMINISTIC
+                ? RunPolicyEvaluation::KIND_COMMAND_TEMPLATE
+                : RunPolicyEvaluation::KIND_HOST_WORK,
         ];
 
         if ($format === "json") {
@@ -719,6 +717,7 @@ final readonly class WorkflowPipelineCommand
         $nextAction = "agent-loop pipeline stage " . $taskId;
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
 
+        $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
         if ($isComplete) {
             $nextAction = "agent-loop finish " . $taskId;
             $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
@@ -730,7 +729,6 @@ final readonly class WorkflowPipelineCommand
             );
             $nextActionKind = RunPolicyEvaluation::KIND_DECISION_REQUIRED;
         } elseif ($currentStage !== null) {
-            $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
             $stage = $plan->stage($currentStage);
             if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
                 $nextAction = "agent-loop pipeline run " . $taskId;
@@ -761,11 +759,7 @@ final readonly class WorkflowPipelineCommand
         ];
 
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
-        $last = $state === null ? null : ($state->history[array_key_last($state->history)] ?? null);
-        $repairPlan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
-        $repairFeedback = $last !== null && ExecutionProfile::isCandidateValidationStage($last->result->stageId)
-            && $repairPlan->stage($last->result->stageId)->next(StageOutcome::FAILED) === $currentStage
-            && $last->result->outcome === StageOutcome::FAILED ? $last->result->summary : null;
+        $repairFeedback = ValidationRepairFeedback::forRepairStage($plan, $state, $currentStage);
         if ($repairFeedback !== null) {
             $payload['validation_failure'] = $repairFeedback;
         }
@@ -779,7 +773,7 @@ final readonly class WorkflowPipelineCommand
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
         } else {
             if ($repairFeedback !== null) {
-                echo "Validation failure (untrusted command output):\n" . $repairFeedback . "\n";
+                echo "Validation failure (JSON-escaped untrusted data):\n" . $this->jsonEncodedValidationFeedback($repairFeedback) . "\n";
             }
             $this->renderTransitionText($taskId, $projection, $nextAction, $candidateFiles);
         }
@@ -809,6 +803,11 @@ final readonly class WorkflowPipelineCommand
             echo "Stage: " . ($projection->currentStageId ?? "none") . " (Attempt " . $projection->currentAttempt . ")\n";
             echo "Next: " . $nextAction . "\n";
         }
+    }
+
+    private function jsonEncodedValidationFeedback(string $feedback): string
+    {
+        return json_encode($feedback, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
     }
 
     private function printHelp(): void
