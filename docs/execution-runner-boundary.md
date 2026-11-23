@@ -34,16 +34,33 @@ manual
   no external stages
 
 surgical
-  investigate -> build -> review -> verify
+  investigate -> build -> pre-review-validation -> review -> verify
 
 standard
-  investigate -> build -> correctness-review -> blindspot-review -> verify
+  investigate -> build -> pre-review-validation -> correctness-review -> blindspot-review -> verify
 
 hardened
-  investigate -> build -> correctness-review -> architecture-review
-              -> hardening -> independent-verification -> blindspot-review
-              -> verify
+  investigate -> build -> pre-review-validation -> correctness-review -> architecture-review
+              -> hardening -> pre-independent-validation -> independent-verification
+              -> blindspot-review -> verify
 ```
+
+New surgical and standard plans run the approved Contract commands on each accepted build candidate before review. Hardened plans do the same before correctness review and again after the mutating hardening stage before independent verification. Failure returns to the corresponding mutation stage with the command output; a revised candidate is validated again. Final verify still runs independently. Persisted plans retain their original stage graph, and manual has no pipeline.
+
+Candidate identity is checked before validation and after each declared command.
+Like the existing workspace checks, these are observations between processes:
+they cannot detect a temporary change that one shell command makes and restores
+before it exits. They do not provide an execution sandbox.
+
+For a separate candidate worktree, retain `--workspace <path>` when running a
+deferred deterministic stage. If a validation command or another process changes
+that worktree, a Runner may refuse to acquire it for the repair build because it
+no longer matches the accepted candidate. The host can inspect and repair the
+worktree without discarding its contents, then use `pipeline stage` and `pipeline
+submit --outcome completed --context-id <id> --workspace <path>` to record the
+revised build candidate. The next deterministic stage validates it again before
+review. This uses the ordinary Loop stage transition; it does not automatically
+repair the Runner workspace.
 
 Review outcomes may route back to an explicit mutation stage. Reviewer roles are
 read-only by default. Independent review stages additionally declare
@@ -83,7 +100,10 @@ causes `CANDIDATE_MISMATCH`.
   Git worktree). The export holds the files of the accepted candidate tree only:
   no ignored or generated files such as `vendor/`, `node_modules` or `.env`, and
   no `.git`, so commands that call `git` fail there. Nothing is symlinked or
-  reused from the checkout. A Contract whose validation needs dependencies must
+  reused from the checkout. This is a working-directory boundary, not a sandbox:
+  a declared command using an absolute path or an external process can still
+  mutate the shared checkout. Contracts must use trusted validation commands.
+  A Contract whose validation needs dependencies must
   declare their preparation as validation commands (for example
   `composer install` before `composer ci`); a bare `composer ci` fails there. A
   declared command failing is a recorded `FAILED` stage, not a retryable
@@ -93,7 +113,8 @@ causes `CANDIDATE_MISMATCH`.
   never inside the export. Its `consistency` receipt is still required for PASS,
   but it describes the checkout, not the exported tree; only the declared
   validation commands describe the exported candidate.
-- Otherwise validation runs in place and the whole tree must be unchanged
+- Tracked candidate files in an export must also remain unchanged during
+  validation. Otherwise validation runs in place and the whole tree must be unchanged
   afterwards. In both modes the accepted candidate is proven again after
   validation.
 - Edits outside the scope, whether the builder's own or another task's, are not

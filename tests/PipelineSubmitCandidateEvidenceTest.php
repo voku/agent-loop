@@ -95,7 +95,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         ]);
 
         self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
-        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame('pre-review-validation', $this->projection()->currentStageId);
         self::assertSame($expected, $this->projection()->candidateRevision);
     }
 
@@ -107,7 +107,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         ]);
 
         self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
-        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame('pre-review-validation', $this->projection()->currentStageId);
         self::assertSame($this->base, $this->projection()->candidateRevision);
     }
 
@@ -120,7 +120,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         ]);
 
         self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
-        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame('pre-review-validation', $this->projection()->currentStageId);
         self::assertSame($this->base, $this->projection()->candidateRevision);
     }
 
@@ -133,7 +133,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
 
         self::assertSame(0, $exit);
         $projection = $this->projection();
-        self::assertSame('review', $projection->currentStageId);
+        self::assertSame('pre-review-validation', $projection->currentStageId);
         self::assertSame($candidate, $projection->candidateRevision);
         self::assertNotSame([], $this->evidenceFiles(), 'candidate evidence must be persisted');
     }
@@ -226,7 +226,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
 
         self::assertSame(0, $exit, (string) json_encode($payload));
-        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame('pre-review-validation', $this->projection()->currentStageId);
         self::assertSame($uncommitted, $this->projection()->candidateRevision, 'Committing must not change the content-addressed candidate.');
     }
 
@@ -253,6 +253,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         $first = $this->observedCandidate();
         [$exit] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
         self::assertSame(0, $exit);
+        (new ExecutionGateway($this->root))->runDeterministicStage('SUB-1', 'pre-review-validation', $this->workspace);
         [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         self::assertSame('build', $this->projection()->currentStageId);
@@ -280,6 +281,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
     {
         $this->changeWorkspace();
         $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
+        (new ExecutionGateway($this->root))->runDeterministicStage('SUB-1', 'pre-review-validation', $this->workspace);
         $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review']);
         file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 2; }\n");
         $second = $this->observedCandidate();
@@ -296,6 +298,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         $first = $this->observedCandidate();
         [$exit] = $this->submit(['--outcome', 'completed', '--candidate', $first, '--context-id', 'ctx:build']);
         self::assertSame(0, $exit);
+        (new ExecutionGateway($this->root))->runDeterministicStage('SUB-1', 'pre-review-validation', $this->workspace);
         [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         self::assertSame('build', $this->projection()->currentStageId);
@@ -312,7 +315,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--candidate', $revert, '--context-id', 'ctx:build2']);
 
         self::assertSame(0, $exit, (string) json_encode($payload));
-        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame('pre-review-validation', $this->projection()->currentStageId);
         self::assertSame($revert, $this->projection()->candidateRevision);
         $newEvidence = array_values(array_diff($this->evidenceFiles(), $priorEvidence));
         self::assertCount(1, $newEvidence, 'the revert must create candidate evidence for the later build attempt');
@@ -493,7 +496,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         file_put_contents($this->workspace . '/src/Planned.php', "<?php\nfinal class Planned {}\n");
         [$exit, $accepted] = $submit();
         self::assertSame(0, $exit, (string) json_encode($accepted));
-        self::assertSame('review', $stage());
+        self::assertSame('pre-review-validation', $stage());
     }
 
     public function testCompletingTheBuildStageAcceptsADeletedTrackedScopePath(): void
@@ -503,7 +506,7 @@ final class PipelineSubmitCandidateEvidenceTest extends TestCase
         [$exit] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build']);
 
         self::assertSame(0, $exit);
-        self::assertSame('review', $this->projection()->currentStageId);
+        self::assertSame('pre-review-validation', $this->projection()->currentStageId);
     }
 
     private function buildBundle(): \voku\AgentLoop\Execution\StageExecutionBundle

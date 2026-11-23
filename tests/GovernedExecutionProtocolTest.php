@@ -325,6 +325,7 @@ final class GovernedExecutionProtocolTest extends TestCase
             'ctx:build',
         ));
 
+        $gateway->runDeterministicStage('ABC-123', 'pre-review-validation', $this->root);
         $review = $gateway->prepareStage('ABC-123', 'review');
         $gateway->submitStageResult(new StageResult(
             'submission:review',

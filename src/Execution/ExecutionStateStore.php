@@ -107,7 +107,12 @@ final readonly class ExecutionStateStore
                     $acceptedAt,
                 );
             }
-            if ($reviewRoundsExhausted || in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
+            $repairStageId = $stage->transitions[StageOutcome::FAILED->value] ?? null;
+            $validationRepair = $stage->kind === ExecutionStageKind::DETERMINISTIC
+                && $result->outcome === StageOutcome::FAILED
+                && $repairStageId !== null
+                && $plan->stage($repairStageId)->mayMutate;
+            if ($reviewRoundsExhausted || (!$validationRepair && in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true))) {
                 $attention = new AttentionRequest(
                     'attention:' . bin2hex(random_bytes(8)),
                     $plan->taskId,
@@ -442,6 +447,16 @@ final readonly class ExecutionStateStore
             return null;
         }
         $resolution = (new AttentionResolutionStore($this->rootPath))->load($plan->taskId, $state->lastAttentionId);
+
+        $reviewRepairStage = $plan->stage($resolution->stageId)->transitions[StageOutcome::CHANGES_REQUIRED->value] ?? null;
+        $next = $plan->stage($nextStageId);
+        $nextFailureRoute = $next->transitions[StageOutcome::FAILED->value] ?? null;
+        if ($reviewRepairStage !== null
+            && $reviewRepairStage === $state->currentStageId
+            && $next->kind === ExecutionStageKind::DETERMINISTIC
+            && $nextFailureRoute === $state->currentStageId) {
+            return $state->lastAttentionId;
+        }
 
         return $resolution->stageId === $nextStageId && $resolution->stageId !== $state->currentStageId
             ? $state->lastAttentionId

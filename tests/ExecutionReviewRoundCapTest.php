@@ -128,7 +128,7 @@ final class ExecutionReviewRoundCapTest extends TestCase
 
         // A fix made after the Attention becomes the next candidate.
         file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$y = 2; }\n");
-        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after']);
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after', '--auto-verify']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         self::assertSame('review', $this->projection()->currentStageId);
     }
@@ -157,7 +157,7 @@ final class ExecutionReviewRoundCapTest extends TestCase
         self::assertSame(ExecutionStateStore::MAX_REVIEW_ROUNDS, $this->reviewHandoffCount());
 
         // The same human decision also reaches the next review (e.g. "accept as out of scope"), once.
-        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after-cap']);
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after-cap', '--auto-verify']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         $review = $gateway->prepareStage('SUB-1', 'review');
         self::assertSame('Split Foo into two classes before the next review.', $review->attentionResolution?->response);
@@ -229,7 +229,7 @@ final class ExecutionReviewRoundCapTest extends TestCase
 
     private function buildAndRequestChanges(int $round): void
     {
-        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-' . $round]);
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-' . $round, '--auto-verify']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review-' . $round]);
         // A round that opens human Attention is a pending decision, not a plain success.

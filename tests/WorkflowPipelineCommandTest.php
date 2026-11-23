@@ -136,7 +136,7 @@ final class WorkflowPipelineCommandTest extends TestCase
 
         $investigate = $this->captureRun($command, ["submit", $taskId, "--outcome=completed"]);
         self::assertSame(0, $investigate["exit"], $investigate["stdout"]);
-        $build = $this->captureRun($command, ["submit", $taskId, "--outcome=completed", "--context-id=ctx:build"]);
+        $build = $this->captureRun($command, ["submit", $taskId, "--outcome=completed", "--context-id=ctx:build", "--auto-verify"]);
         self::assertSame(0, $build["exit"], $build["stdout"]);
         $review = $this->captureRun($command, ["submit", $taskId, "--outcome=pass", "--context-id=ctx:review"]);
         self::assertSame(0, $review["exit"], $review["stdout"]);
@@ -202,7 +202,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { }\n");
         file_put_contents($this->root . "/src/Existing.php", "<?php\nfinal class Existing { }\n");
         file_put_contents($this->root . "/docs/CHANGELOG.md", "outside scope\n");
-        $result = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=completed", "--context-id=builder", "--format=json"]);
+        $result = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=completed", "--context-id=builder", "--auto-verify", "--format=json"]);
         self::assertSame(0, $result["exit"]);
         $transition = json_decode($result["stdout"], true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(["src/Existing.php", "src/Foo.php"], $transition["candidate_changed_files"]);
@@ -215,7 +215,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertStringContainsString("agent-loop does not start one", $projection["context_guidance"]);
         $textStatus = $this->captureRun($command, ["status", "PIPE-VISIBILITY"]);
         self::assertStringContainsString("Context guidance: Run this stage in a separate host context", $textStatus["stdout"]);
-        $reused = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=pass", "--context-id=builder", "--format=json"]);
+        $reused = $this->captureRun($command, ["submit", "PIPE-VISIBILITY", "--outcome=pass", "--context-id=builder", "--auto-verify", "--format=json"]);
         self::assertNotSame(0, $reused["exit"]);
         $rejection = json_decode($reused["stdout"], true, 512, JSON_THROW_ON_ERROR);
         self::assertStringContainsString("CONTEXT_REUSE_FORBIDDEN", $rejection["message"]);
@@ -244,7 +244,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $res2 = $this->captureRun($command, [
             "submit", "PIPE-2",
             "--outcome=completed",
-            "--summary=Implementation completed in Foo.php.", "--context-id=ctx:build-1",
+            "--summary=Implementation completed in Foo.php.", "--context-id=ctx:build-1", "--auto-verify",
             "--format=json",
         ]);
         self::assertSame(0, $res2["exit"]);
@@ -277,7 +277,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $res4 = $this->captureRun($command, [
             "submit", "PIPE-2",
             "--outcome=completed",
-            "--summary=Added null-check.", "--context-id=ctx:build-2",
+            "--summary=Added null-check.", "--context-id=ctx:build-2", "--auto-verify",
             "--format=json",
         ]);
         self::assertSame(0, $res4["exit"]);
@@ -346,7 +346,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $command = new WorkflowPipelineCommand($this->root);
         self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-5", "--outcome=completed"])["exit"]);
         unlink($this->root . "/src/Foo.php");
-        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-5", "--outcome=completed", "--context-id=ctx:build"])["exit"]);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-5", "--outcome=completed", "--context-id=ctx:build", "--auto-verify"])["exit"]);
 
         $stage = json_decode($this->captureRun($command, ["stage", "PIPE-TEMPLATE-5", "--format=json"])["stdout"], true, 512, JSON_THROW_ON_ERROR);
         self::assertStringEndsWith(' --artifact \'deleted-file:src/Foo.php\' --artifact \'<candidate-file>\'', $stage["next_action"]);
@@ -372,7 +372,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-6", "--outcome=completed"])["exit"]);
         file_put_contents($this->root . "/src/A,B.php", "<?php\n");
         file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { }\n");
-        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-6", "--outcome=completed", "--context-id=ctx:build"])["exit"]);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-6", "--outcome=completed", "--context-id=ctx:build", "--auto-verify"])["exit"]);
 
         $stage = json_decode($this->captureRun($command, ["stage", "PIPE-TEMPLATE-6", "--format=json"])["stdout"], true, 512, JSON_THROW_ON_ERROR);
         self::assertStringEndsWith(' --artifact \'src/A,B.php\' --artifact \'src/Foo.php\'', $stage["next_action"]);
@@ -389,7 +389,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-7", "--outcome=completed"])["exit"]);
         file_put_contents($this->root . "/src/New.php", "<?php\n");
         file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { }\n");
-        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-7", "--outcome=completed", "--context-id=ctx:build"])["exit"]);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-7", "--outcome=completed", "--context-id=ctx:build", "--auto-verify"])["exit"]);
 
         $result = $this->captureRun($command, ["submit", "PIPE-TEMPLATE-7", "--outcome=pass", "--context-id=ctx:review", "--artifact=src/Foo.php, src/New.php", "--format=json"]);
         self::assertSame(0, $result["exit"], $result["stdout"]);
@@ -400,7 +400,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $this->prepareSurgicalRun("PIPE-TEMPLATE-4");
         $command = new WorkflowPipelineCommand($this->root);
         self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-4", "--outcome=completed"])["exit"]);
-        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-4", "--outcome=completed", "--context-id=ctx:build"])["exit"]);
+        self::assertSame(0, $this->captureRun($command, ["submit", "PIPE-TEMPLATE-4", "--outcome=completed", "--context-id=ctx:build", "--auto-verify"])["exit"]);
 
         $stage = json_decode($this->captureRun($command, ["stage", "PIPE-TEMPLATE-4", "--format=json"])["stdout"], true, 512, JSON_THROW_ON_ERROR);
 
@@ -433,7 +433,7 @@ final class WorkflowPipelineCommandTest extends TestCase
             "submit", "PIPE-EXCLUDE-1",
             "--outcome=completed",
             "--summary=Updated Foo.php.",
-            "--context-id=ctx:build-1",
+            "--context-id=ctx:build-1", "--auto-verify",
             "--format=json",
         ]);
         self::assertSame(0, $res2["exit"]);
@@ -460,7 +460,7 @@ final class WorkflowPipelineCommandTest extends TestCase
 
         // Advance through investigate and build
         $this->captureRun($command, ["submit", "PIPE-3", "--outcome=completed", "--summary=Done"]);
-        $this->captureRun($command, ["submit", "PIPE-3", "--outcome=completed", "--summary=Done", "--context-id=ctx:build"]);
+        $this->captureRun($command, ["submit", "PIPE-3", "--outcome=completed", "--summary=Done", "--context-id=ctx:build", "--auto-verify"]);
 
         // Review passes -> next is deterministic verify
         $this->captureRun($command, ["submit", "PIPE-3", "--outcome=pass", "--summary=Passed", "--context-id=ctx:review"]);
@@ -489,8 +489,8 @@ final class WorkflowPipelineCommandTest extends TestCase
             self::assertSame(0, $investigate["exit"], $investigate["stdout"]);
             // The linked checkout holds only an ignored validation fixture; explicitly submit the unchanged owner.
             $build = $this->captureRun($command, [
-                "submit", "PIPE-WORKSPACE", "--outcome=completed", "--context-id=ctx:build-workspace",
-                "--workspace", $this->root,
+                "submit", "PIPE-WORKSPACE", "--outcome=completed", "--context-id=ctx:build-workspace", "--auto-verify",
+                "--workspace", $workspace,
             ]);
             self::assertSame(0, $build["exit"], $build["stdout"]);
             $review = $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=pass", "--context-id=ctx:review-workspace"]);
@@ -523,7 +523,7 @@ final class WorkflowPipelineCommandTest extends TestCase
 
             $this->captureRun($command, ["submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed"]);
             $build = $this->captureRun($command, [
-                "submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed", "--context-id=ctx:build-workspace-submit",
+                "submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed", "--context-id=ctx:build-workspace-submit", "--auto-verify",
                 "--workspace", $workspace, "--format=json",
             ]);
             self::assertSame(0, $build["exit"], $build["stdout"]);
@@ -548,7 +548,7 @@ final class WorkflowPipelineCommandTest extends TestCase
 
         // Advance through all stages
         $this->captureRun($command, ["submit", "PIPE-4", "--outcome=completed", "--summary=Done"]);
-        $this->captureRun($command, ["submit", "PIPE-4", "--outcome=completed", "--summary=Done", "--context-id=ctx:build"]);
+        $this->captureRun($command, ["submit", "PIPE-4", "--outcome=completed", "--summary=Done", "--context-id=ctx:build", "--auto-verify"]);
         $this->captureRun($command, ["submit", "PIPE-4", "--outcome=pass", "--summary=Passed", "--context-id=ctx:review"]);
         $this->captureRun($command, ["run", "PIPE-4"]);
 
@@ -613,7 +613,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame(0, $this->captureRun($command, ["submit", $taskId, "--outcome=completed"])["exit"]);
         unlink($this->root . "/src/Foo.php");
         file_put_contents($this->root . "/src/New.php", "<?php\nfinal class NewClass {}\n");
-        $build = $this->captureRun($command, ["submit", $taskId, "--outcome=completed", "--context-id=ctx:build", "--format=json"]);
+        $build = $this->captureRun($command, ["submit", $taskId, "--outcome=completed", "--context-id=ctx:build", "--auto-verify", "--format=json"]);
         self::assertSame(0, $build["exit"], $build["stdout"]);
 
         $stage = json_decode($this->captureRun($command, ["stage", $taskId, "--format=json"])["stdout"], true, 512, JSON_THROW_ON_ERROR);

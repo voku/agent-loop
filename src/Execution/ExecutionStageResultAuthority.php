@@ -47,8 +47,9 @@ final readonly class ExecutionStageResultAuthority
             }
             $artifactClaims[] = $claim;
         }
+        $validationCommands = [];
         foreach ($result->validationReferences as $reference) {
-            $evidence->assertCurrent(
+            $claim = $evidence->assertCurrent(
                 $reference,
                 ExecutionEvidenceKind::VALIDATION,
                 $plan,
@@ -56,6 +57,7 @@ final readonly class ExecutionStageResultAuthority
                 $result->attempt,
                 $result->candidateRevision,
             );
+            $validationCommands[] = $claim->sourceReference;
         }
 
         foreach ($result->consistencyReferences as $reference) {
@@ -77,8 +79,17 @@ final readonly class ExecutionStageResultAuthority
             if ($result->artifactReferences !== []) {
                 throw new RuntimeException('EVIDENCE_MISMATCH: deterministic verification cannot claim artifacts.');
             }
-            if ($result->outcome === StageOutcome::PASS && count($result->consistencyReferences) !== 1) {
+            if ($stage->id === 'verify' && $result->outcome === StageOutcome::PASS && count($result->consistencyReferences) !== 1) {
                 throw new RuntimeException('MISSING_EVIDENCE: deterministic verification requires one current owner consistency receipt.');
+            }
+            if (in_array($stage->id, ['pre-review-validation', 'pre-independent-validation'], true) && $result->consistencyReferences !== []) {
+                throw new RuntimeException('EVIDENCE_MISMATCH: candidate validation cannot claim final consistency evidence.');
+            }
+            if (in_array($stage->id, ['pre-review-validation', 'pre-independent-validation'], true) && $result->outcome === StageOutcome::PASS) {
+                $contract = (new TaskContractStore($this->rootPath))->load($plan->taskId);
+                if ($validationCommands !== $contract->validation) {
+                    throw new RuntimeException('MISSING_EVIDENCE: pre-review validation requires each declared Contract command in order.');
+                }
             }
         } elseif ($result->consistencyReferences !== []) {
             throw new RuntimeException('EVIDENCE_MISMATCH: only deterministic stages may submit consistency receipts.');

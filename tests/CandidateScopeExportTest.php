@@ -31,6 +31,63 @@ final class CandidateScopeExportTest extends TestCase
         $this->run->remove();
     }
 
+    public function testPreReviewValidationUsesScopedExportInSharedCheckout(): void
+    {
+        $this->run->reachPreReviewWith(self::GOOD, ['php -r "exit(is_file(\'helper.txt\') ? 0 : 1);"']);
+        file_put_contents($this->run->root . '/src/Foo.php', self::GOOD);
+        file_put_contents($this->run->root . '/helper.txt', 'foreign work');
+        $gateway = new ExecutionGateway($this->run->root);
+        $result = $gateway->runDeterministicStage('VER-1', 'pre-review-validation');
+        self::assertSame('build', $result->currentStageId);
+        self::assertStringContainsString('[export]', $gateway->prepareStage('VER-1', 'build')->prompt);
+        self::assertStringContainsString('[FAIL]', $gateway->prepareStage('VER-1', 'build')->prompt);
+    }
+
+    public function testPreReviewValidationAllowsValidScopedExport(): void
+    {
+        $this->run->reachPreReviewWith(self::GOOD, ['php -l src/Foo.php']);
+        file_put_contents($this->run->root . '/src/Foo.php', self::GOOD);
+        file_put_contents($this->run->root . '/helper.txt', 'foreign work');
+        $result = (new ExecutionGateway($this->run->root))->runDeterministicStage('VER-1', 'pre-review-validation');
+        self::assertSame('review', $result->currentStageId);
+        self::assertNull($result->attention);
+    }
+
+    public function testPreReviewRejectsCommandsThatRepairOnlyTheExport(): void
+    {
+        $broken = "<?php\nthis is broken\n";
+        $this->run->reachPreReviewWith($broken, [
+            'php -r "copy(\'src/Foo.php\', \'original.txt\'); file_put_contents(\'src/Foo.php\', \'<?php echo 1;\');"',
+            'php -l src/Foo.php',
+            'php -r "copy(\'original.txt\', \'src/Foo.php\');"',
+        ]);
+        file_put_contents($this->run->root . '/src/Foo.php', $broken);
+        file_put_contents($this->run->root . '/helper.txt', 'foreign work');
+
+        $gateway = new ExecutionGateway($this->run->root);
+        $result = $gateway->runDeterministicStage('VER-1', 'pre-review-validation');
+
+        self::assertSame('build', $result->currentStageId);
+        self::assertStringContainsString('changed candidate files in the export', $gateway->prepareStage('VER-1', 'build')->prompt);
+        self::assertSame($broken, file_get_contents($this->run->root . '/src/Foo.php'));
+    }
+
+    public function testPreReviewRejectsNewUntrackedFilesInExport(): void
+    {
+        $this->run->reachPreReviewWith(self::GOOD, [
+            'php -r "file_put_contents(\'src/Generated.php\', \'<?php return true;\');"',
+            'php -l src/Generated.php',
+        ], additionalScope: ['src']);
+        file_put_contents($this->run->root . '/src/Foo.php', self::GOOD);
+        file_put_contents($this->run->root . '/helper.txt', 'foreign work');
+
+        $gateway = new ExecutionGateway($this->run->root);
+        $result = $gateway->runDeterministicStage('VER-1', 'pre-review-validation');
+
+        self::assertSame('build', $result->currentStageId);
+        self::assertStringContainsString('changed candidate files in the export', $gateway->prepareStage('VER-1', 'build')->prompt);
+    }
+
     public function testForeignFileCannotTurnAFailingCandidateIntoAPassingVerify(): void
     {
         $this->acceptCandidate(self::GOOD, ['php -r "exit(is_file(\'helper.txt\') ? 0 : 1);"']);

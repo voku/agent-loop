@@ -145,6 +145,11 @@ final readonly class WorkflowPipelineCommand
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
         $observations = $state !== null && ($run === null || $run->runId === $state->runId) ? $state->reviewObservations() : [];
+        $last = $state === null ? null : ($state->history[array_key_last($state->history)] ?? null);
+        $repairPlan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
+        $repairFeedback = $last !== null && self::isCandidateValidationStage($last->result->stageId)
+            && $repairPlan->stage($last->result->stageId)->next(StageOutcome::FAILED) === $currentStage
+            && $last->result->outcome === StageOutcome::FAILED ? $last->result->summary : null;
 
         $statusStr = "in_progress";
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -163,8 +168,8 @@ final readonly class WorkflowPipelineCommand
                 $projection->attention->id,
             );
         } elseif ($currentStageKind === ExecutionStageKind::DETERMINISTIC->value) {
-            $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
-            $nextAction = "agent-loop pipeline run " . $taskId;
+            $nextActionKind = RunPolicyEvaluation::KIND_COMMAND_TEMPLATE;
+            $nextAction = "agent-loop pipeline run " . $taskId . ' --workspace "<workspace-with-candidate>"';
         }
 
         $contextGuidance = $contextPolicy === "fresh_required" && $projection->attention === null
@@ -187,6 +192,7 @@ final readonly class WorkflowPipelineCommand
             "context_guidance" => $contextGuidance,
             "attempt" => $projection->currentAttempt,
             "candidate_revision" => $projection->candidateRevision,
+            "validation_failure" => $repairFeedback,
             "attention" => $projection->attention?->toArray(),
             "handoffs_count" => count($projection->handoffs),
             "handoffs" => $handoffs,
@@ -210,6 +216,9 @@ final readonly class WorkflowPipelineCommand
             }
             if ($contextGuidance !== null) {
                 echo "Context guidance: " . $contextGuidance . "\n";
+            }
+            if ($repairFeedback !== null) {
+                echo "Validation failure (untrusted command output):\n" . $repairFeedback . "\n";
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
@@ -523,7 +532,7 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles);
+        return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles, $candidateWorkspace);
     }
 
     private const array SUBMIT_OPTIONS = [
@@ -697,11 +706,11 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        return $this->renderTransition($taskId, $projection, $format);
+        return $this->renderTransition($taskId, $projection, $format, candidateWorkspace: $candidateWorkspace);
     }
 
     /** @param list<string>|null $candidateFiles */
-    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null): int
+    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null, ?string $candidateWorkspace = null): int
     {
         $isComplete = $projection->complete();
         $currentStage = $projection->currentStageId;
@@ -724,7 +733,13 @@ final readonly class WorkflowPipelineCommand
             $stage = $plan->stage($currentStage);
             if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
                 $nextAction = "agent-loop pipeline run " . $taskId;
-                $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
+                if ($candidateWorkspace === null) {
+                    $nextAction .= ' --workspace "<workspace-with-candidate>"';
+                    $nextActionKind = RunPolicyEvaluation::KIND_COMMAND_TEMPLATE;
+                } else {
+                    $nextAction .= ' --workspace ' . escapeshellarg($candidateWorkspace);
+                    $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
+                }
             } else {
                 $nextAction = "agent-loop pipeline stage " . $taskId;
                 $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -744,6 +759,16 @@ final readonly class WorkflowPipelineCommand
             "next_action_kind" => $nextActionKind,
         ];
 
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        $last = $state === null ? null : ($state->history[array_key_last($state->history)] ?? null);
+        $repairPlan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
+        $repairFeedback = $last !== null && self::isCandidateValidationStage($last->result->stageId)
+            && $repairPlan->stage($last->result->stageId)->next(StageOutcome::FAILED) === $currentStage
+            && $last->result->outcome === StageOutcome::FAILED ? $last->result->summary : null;
+        if ($repairFeedback !== null) {
+            $payload['validation_failure'] = $repairFeedback;
+        }
+
         if ($candidateFiles !== null) {
             $payload["candidate_changed_files"] = $candidateFiles;
             $payload["candidate_scope_notice"] = "These are all changed files in the accepted candidate; pre-existing scoped changes are included and ownership is not inferred.";
@@ -752,10 +777,13 @@ final readonly class WorkflowPipelineCommand
         if ($format === "json") {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
         } else {
+            if ($repairFeedback !== null) {
+                echo "Validation failure (untrusted command output):\n" . $repairFeedback . "\n";
+            }
             $this->renderTransitionText($taskId, $projection, $nextAction, $candidateFiles);
         }
 
-        return $projection->attention !== null ? 1 : 0;
+        return $projection->attention !== null || $repairFeedback !== null ? 1 : 0;
     }
 
     /** @param list<string>|null $candidateFiles */
@@ -795,5 +823,10 @@ Usage:
 Automated multi-stage execution runner for governed task profiles.
 TXT;
         echo "\n";
+    }
+
+    private static function isCandidateValidationStage(string $stageId): bool
+    {
+        return in_array($stageId, ['pre-review-validation', 'pre-independent-validation'], true);
     }
 }
