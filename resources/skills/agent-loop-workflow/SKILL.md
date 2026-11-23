@@ -193,3 +193,5 @@ STATE: <current persisted lifecycle state>
 NEXT: <canonical next step or explicit human gate>
 ```
 Derive `STATE` and `NEXT` directly from the structured lifecycle result, never from a remembered phase diagram.
+
+When a governed task reaches completion or an actual blocking boundary, write the final developer-facing explanation anew for someone who has not read earlier progress messages. State the requested outcome, observed changes, exact available validation/review evidence, unresolved blockers or unknowns, and the current owner-backed next action. Keep the compact `RESULT`/`STATE`/`NEXT` receipt, but explain opaque agent shorthand where necessary; never treat a model's completion claim or a recommendation as workflow authority.
