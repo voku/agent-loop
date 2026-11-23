@@ -10,6 +10,7 @@ use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
+use voku\AgentLoop\Execution\ExecutionProfile;
 use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionProfileSelectionStore;
 use voku\AgentLoop\Execution\ExecutionProjection;
@@ -147,7 +148,7 @@ final readonly class WorkflowPipelineCommand
         $observations = $state !== null && ($run === null || $run->runId === $state->runId) ? $state->reviewObservations() : [];
         $last = $state === null ? null : ($state->history[array_key_last($state->history)] ?? null);
         $repairPlan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
-        $repairFeedback = $last !== null && self::isCandidateValidationStage($last->result->stageId)
+        $repairFeedback = $last !== null && ExecutionProfile::isCandidateValidationStage($last->result->stageId)
             && $repairPlan->stage($last->result->stageId)->next(StageOutcome::FAILED) === $currentStage
             && $last->result->outcome === StageOutcome::FAILED ? $last->result->summary : null;
 
@@ -762,7 +763,7 @@ final readonly class WorkflowPipelineCommand
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
         $last = $state === null ? null : ($state->history[array_key_last($state->history)] ?? null);
         $repairPlan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
-        $repairFeedback = $last !== null && self::isCandidateValidationStage($last->result->stageId)
+        $repairFeedback = $last !== null && ExecutionProfile::isCandidateValidationStage($last->result->stageId)
             && $repairPlan->stage($last->result->stageId)->next(StageOutcome::FAILED) === $currentStage
             && $last->result->outcome === StageOutcome::FAILED ? $last->result->summary : null;
         if ($repairFeedback !== null) {
@@ -825,8 +826,4 @@ TXT;
         echo "\n";
     }
 
-    private static function isCandidateValidationStage(string $stageId): bool
-    {
-        return in_array($stageId, ['pre-review-validation', 'pre-independent-validation'], true);
-    }
 }

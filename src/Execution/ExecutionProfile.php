@@ -6,6 +6,11 @@ namespace voku\AgentLoop\Execution;
 
 final readonly class ExecutionProfile
 {
+    public static function isCandidateValidationStage(string $stageId): bool
+    {
+        return in_array($stageId, ['pre-review-validation', 'pre-independent-validation'], true);
+    }
+
     /**
      * @param list<ExecutionRole> $roles
      * @param list<ExecutionStage> $stages

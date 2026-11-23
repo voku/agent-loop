@@ -384,7 +384,7 @@ final readonly class ExecutionGateway
     public function submitStageResult(StageResult $result): ExecutionProjection
     {
         [, , $plan] = $this->current($result->taskId);
-        if (self::isCandidateValidationStage($result->stageId) && $plan->stage($result->stageId)->kind === ExecutionStageKind::DETERMINISTIC) {
+        if (ExecutionProfile::isCandidateValidationStage($result->stageId) && $plan->stage($result->stageId)->kind === ExecutionStageKind::DETERMINISTIC) {
             throw new RuntimeException('Deterministic candidate validation must be executed by the owner.');
         }
 
@@ -484,7 +484,7 @@ final readonly class ExecutionGateway
             $summary = [trim($output), ...$contract['summary']];
 
         } catch (RuntimeException $exception) {
-            if (!self::isCandidateValidationStage($stageId)) {
+            if (!ExecutionProfile::isCandidateValidationStage($stageId)) {
                 throw $exception;
             }
             $passed = false;
@@ -687,7 +687,7 @@ final readonly class ExecutionGateway
 
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
         $last = $state === null ? null : ($state->history[array_key_last($state->history)] ?? null);
-        $lastValidationRepair = $last !== null && self::isCandidateValidationStage($last->result->stageId)
+        $lastValidationRepair = $last !== null && ExecutionProfile::isCandidateValidationStage($last->result->stageId)
             && $plan->stage($last->result->stageId)->next(StageOutcome::FAILED) === $stageId;
         $repairFeedback = $lastValidationRepair
             && $last->result->outcome === StageOutcome::FAILED ? $last->result->summary : null;
@@ -1233,11 +1233,6 @@ final readonly class ExecutionGateway
             $bundle->stageId,
             (string) $bundle->attempt,
         ]));
-    }
-
-    private static function isCandidateValidationStage(string $stageId): bool
-    {
-        return in_array($stageId, ['pre-review-validation', 'pre-independent-validation'], true);
     }
 
     private function repositoryRoot(): string
