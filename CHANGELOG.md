@@ -1,5 +1,17 @@
 ## [Unreleased]
 
+## [0.20.107] - 2026-11-23
+
+### Added
+
+- New surgical and standard execution plans run the approved Contract's validation commands in a deterministic `pre-review-validation` stage between build and the first review. Hardened plans also run them at `pre-independent-validation`, after hardening and before independent verification. A failing or unavailable command routes back to the mutation stage without raising an Attention, with the failing command and a bounded output tail as repair feedback; the revised candidate must pass before review. Review-requested changes take the same build, validation, review path. A passing result must carry evidence for every declared command in order, the candidate identity is checked before and after each command, and agents cannot submit these stages themselves. Final `verify` and its consistency evidence are unchanged (#1154).
+- `pipeline status`, `pipeline stage` and transitions report `validation_failure` for the repair stage and give a workspace-qualified `agent-loop pipeline run <task> --workspace ...` action for deterministic stages (a `command_template` until the workspace is known) (#1154).
+
+### Changed
+
+- A capped review's human response stays bound across nested repair stages until that review's next attempt (`routed_review_attention_ids` in execution state). Persisted plans keep their stored stage graph, and existing state without the new field remains readable (#1154).
+- Docker images: Composer 2.11.2 base image digest (#1116) and the agent-ui consumer lock to `voku/agent-ui` 0.20.8 (#1130). Runtime requirements are unchanged.
+
 ## [0.20.106] - 2026-11-22
 
 ### Fixed
