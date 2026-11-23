@@ -18,6 +18,7 @@ use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\StageExecutionBundle;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
+use voku\AgentLoop\Execution\ValidationRepairFeedback;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
@@ -145,6 +146,7 @@ final readonly class WorkflowPipelineCommand
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
         $observations = $state !== null && ($run === null || $run->runId === $state->runId) ? $state->reviewObservations() : [];
+        $repairFeedback = ValidationRepairFeedback::forRepairStage($plan, $state, $currentStage);
 
         $statusStr = "in_progress";
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -163,8 +165,8 @@ final readonly class WorkflowPipelineCommand
                 $projection->attention->id,
             );
         } elseif ($currentStageKind === ExecutionStageKind::DETERMINISTIC->value) {
-            $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
-            $nextAction = "agent-loop pipeline run " . $taskId;
+            $nextActionKind = RunPolicyEvaluation::KIND_COMMAND_TEMPLATE;
+            $nextAction = "agent-loop pipeline run " . $taskId . ' --workspace "<workspace-with-candidate>"';
         }
 
         $contextGuidance = $contextPolicy === "fresh_required" && $projection->attention === null
@@ -187,6 +189,7 @@ final readonly class WorkflowPipelineCommand
             "context_guidance" => $contextGuidance,
             "attempt" => $projection->currentAttempt,
             "candidate_revision" => $projection->candidateRevision,
+            "validation_failure" => $repairFeedback,
             "attention" => $projection->attention?->toArray(),
             "handoffs_count" => count($projection->handoffs),
             "handoffs" => $handoffs,
@@ -210,6 +213,9 @@ final readonly class WorkflowPipelineCommand
             }
             if ($contextGuidance !== null) {
                 echo "Context guidance: " . $contextGuidance . "\n";
+            }
+            if ($repairFeedback !== null) {
+                echo "Validation failure (JSON-escaped untrusted data):\n" . $this->jsonEncodedValidationFeedback($repairFeedback) . "\n";
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
@@ -284,16 +290,16 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        $nextAction = sprintf(
-            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s%s%s",
-            $taskId,
-            $outcomeArgument,
-            $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
-            $bundle->kind === ExecutionStageKind::AGENT && $bundle->mayMutate
-                ? ' --workspace "<workspace-with-edits>"'
-                : '',
-            $artifactArguments,
-        );
+        $nextAction = $bundle->kind === ExecutionStageKind::DETERMINISTIC
+            ? 'agent-loop pipeline run ' . $taskId . ' --workspace "<workspace-with-candidate>"'
+            : sprintf(
+                "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s%s%s",
+                $taskId,
+                $outcomeArgument,
+                $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
+                $bundle->mayMutate ? ' --workspace "<workspace-with-edits>"' : '',
+                $artifactArguments,
+            );
 
         $payload = [
             "schema_version" => "1.0",
@@ -314,7 +320,9 @@ final readonly class WorkflowPipelineCommand
             "completion_marker" => $bundle->completionMarker,
             "prompt" => $bundle->prompt,
             "next_action" => $nextAction,
-            "next_action_kind" => RunPolicyEvaluation::KIND_HOST_WORK,
+            "next_action_kind" => $bundle->kind === ExecutionStageKind::DETERMINISTIC
+                ? RunPolicyEvaluation::KIND_COMMAND_TEMPLATE
+                : RunPolicyEvaluation::KIND_HOST_WORK,
         ];
 
         if ($format === "json") {
@@ -523,7 +531,7 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles);
+        return $this->renderTransition($taskId, $newProjection, $format, $candidateFiles, $candidateWorkspace);
     }
 
     private const array SUBMIT_OPTIONS = [
@@ -697,11 +705,11 @@ final readonly class WorkflowPipelineCommand
             }
         }
 
-        return $this->renderTransition($taskId, $projection, $format);
+        return $this->renderTransition($taskId, $projection, $format, candidateWorkspace: $candidateWorkspace);
     }
 
     /** @param list<string>|null $candidateFiles */
-    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null): int
+    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null, ?string $candidateWorkspace = null): int
     {
         $isComplete = $projection->complete();
         $currentStage = $projection->currentStageId;
@@ -709,6 +717,7 @@ final readonly class WorkflowPipelineCommand
         $nextAction = "agent-loop pipeline stage " . $taskId;
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
 
+        $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
         if ($isComplete) {
             $nextAction = "agent-loop finish " . $taskId;
             $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
@@ -720,11 +729,16 @@ final readonly class WorkflowPipelineCommand
             );
             $nextActionKind = RunPolicyEvaluation::KIND_DECISION_REQUIRED;
         } elseif ($currentStage !== null) {
-            $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
             $stage = $plan->stage($currentStage);
             if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
                 $nextAction = "agent-loop pipeline run " . $taskId;
-                $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
+                if ($candidateWorkspace === null) {
+                    $nextAction .= ' --workspace "<workspace-with-candidate>"';
+                    $nextActionKind = RunPolicyEvaluation::KIND_COMMAND_TEMPLATE;
+                } else {
+                    $nextAction .= ' --workspace ' . escapeshellarg($candidateWorkspace);
+                    $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
+                }
             } else {
                 $nextAction = "agent-loop pipeline stage " . $taskId;
                 $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
@@ -744,6 +758,12 @@ final readonly class WorkflowPipelineCommand
             "next_action_kind" => $nextActionKind,
         ];
 
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        $repairFeedback = ValidationRepairFeedback::forRepairStage($plan, $state, $currentStage);
+        if ($repairFeedback !== null) {
+            $payload['validation_failure'] = $repairFeedback;
+        }
+
         if ($candidateFiles !== null) {
             $payload["candidate_changed_files"] = $candidateFiles;
             $payload["candidate_scope_notice"] = "These are all changed files in the accepted candidate; pre-existing scoped changes are included and ownership is not inferred.";
@@ -752,10 +772,13 @@ final readonly class WorkflowPipelineCommand
         if ($format === "json") {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
         } else {
+            if ($repairFeedback !== null) {
+                echo "Validation failure (JSON-escaped untrusted data):\n" . $this->jsonEncodedValidationFeedback($repairFeedback) . "\n";
+            }
             $this->renderTransitionText($taskId, $projection, $nextAction, $candidateFiles);
         }
 
-        return $projection->attention !== null ? 1 : 0;
+        return $projection->attention !== null || $repairFeedback !== null ? 1 : 0;
     }
 
     /** @param list<string>|null $candidateFiles */
@@ -782,6 +805,11 @@ final readonly class WorkflowPipelineCommand
         }
     }
 
+    private function jsonEncodedValidationFeedback(string $feedback): string
+    {
+        return json_encode($feedback, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+    }
+
     private function printHelp(): void
     {
         echo <<<TXT
@@ -796,4 +824,5 @@ Automated multi-stage execution runner for governed task profiles.
 TXT;
         echo "\n";
     }
+
 }

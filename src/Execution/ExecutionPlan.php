@@ -115,6 +115,29 @@ final readonly class ExecutionPlan
         throw new RuntimeException('Execution plan has no stage ' . $stageId . '.');
     }
 
+    public function canReachStage(string $fromStageId, string $targetStageId): bool
+    {
+        $pending = [$fromStageId];
+        $visited = [];
+        while ($pending !== []) {
+            $stageId = array_pop($pending);
+            if (isset($visited[$stageId])) {
+                continue;
+            }
+            if ($stageId === $targetStageId) {
+                return true;
+            }
+            $visited[$stageId] = true;
+            foreach ($this->stage($stageId)->transitions as $nextStageId) {
+                if ($nextStageId !== null && !isset($visited[$nextStageId])) {
+                    $pending[] = $nextStageId;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public function requiresContextId(string $stageId): bool
     {
         $stage = $this->stage($stageId);

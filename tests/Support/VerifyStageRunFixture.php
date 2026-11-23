@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Tests\Support;
 
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\StageArtifactObservation;
 use voku\AgentLoop\Execution\StageCandidateObservation;
 use voku\AgentLoop\Execution\StageExecutionBundle;
@@ -48,7 +49,27 @@ final class VerifyStageRunFixture
      */
     public function reachVerifyWith(string $source, array $validation = ['php -l src/Foo.php']): void
     {
-        $this->enter($validation);
+        $this->reachPreReviewWith($source, $validation, legacyPlan: true);
+        $gateway = new ExecutionGateway($this->root);
+        $candidate = $gateway->projection('VER-1')->candidateRevision;
+        $this->submit($gateway, $gateway->prepareStage('VER-1', 'review'), StageOutcome::PASS, $candidate, 'ctx:review');
+    }
+
+    /**
+     * @param list<string> $validation
+     * @param list<string> $additionalScope
+     */
+    public function reachPreReviewWith(
+        string $source,
+        array $validation = ['php -l src/Foo.php'],
+        bool $legacyPlan = false,
+        array $additionalScope = [],
+        ExecutionProfileName $profile = ExecutionProfileName::SURGICAL,
+    ): void {
+        $this->enter($validation, $additionalScope, $profile);
+        if ($legacyPlan) {
+            $this->installLegacyPlan();
+        }
 
         $gateway = new ExecutionGateway($this->root);
         $investigate = $gateway->prepareStage('VER-1', 'investigate');
@@ -69,7 +90,41 @@ final class VerifyStageRunFixture
         ));
         $this->submit($gateway, $build, StageOutcome::COMPLETED, $candidate, 'ctx:build');
 
-        $this->submit($gateway, $gateway->prepareStage('VER-1', 'review'), StageOutcome::PASS, $candidate, 'ctx:review');
+    }
+
+    /** Model a plan persisted by a release before pre-review validation existed. */
+    private function installLegacyPlan(): void
+    {
+        $contract = (new \voku\AgentLoop\Workflow\TaskContractStore($this->root))->load('VER-1');
+        $run = (new \voku\AgentLoop\Run\GovernedRunStore($this->root))->findForContract($contract);
+        if ($run === null) {
+            throw new RuntimeException('Missing governed Run for legacy fixture.');
+        }
+        $store = new \voku\AgentLoop\Execution\ExecutionPlanStore($this->root);
+        $store->prepare($run, $contract);
+        $path = $store->path('VER-1');
+        $plan = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        $plan['stages'] = array_values(array_filter($plan['stages'], static fn (array $stage): bool => $stage['id'] !== 'pre-review-validation'));
+        foreach ($plan['stages'] as &$stage) {
+            if ($stage['id'] === 'build') {
+                $stage['transitions']['completed'] = 'review';
+            } elseif ($stage['id'] === 'review') {
+                $stage['requires'] = ['build'];
+            }
+        }
+        unset($stage);
+        unset($plan['digest']);
+        $plan['digest'] = 'sha256:' . hash('sha256', \voku\AgentLoop\Run\CanonicalJson::pretty($plan));
+        file_put_contents($path, \voku\AgentLoop\Run\CanonicalJson::pretty($plan));
+        $statePath = (new \voku\AgentLoop\Execution\ExecutionStateStore($this->root))->path('VER-1');
+        if (is_file($statePath)) {
+            $state = json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+            if ($state['history'] !== []) {
+                throw new RuntimeException('Legacy fixture must be installed before the first stage.');
+            }
+            $state['execution_plan_digest'] = $plan['digest'];
+            file_put_contents($statePath, \voku\AgentLoop\Run\CanonicalJson::pretty($state));
+        }
     }
 
     public function git(string $directory, string ...$arguments): string
@@ -82,9 +137,15 @@ final class VerifyStageRunFixture
         return trim(implode("\n", $output));
     }
 
-    /** @param list<string> $validation */
-    private function enter(array $validation): void
-    {
+    /**
+     * @param list<string> $validation
+     * @param list<string> $additionalScope
+     */
+    private function enter(
+        array $validation,
+        array $additionalScope = [],
+        ExecutionProfileName $profile = ExecutionProfileName::SURGICAL,
+    ): void {
         mkdir($this->root . '/.agent-loop/learning', 0o775, true);
         mkdir($this->root . '/src', 0o775, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
@@ -105,10 +166,11 @@ final class VerifyStageRunFixture
                 (new WorkflowPlanCommand($this->root))->run([
                     'VER-1', '--by', 'planner', '--file', 'src/Foo.php', '--goal', 'Change Foo.',
                     ...array_merge(...array_map(static fn (string $command): array => ['--validation', $command], $validation)),
+                    ...array_merge(...array_map(static fn (string $path): array => ['--scope', $path], $additionalScope)),
                     '--base-commit', $this->base,
                 ]),
                 (new WorkflowApproveCommand($this->root))->run(['VER-1', '--revision', '1', '--by', 'approver']),
-                (new WorkflowExecutionProfileCommand($this->root))->run(['VER-1', '--profile', 'surgical', '--by', 'approver']),
+                (new WorkflowExecutionProfileCommand($this->root))->run(['VER-1', '--profile', $profile->value, '--by', 'approver']),
                 (new HostFrontDoorCommand($this->root))->run('enter', ['VER-1', '--format=json']),
             ];
         } finally {
@@ -119,10 +181,11 @@ final class VerifyStageRunFixture
         }
     }
 
-    private function submit(ExecutionGateway $gateway, StageExecutionBundle $bundle, StageOutcome $outcome, string $candidate, ?string $contextId = null): void
+    public function submit(ExecutionGateway $gateway, StageExecutionBundle $bundle, StageOutcome $outcome, string $candidate, ?string $contextId = null): void
     {
         $artifactReferences = [];
-        if ($bundle->stageId === 'review' && in_array($outcome, [StageOutcome::PASS, StageOutcome::CHANGES_REQUIRED], true)) {
+        if (in_array($bundle->stageId, ['review', 'correctness-review', 'architecture-review', 'independent-verification', 'blindspot-review'], true)
+            && in_array($outcome, [StageOutcome::PASS, StageOutcome::CHANGES_REQUIRED], true)) {
             $source = file_get_contents($this->workspace . '/src/Foo.php');
             if (!is_string($source)) {
                 throw new RuntimeException('Unable to read the candidate file for review evidence.');
@@ -141,7 +204,7 @@ final class VerifyStageRunFixture
         }
 
         $gateway->submitStageResult(new StageResult(
-            'submission:' . $bundle->stageId,
+            'submission:' . $bundle->stageId . ':' . $bundle->attempt,
             $bundle->taskId,
             $bundle->runId,
             $bundle->contractRevision,
@@ -155,6 +218,11 @@ final class VerifyStageRunFixture
             'fixture ' . $bundle->stageId,
             $contextId,
         ));
+    }
+
+    public function candidate(): string
+    {
+        return 'git-tree-v1:' . $this->base . ':' . $this->workspaceTree();
     }
 
     private function workspaceTree(): string

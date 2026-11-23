@@ -6,6 +6,11 @@ namespace voku\AgentLoop\Execution;
 
 final readonly class ExecutionProfile
 {
+    public static function isCandidateValidationStage(string $stageId): bool
+    {
+        return in_array($stageId, ['pre-review-validation', 'pre-independent-validation'], true);
+    }
+
     /**
      * @param list<ExecutionRole> $roles
      * @param list<ExecutionStage> $stages
@@ -35,8 +40,9 @@ final readonly class ExecutionProfile
                 [$investigator, $builder, $reviewer],
                 [
                     self::agent('investigate', 'investigator', false, [], [StageOutcome::COMPLETED->value => 'build']),
-                    self::agent('build', 'builder', true, ['investigate'], [StageOutcome::COMPLETED->value => 'review']),
-                    self::agent('review', 'reviewer', false, ['build'], [
+                    self::agent('build', 'builder', true, ['investigate'], [StageOutcome::COMPLETED->value => 'pre-review-validation']),
+                    self::deterministic('pre-review-validation', ['build'], [StageOutcome::PASS->value => 'review', StageOutcome::FAILED->value => 'build']),
+                    self::agent('review', 'reviewer', false, ['build', 'pre-review-validation'], [
                         StageOutcome::PASS->value => 'verify',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
                     ], ExecutionContextPolicy::FRESH_REQUIRED),
@@ -48,8 +54,9 @@ final readonly class ExecutionProfile
                 [$investigator, $builder, $correctness, $blindspots],
                 [
                     self::agent('investigate', 'investigator', false, [], [StageOutcome::COMPLETED->value => 'build']),
-                    self::agent('build', 'builder', true, ['investigate'], [StageOutcome::COMPLETED->value => 'correctness-review']),
-                    self::agent('correctness-review', 'correctness-review', false, ['build'], [
+                    self::agent('build', 'builder', true, ['investigate'], [StageOutcome::COMPLETED->value => 'pre-review-validation']),
+                    self::deterministic('pre-review-validation', ['build'], [StageOutcome::PASS->value => 'correctness-review', StageOutcome::FAILED->value => 'build']),
+                    self::agent('correctness-review', 'correctness-review', false, ['build', 'pre-review-validation'], [
                         StageOutcome::PASS->value => 'blindspot-review',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
                     ], ExecutionContextPolicy::FRESH_REQUIRED),
@@ -65,8 +72,9 @@ final readonly class ExecutionProfile
                 [$investigator, $builder, $correctness, $architecture, $hardening, $independentVerification, $blindspots],
                 [
                     self::agent('investigate', 'investigator', false, [], [StageOutcome::COMPLETED->value => 'build']),
-                    self::agent('build', 'builder', true, ['investigate'], [StageOutcome::COMPLETED->value => 'correctness-review']),
-                    self::agent('correctness-review', 'correctness-review', false, ['build'], [
+                    self::agent('build', 'builder', true, ['investigate'], [StageOutcome::COMPLETED->value => 'pre-review-validation']),
+                    self::deterministic('pre-review-validation', ['build'], [StageOutcome::PASS->value => 'correctness-review', StageOutcome::FAILED->value => 'build']),
+                    self::agent('correctness-review', 'correctness-review', false, ['build', 'pre-review-validation'], [
                         StageOutcome::PASS->value => 'architecture-review',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
                     ], ExecutionContextPolicy::FRESH_REQUIRED),
@@ -74,8 +82,12 @@ final readonly class ExecutionProfile
                         StageOutcome::PASS->value => 'hardening',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
                     ], ExecutionContextPolicy::FRESH_REQUIRED),
-                    self::agent('hardening', 'hardening', true, ['architecture-review'], [StageOutcome::COMPLETED->value => 'independent-verification']),
-                    self::agent('independent-verification', 'independent-verification', false, ['hardening'], [
+                    self::agent('hardening', 'hardening', true, ['architecture-review'], [StageOutcome::COMPLETED->value => 'pre-independent-validation']),
+                    self::deterministic('pre-independent-validation', ['hardening'], [
+                        StageOutcome::PASS->value => 'independent-verification',
+                        StageOutcome::FAILED->value => 'hardening',
+                    ]),
+                    self::agent('independent-verification', 'independent-verification', false, ['hardening', 'pre-independent-validation'], [
                         StageOutcome::PASS->value => 'blindspot-review',
                         StageOutcome::CHANGES_REQUIRED->value => 'hardening',
                     ], ExecutionContextPolicy::FRESH_REQUIRED),

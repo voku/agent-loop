@@ -107,7 +107,12 @@ final readonly class ExecutionStateStore
                     $acceptedAt,
                 );
             }
-            if ($reviewRoundsExhausted || in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
+            $repairStageId = $stage->transitions[StageOutcome::FAILED->value] ?? null;
+            $validationRepair = $stage->kind === ExecutionStageKind::DETERMINISTIC
+                && $result->outcome === StageOutcome::FAILED
+                && $repairStageId !== null
+                && $plan->stage($repairStageId)->mayMutate;
+            if ($reviewRoundsExhausted || (!$validationRepair && in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true))) {
                 $attention = new AttentionRequest(
                     'attention:' . bin2hex(random_bytes(8)),
                     $plan->taskId,
@@ -135,6 +140,8 @@ final readonly class ExecutionStateStore
                     $attention,
                     $history,
                     $state->recoveryHistory,
+                    $state->lastAttentionId,
+                    $this->routedReviewAttentionIdsAfterAccept($plan, $state, $stage->id, $stage->id),
                 );
                 $this->write($next);
 
@@ -168,6 +175,7 @@ final readonly class ExecutionStateStore
                 $history,
                 $state->recoveryHistory,
                 $this->carriedAttentionId($plan, $state, $nextStageId),
+                $this->routedReviewAttentionIdsAfterAccept($plan, $state, $stage->id, $nextStageId),
             );
             $this->write($next);
 
@@ -334,6 +342,9 @@ final readonly class ExecutionStateStore
                 $state->history,
                 $state->recoveryHistory,
                 $attentionId,
+                $state->attention->kind === AttentionKind::REVIEW_CHANGES_REQUIRED
+                    ? $this->appendRoutedReviewAttentionId($state->routedReviewAttentionIds, $attentionId)
+                    : $this->restoreLegacyRoutedReviewAttentionId($plan, $state),
             );
             $this->write($next);
 
@@ -431,10 +442,10 @@ final readonly class ExecutionStateStore
     }
 
     /**
-     * A resolution routed away from the stage that raised it (a capped review
-     * resumed at build) is also meant for that stage's next attempt: the human
-     * may have accepted the review's request as out of scope. It is carried
-     * exactly once, from the rework stage back to the raising stage.
+     * A capped review's response remains pending while a routed repair path
+     * moves toward that review's next attempt. Intermediate stages retain the
+     * binding without receiving the response; the mutation stage and target
+     * review receive it, and the target review consumes it.
      */
     private function carriedAttentionId(ExecutionPlan $plan, ExecutionState $state, ?string $nextStageId): ?string
     {
@@ -443,9 +454,129 @@ final readonly class ExecutionStateStore
         }
         $resolution = (new AttentionResolutionStore($this->rootPath))->load($plan->taskId, $state->lastAttentionId);
 
+        $reviewRepairStage = $plan->stage($resolution->stageId)->transitions[StageOutcome::CHANGES_REQUIRED->value] ?? null;
+        if ($reviewRepairStage !== null
+            && $resolution->stageId !== $state->currentStageId
+            && $plan->canReachStage($reviewRepairStage, $nextStageId)) {
+            return $state->lastAttentionId;
+        }
+
         return $resolution->stageId === $nextStageId && $resolution->stageId !== $state->currentStageId
             ? $state->lastAttentionId
             : null;
+    }
+
+    /**
+     * Keep a capped review decision bound to the review it routes toward while
+     * build and deterministic validation run. The target review consumes it
+     * after returning a result.
+     *
+     * @return list<non-empty-string>
+     */
+    private function routedReviewAttentionIdsAfterAccept(
+        ExecutionPlan $plan,
+        ExecutionState $state,
+        string $acceptedStageId,
+        ?string $nextStageId,
+    ): array {
+        if ($state->routedReviewAttentionIds === [] || $nextStageId === null) {
+            return [];
+        }
+
+        $pending = [];
+        $store = new AttentionResolutionStore($this->rootPath);
+        foreach ($state->routedReviewAttentionIds as $attentionId) {
+            $resolution = $store->load($plan->taskId, $attentionId);
+            if ($resolution->taskId !== $plan->taskId
+                || $resolution->runId !== $plan->runId
+                || $resolution->contractRevision !== $plan->contractRevision
+                || !hash_equals($resolution->executionPlanDigest, $plan->digest())) {
+                throw new RuntimeException('ATTENTION_RESOLUTION_STALE: routed review response does not match the current execution.');
+            }
+
+            $targetReview = $resolution->stageId;
+            if ($targetReview === $acceptedStageId) {
+                continue;
+            }
+            $repairStage = $plan->stage($targetReview)->next(StageOutcome::CHANGES_REQUIRED);
+            if ($targetReview === $nextStageId
+                || ($repairStage !== null && $plan->canReachStage($repairStage, $nextStageId))) {
+                $pending[] = $attentionId;
+            }
+        }
+
+        return $pending;
+    }
+
+    /**
+     * @param list<non-empty-string> $attentionIds
+     * @return list<non-empty-string>
+     */
+    private function appendRoutedReviewAttentionId(array $attentionIds, string $attentionId): array
+    {
+        $attentionId = trim($attentionId);
+        if ($attentionId === '') {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: review response requires a non-empty Attention id.');
+        }
+
+        $attentionIds[] = $attentionId;
+
+        return array_values(array_unique($attentionIds));
+    }
+
+    /**
+     * Older state files did not persist routed review Attention ids. If a
+     * routed build opens a second Attention before accepting its next result,
+     * its previous last_attention_id is the only durable reference to the
+     * capped review decision. Reconstruct that pending binding from the exact
+     * review changes-required result that opened it.
+     *
+     * @return list<non-empty-string>
+     */
+    private function restoreLegacyRoutedReviewAttentionId(ExecutionPlan $plan, ExecutionState $state): array
+    {
+        $attentionId = $state->lastAttentionId;
+        if ($attentionId === null || $state->currentStageId === null) {
+            return $state->routedReviewAttentionIds;
+        }
+
+        $store = new AttentionResolutionStore($this->rootPath);
+        $resolution = $store->load($plan->taskId, $attentionId);
+        if ($resolution->taskId !== $plan->taskId
+            || $resolution->runId !== $plan->runId
+            || $resolution->contractRevision !== $plan->contractRevision
+            || !hash_equals($resolution->executionPlanDigest, $plan->digest())) {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: prior review response does not match the current execution.');
+        }
+
+        $reviewStage = $plan->stage($resolution->stageId);
+        $roleId = $reviewStage->roleId;
+        if ($roleId === null) {
+            return $state->routedReviewAttentionIds;
+        }
+        $capabilities = $plan->role($roleId)->requiredCapabilities;
+        if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+            return $state->routedReviewAttentionIds;
+        }
+
+        $repairStageId = $reviewStage->next(StageOutcome::CHANGES_REQUIRED);
+        if ($repairStageId === null || $repairStageId !== $state->currentStageId) {
+            return $state->routedReviewAttentionIds;
+        }
+
+        foreach (array_reverse($state->history) as $accepted) {
+            if ($accepted->result->stageId !== $resolution->stageId) {
+                continue;
+            }
+            if ($accepted->result->attempt !== $resolution->attempt
+                || $accepted->result->outcome !== StageOutcome::CHANGES_REQUIRED) {
+                return $state->routedReviewAttentionIds;
+            }
+
+            return $this->appendRoutedReviewAttentionId($state->routedReviewAttentionIds, $attentionId);
+        }
+
+        return $state->routedReviewAttentionIds;
     }
 
     /** @param list<AcceptedStageResult> $history */
@@ -553,6 +684,15 @@ final readonly class ExecutionStateStore
         if ($lastAttentionId !== null && (!is_string($lastAttentionId) || trim($lastAttentionId) === '')) {
             throw new RuntimeException('Execution state last_attention_id must be a non-empty string or null.');
         }
+        $routedReviewAttentionIds = $data['routed_review_attention_ids'] ?? [];
+        if (!is_array($routedReviewAttentionIds) || !array_is_list($routedReviewAttentionIds)) {
+            throw new RuntimeException('Execution state routed_review_attention_ids must be an array.');
+        }
+        foreach ($routedReviewAttentionIds as $attentionId) {
+            if (!is_string($attentionId) || trim($attentionId) === '') {
+                throw new RuntimeException('Execution state routed_review_attention_ids must contain non-empty strings.');
+            }
+        }
 
         return new ExecutionState(
             $taskId,
@@ -566,6 +706,7 @@ final readonly class ExecutionStateStore
             $this->decodeHistory($data['history'] ?? null, $path),
             $this->decodeRecoveryHistory($data['recovery_history'] ?? [], $path),
             $lastAttentionId,
+            $routedReviewAttentionIds,
         );
     }
 

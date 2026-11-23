@@ -143,9 +143,9 @@ attempt. Historical results remain available for audit, but results accepted
 before recovery cannot satisfy the reopened attempt.
 
 The recovered candidate must pass through the ordinary owner-side candidate
-observation before a build result can advance to review. Correctness review,
-blind-spot review and deterministic verification then run against the current
-candidate. Until that pipeline completes, close readiness remains blocked and
+observation, then the plan's deterministic pre-review validation gate, before a
+build result can advance to review. Correctness review, blind-spot review and
+final deterministic verification then run against the current candidate. Until that pipeline completes, close readiness remains blocked and
 `workflow status` routes to `pipeline status`, ahead of older close-out reports
 or Learning decisions. Out-of-scope or ambiguous changes fail closed; move
 unrelated work to its own worktree before recovering the governed candidate.

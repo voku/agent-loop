@@ -16,6 +16,7 @@ final readonly class ExecutionState
      *     history_count: int,
      *     build_attempt: int
      * }> $recoveryHistory
+     * @param list<non-empty-string> $routedReviewAttentionIds
      */
     public function __construct(
         public string $taskId,
@@ -29,6 +30,7 @@ final readonly class ExecutionState
         public array $history,
         public array $recoveryHistory = [],
         public ?string $lastAttentionId = null,
+        public array $routedReviewAttentionIds = [],
     ) {
     }
 
@@ -70,6 +72,7 @@ final readonly class ExecutionState
             'history' => array_map(static fn (AcceptedStageResult $result): array => $result->toArray(), $this->history),
             'recovery_history' => $this->recoveryHistory,
             'last_attention_id' => $this->lastAttentionId,
+            'routed_review_attention_ids' => $this->routedReviewAttentionIds,
         ];
     }
 }

@@ -283,11 +283,11 @@ final class ReviewObservationCaptureTest extends TestCase
 
         $this->submit(['--outcome', 'completed']);
         file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 1; }\n");
-        $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-1']);
+        $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-1', '--auto-verify']);
         $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:correctness-1', '--observation', 'Budget 0 still admits one target.']);
         $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:blindspot-1']);
         file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 2; }\n");
-        $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-2']);
+        $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-2', '--auto-verify']);
         $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:correctness-2']);
         $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:blindspot-2']);
         self::assertSame('verify', (new ExecutionGateway($this->root))->projection('ABC-123')->currentStageId);
@@ -346,6 +346,7 @@ final class ReviewObservationCaptureTest extends TestCase
             'Build complete.',
             'ctx:build',
         ));
+        $gateway->runDeterministicStage('ABC-123', 'pre-review-validation', $this->root);
         self::assertSame('review', $gateway->projection('ABC-123')->currentStageId);
 
         return $build->candidateRevision;

@@ -115,6 +115,42 @@ final readonly class CandidateWorkspaceIdentity
         }
     }
 
+    /** Refuse tracked candidate files changed in a disposable validation export. */
+    /** @param list<string> $scopePaths */
+    public function assertExportHolds(string $workspace, string $baseCommit, string $candidateRevision, string $destination, array $scopePaths): void
+    {
+        $tree = $this->expectedTree($workspace, $baseCommit, $candidateRevision);
+        $index = tempnam(sys_get_temp_dir(), 'agent-loop-export-check-');
+        if (!is_string($index) || !unlink($index)) {
+            throw new RuntimeException('Unable to prepare a private Git index for candidate export verification.');
+        }
+        $environment = ['GIT_INDEX_FILE' => $index];
+        try {
+            $this->git($workspace, ['read-tree', $tree], $environment);
+            $changed = $this->git($workspace, ['--work-tree=' . $destination, 'diff', '--no-ext-diff', '--name-only', '-z', '--'], $environment, false);
+            $untracked = $this->git($workspace, ['--work-tree=' . $destination, 'ls-files', '--others', '--exclude-standard', '-z', '--', '.'], $environment, false);
+            $untrackedCandidateFile = false;
+            foreach (explode("\0", $untracked) as $path) {
+                foreach ($scopePaths as $scope) {
+                    if ($path === $scope || str_starts_with($path, rtrim($scope, '/') . '/')) {
+                        $untrackedCandidateFile = true;
+                        break 2;
+                    }
+                }
+            }
+            if ($scopePaths === []) {
+                $untrackedCandidateFile = $untracked !== '';
+            }
+            if ($changed !== '' || $untrackedCandidateFile) {
+                throw new RuntimeException('CANDIDATE_MISMATCH: a declared validation command changed candidate files in the export.');
+            }
+        } finally {
+            if (is_file($index)) {
+                unlink($index);
+            }
+        }
+    }
+
     /** The `git-tree-v1:<base>:<tree>` form of an accepted stage candidate, which is a bare base commit while nothing changed. */
     public function normalize(string $workspace, string $baseCommit, string $candidateRevision): string
     {
