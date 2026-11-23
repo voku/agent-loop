@@ -125,12 +125,14 @@ causes `CANDIDATE_MISMATCH`.
   never inside the export. Its `consistency` receipt is still required for PASS,
   but it describes the checkout, not the exported tree; only the declared
   validation commands describe the exported candidate.
-- For the new pre-review gates, tracked files and new untracked files inside the
-  approved scope in an export must remain unchanged after each declared command.
-  An in-scope untracked file makes that gate fail with `CANDIDATE_MISMATCH`; it
-  is not copied back into the candidate. Final `verify` retains its existing
-  post-sequence behavior. In both modes the accepted candidate is proven again
-  after validation.
+- In export mode, a pre-review validation command that changes a tracked
+  candidate file or adds an untracked file inside the approved scope fails with
+  `CANDIDATE_MISMATCH`; the export is not copied back into the candidate. In
+  in-place mode, used when the checkout has no changes outside the approved
+  scope, the whole candidate tree must remain unchanged after each pre-review
+  command or the gate fails with `CANDIDATE_MISMATCH`. Final `verify` keeps its
+  existing post-sequence behavior. Both modes prove the accepted candidate
+  again after validation.
 - Edits outside the scope, whether the builder's own or another task's, are not
   part of the accepted candidate, and a PASS does not cover them. That is the
   point of the scope boundary, so review the scope when approving the Contract.
