@@ -1,9 +1,47 @@
 # Your first governed task
 
-This is the shortest supported path from the `agent-loop` checkout to one
-governed coding task. Use the Docker wrapper when PHP and Composer are not
-installed on the host. The host follows the lifecycle kernel instead of
-carrying its own map/Session/Recall/review choreography.
+This guide distinguishes an existing Composer consumer from the `agent-loop`
+development checkout. Use the Docker wrapper for the documented containerized
+checkout when PHP and Composer are not installed on the host. The host follows
+the lifecycle kernel instead of carrying its own map/Session/Recall/review
+choreography.
+
+## Existing Composer project: first Contract
+
+Start in your own Git repository with an initial commit, PHP 8.3+ and Composer.
+Choose the host you actually use (Codex is the example here):
+
+```bash
+composer require --dev voku/agent-loop
+vendor/bin/agent-loop init scaffold --demo --agent=codex
+vendor/bin/agent-loop init host-status --agent=codex --format=json
+```
+
+Follow the reported setup actions before starting a fresh coding-host session.
+Asset projection does not prove that a host has loaded the assets. Then enter
+`DEMO-1` using your installed binary:
+
+```bash
+vendor/bin/agent-loop enter DEMO-1 --format=json
+```
+
+An unplanned task normally returns an incomplete result and a planning template.
+For a project that actually contains `src/RetryPolicy.php` and declares a
+`composer test` script, a concrete example is:
+
+```bash
+vendor/bin/agent-loop workflow plan DEMO-1 \
+  --by "$(git config user.name)" \
+  --file src/RetryPolicy.php \
+  --goal "Double the deterministic retry delay." \
+  --behavior-anchor "request timeout -> RetryPolicy delay -> caller-observed wait" \
+  --validation "composer test"
+```
+
+Replace the sample source path, goal and validation with real project evidence.
+Planning does not authorize edits. Continue with the lifecycle described below,
+using `vendor/bin/agent-loop` in your own project, not `./docker/agent-loop`.
+The examples below use the development checkout's Docker wrapper.
 
 ## 1. Bootstrap the repository and host
 
@@ -81,9 +119,9 @@ not a human approval gate. For example:
 ```bash
 ./docker/agent-loop workflow plan DEMO-1 \
   --by "$(git config user.name)" \
-  --file composer.json \
-  --goal "Add a small validated change." \
-  --behavior-anchor "composer configuration -> Composer validation result" \
+  --file src/Workflow/TaskContract.php \
+  --goal "Describe the specific validated source change here." \
+  --behavior-anchor "Contract input -> task intent -> observable validation result" \
   --validation "composer test"
 ```
 
