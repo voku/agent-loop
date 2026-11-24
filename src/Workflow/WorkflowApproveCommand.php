@@ -38,6 +38,7 @@ final readonly class WorkflowApproveCommand
 
             $status = 'approved';
             $notes = [];
+            $profileChoice = null;
             $wasAlreadyApproved = $contract->status === TaskContract::APPROVED;
             $contract = $contracts->approve($taskId->value, $options['by'], $options['revision'], $options['head']);
             if (!$wasAlreadyApproved) {
@@ -46,9 +47,10 @@ final readonly class WorkflowApproveCommand
                 // than the host being told to run agent-map first.
                 (new WorkflowHookRunner($this->rootPath))->run('approve', $taskId->value);
                 $msg = "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
-                $note = $this->profileNote($contract, $taskId->value);
-                if ($note !== null) {
-                    $notes[] = $note;
+                $profileChoice = $this->profileChoice($contract, $taskId->value);
+                if ($profileChoice !== null) {
+                    $notes[] = "Execution profile is {$profileChoice['current']} and is fixed by the first enter. To choose another, run first: "
+                        . $profileChoice['command'];
                 }
             } else {
                 $status = 'already_approved';
@@ -57,6 +59,16 @@ final readonly class WorkflowApproveCommand
 
             $cli = (new RepositoryActivation($this->rootPath))->cliPath();
             if ($options['format'] === 'json') {
+                $profileChoiceError = null;
+                if ($wasAlreadyApproved) {
+                    try {
+                        $profileChoice = $this->profileChoice($contract, $taskId->value);
+                    } catch (Throwable $exception) {
+                        // Approval is already durable. Report the unavailable optional
+                        // projection without changing retry semantics or guessing a profile.
+                        $profileChoiceError = $exception->getMessage();
+                    }
+                }
                 $nextAction = $cli . ' enter ' . $taskId->value . ' --format=json';
                 $payload = [
                     'schema_version' => '1.0',
@@ -69,6 +81,12 @@ final readonly class WorkflowApproveCommand
                 ];
                 if ($notes !== []) {
                     $payload['notes'] = $notes;
+                }
+                if ($profileChoice !== null) {
+                    $payload['execution_profile_choice'] = $profileChoice;
+                }
+                if ($profileChoiceError !== null) {
+                    $payload['execution_profile_choice_error'] = $profileChoiceError;
                 }
                 echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
@@ -118,15 +136,19 @@ final readonly class WorkflowApproveCommand
      * Informational only: the profile stays selectable until the first `enter`
      * prepares the governed Run. It never changes the canonical next action.
      */
-    private function profileNote(TaskContract $contract, string $taskId): ?string
+    /** @return array{current: string, command: string}|null */
+    private function profileChoice(TaskContract $contract, string $taskId): ?array
     {
         if ((new GovernedRunStore($this->rootPath))->findForContract($contract) !== null) {
             return null;
         }
         $profile = (new ExecutionProfileSelectionStore($this->rootPath))->resolve($contract)->value;
 
-        return "Execution profile is {$profile} and is fixed by the first enter. To choose another, run first: "
-            . "workflow execution-profile {$taskId} --profile <manual|surgical|standard|hardened> --by <actor>";
+        return [
+            'current' => $profile,
+            'command' => (new RepositoryActivation($this->rootPath))->cliPath()
+                . " workflow execution-profile {$taskId} --profile <manual|surgical|standard|hardened> --by <actor>",
+        ];
     }
 
     /** @param list<string> $args */
