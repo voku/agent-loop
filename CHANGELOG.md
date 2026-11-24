@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- `workflow context` JSON, and the `context` that `enter` and `finish` embed, now report the host session's interaction state under `interaction`: `host_session` (`unbound`, `invalid` or `bound`, with the missing prerequisite), `preference` (`unknown`, `unavailable` or `known` with `mode` and `source` `session_default` or `task_override`), and, only for a bound session without a saved preference, one `question` whose choices are the existing `workflow interaction` commands. Before, a host without a session binding got no signal at all and the collaborative/autonomous choice was silently skipped. The projection is read-only and grants no authority; whether a host presents the question once is host behavior (#1126).
+
 ### Changed
 
 - A repair stage entered because a review returned `changes_required` can no longer complete with the exact candidate that review rejected unless it disputes the finding: a `--summary` rebuttal (not the generic placeholder) plus at least one cited current-candidate `--artifact`. Otherwise `pipeline submit` refuses with `CANDIDATE_MISMATCH`, writes no history and names the ways forward (change the candidate, dispute with evidence, or report `blocked`/`needs_clarification`), so a no-op repair no longer replays validation and a review round. Repairs after failed validation, builds that follow a human-resolved Attention, and blocker outcomes are unchanged. An evidenced dispute goes to a fresh run of the review stage that raised the finding; its prompt now shows the finding, the rebuttal and its cited candidate files as untrusted data and asks for the finding's disposition separately from any new finding. That review's own outcome stays the verdict on the whole candidate and counts toward the review-round cap as before (#863, #1142).

@@ -29,3 +29,24 @@ Autonomous mode guides ordinary implementation, verification and in-scope repair
 through the existing lifecycle. Collaborative mode invites discussion of meaningful
 choices. Both preserve Contract approval, independent review, human decisions,
 merge and deployment gates. Preferences are not mutation authorization.
+
+## Interaction state in task context
+
+`workflow context --format=json`, and the `context` that `enter` and `finish`
+embed, report the host session's interaction state under `interaction`, next to
+the existing policy fields:
+
+| `host_session.state` | Meaning | `preference.state` | `question` |
+| --- | --- | --- | --- |
+| `unbound` | `AGENT_LOOP_HOST_SESSION_ID` or `AGENT_LOOP_INTERACTION_DIR` is not set; `prerequisite` says what to set. | `unknown` | `null` |
+| `invalid` | The session id breaks the safe-identifier rule; it is not echoed. | `unknown` | `null` |
+| `bound` | The preference directory is unreadable or invalid. | `unavailable` | `null` |
+| `bound` | No saved preference for this session. | `unknown` | one `interaction_mode` question |
+| `bound` | A session default or a task override applies (`source`). | `known` (`mode`) | `null` |
+
+The question's choices are the existing `workflow interaction` commands for that
+session, plus `reuse` when a previous shared default exists. Reading context
+never saves or binds a preference, so the question stays in the projection until
+the host records an answer. Showing it once is the host's job: the projection
+does not prove that a host presents it, or presents it only once. Every value is
+`behavioral_preference_only` and grants no authority.
