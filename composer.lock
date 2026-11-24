@@ -1292,16 +1292,16 @@
         },
         {
             "name": "voku/agent-recall-compiler",
-            "version": "0.29.11",
+            "version": "0.29.12",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-recall-compiler.git",
-                "reference": "a666f2a4036e0b7379be5786ca6e0d6d3ba59968"
+                "reference": "7fab605850e6de84d40d1c6351c3ba698e300b02"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-recall-compiler/zipball/a666f2a4036e0b7379be5786ca6e0d6d3ba59968",
-                "reference": "a666f2a4036e0b7379be5786ca6e0d6d3ba59968",
+                "url": "https://api.github.com/repos/voku/agent-recall-compiler/zipball/7fab605850e6de84d40d1c6351c3ba698e300b02",
+                "reference": "7fab605850e6de84d40d1c6351c3ba698e300b02",
                 "shasum": ""
             },
             "require": {
@@ -1311,7 +1311,7 @@
             "require-dev": {
                 "phpstan/phpstan": "^2.1",
                 "phpunit/phpunit": "^11.5 || ^12.0",
-                "voku/agent-learning": "^0.20.0"
+                "voku/agent-learning": "^0.23.0"
             },
             "bin": [
                 "bin/agent-recall-compiler"
@@ -1355,7 +1355,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-22T10:34:59+00:00"
+            "time": "2026-11-23T23:47:38+00:00",
+            "published-time": "2026-11-23T23:49:13+00:00"
         },
         {
             "name": "voku/agent-session",
@@ -6310,5 +6311,5 @@
     "platform-overrides": {
         "php": "8.3.0"
     },
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.11.0"
 }
