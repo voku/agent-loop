@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- A repair stage entered because a review returned `changes_required` can no longer complete with the exact candidate that review rejected unless it disputes the finding: a `--summary` rebuttal (not the generic placeholder) plus at least one cited current-candidate `--artifact`. Otherwise `pipeline submit` refuses with `CANDIDATE_MISMATCH`, writes no history and names the ways forward (change the candidate, dispute with evidence, or report `blocked`/`needs_clarification`), so a no-op repair no longer replays validation and a review round. Repairs after failed validation, builds that follow a human-resolved Attention, and blocker outcomes are unchanged. An evidenced dispute goes to a fresh run of the review stage that raised the finding; its prompt now shows the finding and the rebuttal as untrusted data and asks for the finding's disposition separately from any new finding. That review's own outcome stays the verdict on the whole candidate and counts toward the review-round cap as before (#863, #1142).
+
 ## [0.20.107] - 2026-11-23
 
 ### Added
