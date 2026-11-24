@@ -244,15 +244,24 @@ final class TaskContractStore
         });
     }
 
-    public function reject(string $taskId, string $by, int $expectedRevision, string $reason, ?string $expectedHead = null): TaskContract
-    {
+    public function reject(
+        string $taskId,
+        string $by,
+        int $expectedRevision,
+        string $reason,
+        ?string $expectedHead = null,
+        string $kind = TaskContract::REJECTION,
+    ): TaskContract {
+        if (!in_array($kind, TaskContract::REJECTION_KINDS, true)) {
+            throw new RuntimeException('Unsupported Contract rejection kind: ' . $kind . '.');
+        }
         $by = trim($by);
         $reason = trim($reason);
         if ($by === '' || str_starts_with($by, 'standing:') || $reason === '' || strlen($reason) > 4000) {
             throw new RuntimeException('Contract rejection requires a named human actor and a reason of at most 4000 bytes.');
         }
 
-        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $reason, $expectedHead): TaskContract {
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $reason, $expectedHead, $kind): TaskContract {
             $this->assertExpectedHead($expectedHead);
             $contract = $this->load($taskId);
             if ($contract->revision !== $expectedRevision || $contract->status !== TaskContract::CANDIDATE) {
@@ -283,6 +292,7 @@ final class TaskContractStore
                 $by,
                 $now,
                 $reason,
+                $kind,
             );
             $this->write($rejected);
 
@@ -423,6 +433,7 @@ final class TaskContractStore
             $contract->rejectedBy,
             $contract->rejectedAt,
             $contract->rejectionReason,
+            $contract->rejectionKind,
         );
         $this->atomicWrite($superseded->path, CanonicalJson::pretty($superseded->toArray()));
     }
@@ -605,6 +616,14 @@ final class TaskContractStore
         $rejectedBy = $this->optionalStringField($data, 'rejected_by', $path);
         $rejectedAt = $this->optionalStringField($data, 'rejected_at', $path);
         $rejectionReason = $this->optionalStringField($data, 'rejection_reason', $path);
+        $rawRejectionKind = array_key_exists('rejection_kind', $data) ? $data['rejection_kind'] : null;
+        $rejectionKind = match (true) {
+            // Contracts written before rejection_kind existed recorded only rejections.
+            $rawRejectionKind === null => $rejectedBy === null ? null : TaskContract::REJECTION,
+            $rejectedBy !== null && $rawRejectionKind === TaskContract::REJECTION => TaskContract::REJECTION,
+            $rejectedBy !== null && $rawRejectionKind === TaskContract::CHANGE_REQUEST => TaskContract::CHANGE_REQUEST,
+            default => throw new RuntimeException('Contract has an unknown or orphaned rejection_kind in ' . $path . '.'),
+        };
         if ($status === TaskContract::REJECTED && ($rejectedBy === null || $rejectedAt === null || $rejectionReason === null || $approvedBy !== null || $approvedAt !== null || str_starts_with($rejectedBy, 'standing:'))) {
             throw new RuntimeException('Rejected Contract has invalid rejection or approval metadata in ' . $path . '.');
         }
@@ -653,6 +672,7 @@ final class TaskContractStore
             $rejectedBy,
             $rejectedAt,
             $rejectionReason,
+            $rejectionKind,
         );
     }
 

@@ -111,9 +111,13 @@ For Contract approval, `agent-loop enter` renders the exact candidate, the
 scope of approval, and what the available responses do. It offers three
 distinct responses:
 approve the exact revision, request changes and keep it unapproved, or decline
-and leave the task blocked. The CLI does not invent a persistent rejection
-action when the lifecycle has none. A recommendation is not approval and must
-never be recorded as the human's choice.
+and leave the task blocked. Each response has its own command on the card:
+`workflow approve`, `workflow request-changes` and `workflow reject`, all bound
+to the exact revision and taking the named human as `--by`. A change request and
+a rejection both end that revision without approval; the Contract records which
+one it was (`rejection_kind`), and the next revision's card names the kind, the
+actor and the reason. Record a response only when that human gave it. A
+recommendation is not approval and must never be recorded as the human's choice.
 
 Projects may set `interaction.decision_presentation` to `cli` (the default) or
 `html` in `.agent-loop/init.json`. It prefers the existing agent-ui view for

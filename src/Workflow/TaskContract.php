@@ -10,6 +10,11 @@ final readonly class TaskContract
     public const string APPROVED = 'approved';
     public const string REJECTED = 'rejected';
     public const string SUPERSEDED = 'superseded';
+    /** A human refused this revision. */
+    public const string REJECTION = 'rejection';
+    /** A human asked for a revised version of this revision; like a rejection it is never approved. */
+    public const string CHANGE_REQUEST = 'change_request';
+    public const array REJECTION_KINDS = [self::REJECTION, self::CHANGE_REQUEST];
 
     /**
      * @param list<string> $scope
@@ -22,6 +27,7 @@ final readonly class TaskContract
      *        Their presence is not evidence that they are satisfied.
      * @param list<array{acceptance: string, validations: list<string>}> $acceptanceObservations
      *        Declared observation coverage for acceptance criteria. This is Contract intent, not proof.
+     * @param 'rejection'|'change_request'|null $rejectionKind Which human decision ended this revision; null while none did.
      */
     public function __construct(
         public string $taskId,
@@ -47,6 +53,7 @@ final readonly class TaskContract
         public ?string $rejectedBy = null,
         public ?string $rejectedAt = null,
         public ?string $rejectionReason = null,
+        public ?string $rejectionKind = null,
     ) {
     }
 
@@ -121,6 +128,6 @@ final readonly class TaskContract
             'rejection_reason' => $this->rejectionReason,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
-        ];
+        ] + ($this->rejectionKind === null ? [] : ['rejection_kind' => $this->rejectionKind]);
     }
 }

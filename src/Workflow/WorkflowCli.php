@@ -25,6 +25,7 @@ final readonly class WorkflowCli
             'approve' => (new WorkflowApproveCommand($this->rootPath))->run($rest),
             'interaction' => (new WorkflowInteractionCommand())->run($rest),
             'reject' => (new WorkflowRejectCommand($this->rootPath))->run($rest),
+            'request-changes' => (new WorkflowRejectCommand($this->rootPath, TaskContract::CHANGE_REQUEST))->run($rest),
             'execution-profile' => (new WorkflowExecutionProfileCommand($this->rootPath))->run($rest),
             'attention' => (new WorkflowAttentionCommand($this->rootPath))->run($rest),
             'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
@@ -54,6 +55,7 @@ Usage:
   agent-loop workflow approve <task-id> --revision <current-revision> --by <actor> [--head <reviewed-commit>]
   agent-loop workflow interaction <host-session-id> [<collaborative|autonomous> [task-id]] [--language=<BCP47>|--language=inherit]
   agent-loop workflow reject <task-id> --revision <current-revision> --by <actor> --reason <text> [--head <reviewed-commit>]
+  agent-loop workflow request-changes <task-id> --revision <current-revision> --by <actor> --reason <text> [--head <reviewed-commit>]
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]
   agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor> [--response <text>] [--format text|json]
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
