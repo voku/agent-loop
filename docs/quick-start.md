@@ -9,6 +9,8 @@ choreography.
 ## Existing Composer project: first Contract
 
 Start in your own Git repository with an initial commit, PHP 8.3+ and Composer.
+Configure a non-empty Git user name (`git config user.name`) before using the
+examples, or replace `$(git config user.name)` with your actual actor name.
 Choose the host you actually use (Codex is the example here):
 
 ```bash
@@ -38,7 +40,8 @@ vendor/bin/agent-loop workflow plan DEMO-1 \
   --validation "composer test"
 ```
 
-Replace the sample source path, goal and validation with real project evidence.
+Replace the sample source path, goal, behavior anchor and validation with real
+project evidence.
 Planning does not authorize edits. Continue with the lifecycle described below,
 using `vendor/bin/agent-loop` in your own project, not `./docker/agent-loop`.
 The examples below use the development checkout's Docker wrapper.
