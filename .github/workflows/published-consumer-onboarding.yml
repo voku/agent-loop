@@ -1,0 +1,77 @@
+name: Published consumer onboarding
+
+on:
+  pull_request:
+    paths:
+      - 'docs/quick-start.md'
+      - '.github/workflows/published-consumer-onboarding.yml'
+  workflow_dispatch:
+
+jobs:
+  published-consumer-first-plan:
+    name: Published Composer consumer first Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      LOOP_RELEASE: '0.20.106'
+    steps:
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install published package and exercise first Contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="$(mktemp -d)"
+          evidence="$RUNNER_TEMP/published-consumer-evidence"
+          mkdir -p "$consumer/src" "$evidence"
+          cd "$consumer"
+          printf '%s\n' '{"name":"example/retry-consumer","require":{"php":"^8.3"},"scripts":{"test":"php -l src/RetryPolicy.php"},"config":{"allow-plugins":false}}' > composer.json
+          printf '%s\n' '<?php' 'declare(strict_types=1);' 'function retryDelay(): int { return 100; }' > src/RetryPolicy.php
+          printf '%s\n' '/vendor/' > .gitignore
+          git init --initial-branch=main
+          git config user.name 'Published Consumer Fixture'
+          git config user.email 'fixture@example.invalid'
+          git add composer.json .gitignore src
+          git commit -m 'Initial consumer'
+          composer require --dev "voku/agent-loop:$LOOP_RELEASE" --no-interaction --prefer-dist --no-progress
+          composer show voku/agent-loop --format=json > "$evidence/installed-package.json"
+          jq -e --arg version "$LOOP_RELEASE" '.versions | any(. == $version or . == ("v" + $version))' "$evidence/installed-package.json"
+          jq -e --arg version "$LOOP_RELEASE" '[."packages-dev"[] | select(.name == "voku/agent-loop" and (.version == $version or .version == ("v" + $version)) and .dist.type != "path")] | length == 1' composer.lock
+          cp composer.lock "$evidence/composer.lock"
+          git add composer.json composer.lock
+          git commit -m 'Install published Agent Loop'
+          composer test
+          vendor/bin/agent-loop init scaffold --demo --agent=codex | tee "$evidence/scaffold.txt"
+          test -f .agent-loop/tasks/DEMO-1.md
+          test -f .agent-loop/todo/cards/DEMO-1.md
+          set +e
+          vendor/bin/agent-loop init host-status --agent=codex --format=json > "$evidence/host-status.json"
+          host_status=$?
+          vendor/bin/agent-loop enter DEMO-1 --format=json > "$evidence/enter.json"
+          enter_status=$?
+          set -e
+          printf 'host_status=%s\nenter_status=%s\n' "$host_status" "$enter_status" > "$evidence/exit-codes.txt"
+          test "$enter_status" = 1
+          jq -e '.mutation_ready == false and .next_action_kind == "command_template" and (.next_action | contains("workflow plan DEMO-1"))' "$evidence/enter.json"
+          vendor/bin/agent-loop workflow plan DEMO-1 \
+            --by "$(git config user.name)" \
+            --file src/RetryPolicy.php \
+            --goal "Double the deterministic retry delay." \
+            --behavior-anchor "request timeout -> RetryPolicy delay -> caller-observed wait" \
+            --validation "composer test" | tee "$evidence/plan.txt"
+          cp .agent-loop/contracts/DEMO-1/contract.json "$evidence/contract.json"
+          jq -e '.status == "candidate" and .revision == 1 and .scope == ["src/RetryPolicy.php"]' "$evidence/contract.json"
+          test ! -f .agent-loop/runs/DEMO-1/run.json
+          git diff --exit-code -- src/RetryPolicy.php
+      - name: Upload published-consumer evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: published-consumer-first-plan
+          path: ${{ runner.temp }}/published-consumer-evidence/
+          if-no-files-found: error
