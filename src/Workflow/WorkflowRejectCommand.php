@@ -5,11 +5,17 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
+/**
+ * `workflow reject` and `workflow request-changes`: both end the current
+ * candidate revision without approval and require a new revision; the recorded
+ * rejection_kind keeps a change request distinct from a refusal.
+ */
 final readonly class WorkflowRejectCommand
 {
-    public function __construct(private string $rootPath)
+    public function __construct(private string $rootPath, private string $kind = TaskContract::REJECTION)
     {
     }
 
@@ -32,16 +38,32 @@ final readonly class WorkflowRejectCommand
             }
             $revision = filter_var($options['--revision'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
             if (!is_int($revision) || !isset($options['--by'], $options['--reason'])) {
-                throw new InvalidArgumentException('Usage: workflow reject <task-id> --revision <revision> --by <actor> --reason <reason>.');
+                throw new InvalidArgumentException('Usage: workflow ' . $this->command() . ' <task-id> --revision <revision> --by <actor> --reason <reason> [--head <commit>].');
             }
-            (new WorkflowHumanDecisionService($this->rootPath))->rejectContract($taskId, $options['--by'], $revision, $options['--reason'], $options['--head'] ?? null);
-            echo sprintf("[OK] workflow reject: Contract revision %d rejected for %s; revise the Contract before continuing.\n", $revision, $taskId);
+            $decisions = new WorkflowHumanDecisionService($this->rootPath);
+            if ($this->kind === TaskContract::REJECTION) {
+                $decisions->rejectContract($taskId, $options['--by'], $revision, $options['--reason'], $options['--head'] ?? null);
+                echo sprintf("[OK] workflow reject: Contract revision %d rejected for %s; revise the Contract before continuing.\n", $revision, $taskId);
+
+                return 0;
+            }
+            // A change request is offered exactly where a rejection is.
+            if (!$decisions->availableActions($taskId)->allows(WorkflowHumanDecisionProjection::REJECT_CONTRACT)) {
+                throw new RuntimeException('A change request is not a currently available human action.');
+            }
+            (new TaskContractStore($this->rootPath))->reject($taskId, $options['--by'], $revision, $options['--reason'], $options['--head'] ?? null, $this->kind);
+            echo sprintf("[OK] workflow request-changes: changes requested for %s Contract revision %d; it stays unapproved until a revised revision is approved.\n", $taskId, $revision);
 
             return 0;
         } catch (Throwable $exception) {
-            fwrite(STDERR, '[FAIL] workflow reject: ' . $exception->getMessage() . "\n");
+            fwrite(STDERR, '[FAIL] workflow ' . $this->command() . ': ' . $exception->getMessage() . "\n");
 
             return 1;
         }
+    }
+
+    private function command(): string
+    {
+        return $this->kind === TaskContract::CHANGE_REQUEST ? 'request-changes' : 'reject';
     }
 }
