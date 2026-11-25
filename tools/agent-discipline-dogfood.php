@@ -216,6 +216,9 @@ if (!is_string($repositoryRoot)) {
 }
 
 $workspace = sys_get_temp_dir() . '/agent-loop-discipline-dogfood-' . bin2hex(random_bytes(6));
+// The hooks inherit this environment; without it SessionStart would bind the
+// dogfood session in the developer's own preference directory.
+putenv('AGENT_LOOP_INTERACTION_DIR=' . $workspace . '/host-preferences');
 $checks = [];
 
 try {
