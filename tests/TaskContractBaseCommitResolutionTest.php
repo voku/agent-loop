@@ -75,7 +75,7 @@ final class TaskContractBaseCommitResolutionTest extends TestCase
             'full' => $head,
             default => $kind,
         };
-        $expected = $kind === 'relative commit'
+        $expected = $kind === 'HEAD~1'
             ? self::git('-C', $this->root, 'rev-parse', 'HEAD~1')
             : $head;
 
@@ -85,6 +85,41 @@ final class TaskContractBaseCommitResolutionTest extends TestCase
         self::assertSame($expected, $store->load('BASE-1')->baseCommit);
         self::assertSame(TaskContract::APPROVED, $store->approve('BASE-1', 'fixture', 1)->status);
         self::assertMatchesRegularExpression('/^[a-f0-9]{40,64}$/D', (string) $contract->baseCommit);
+    }
+
+    /**
+     * Reproduces the observed history: a Contract planned with an abbreviated
+     * base was approved, then refused at enter ("requires an exact Git base
+     * commit"), forcing another revision and approval.
+     */
+    public function testShortBasePlannedAndApprovedEntersAStandardProfileRun(): void
+    {
+        mkdir($this->root . '/.agent-loop/learning', 0o775, true);
+        file_put_contents($this->root . '/.gitignore', "/.agent-loop/\n");
+        self::assertNotNull(self::git('-C', $this->root, 'add', '.gitignore'));
+        self::assertNotNull(self::git('-C', $this->root, 'commit', '--quiet', '--no-gpg-sign', '-m', 'ignore state'));
+        $head = GitWorkTree::headCommit($this->root);
+        self::assertNotNull($head);
+
+        ob_start();
+        try {
+            $exits = [
+                (new \voku\AgentLoop\Workflow\WorkflowPlanCommand($this->root))->run([
+                    'BASE-ENTER', '--by', 'planner', '--file', 'README.md', '--goal', 'Enter with a short base.',
+                    '--validation', 'true', '--base-commit', substr($head, 0, 7),
+                ]),
+                (new \voku\AgentLoop\Workflow\WorkflowApproveCommand($this->root))->run(['BASE-ENTER', '--revision', '1', '--by', 'approver']),
+                (new \voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand($this->root))->run(['BASE-ENTER', '--profile', 'standard', '--by', 'approver']),
+                (new \voku\AgentLoop\Workflow\HostFrontDoorCommand($this->root))->run('enter', ['BASE-ENTER', '--format=json']),
+            ];
+        } finally {
+            $output = (string) ob_get_clean();
+        }
+
+        self::assertSame([0, 0, 0, 0], $exits, $output);
+        self::assertStringNotContainsString('requires an exact Git base commit', $output);
+        self::assertSame($head, (new TaskContractStore($this->root))->load('BASE-ENTER')->baseCommit);
+        self::assertStringContainsString('"mutation_ready": true', $output);
     }
 
     public function testWorkflowPlanCliNormalizesShortBaseBeforeApproval(): void
@@ -188,7 +223,7 @@ final class TaskContractBaseCommitResolutionTest extends TestCase
 
     private static function git(string ...$arguments): ?string
     {
-        $process = proc_open(['git', ...$arguments], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $process = proc_open(['git', ...array_values($arguments)], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         if (!is_resource($process)) {
             return null;
         }
