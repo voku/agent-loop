@@ -105,6 +105,27 @@ final readonly class WorkflowHumanDecisionTextRenderer
         }
         $review = $card->proof['review'];
         $lines[] = '  Review: ' . $review['state'] . ($review['detail'] === null ? '' : ' (' . $review['detail'] . ')');
+        $preflight = $card->proof['preflight'] ?? null;
+        if (is_array($preflight) && is_string($preflight['state'] ?? null)) {
+            $lines[] = '  Scope preflight: ' . $preflight['state']
+                . (is_string($preflight['reason'] ?? null) ? ' (' . $preflight['reason'] . ')' : '')
+                . (is_string($preflight['provenance'] ?? null) ? ', ' . $preflight['provenance'] . ', advisory only' : '');
+            $identity = $preflight['identity'] ?? null;
+            if (is_array($identity) && is_string($identity['draft'] ?? null)) {
+                $lines[] = '    draft: ' . $identity['draft'];
+            }
+            if (is_array($preflight['stale_identities'] ?? null) && $preflight['stale_identities'] !== []) {
+                $lines[] = '    stale: ' . implode(', ', array_filter($preflight['stale_identities'], 'is_string'));
+            }
+            foreach (is_array($preflight['observed_out_of_scope_change'] ?? null) ? $preflight['observed_out_of_scope_change'] : [] as $change) {
+                if (is_array($change) && is_string($change['path'] ?? null) && is_string($change['status'] ?? null)) {
+                    $lines[] = '    observed out-of-scope change: ' . $change['status'] . ' ' . $change['path'];
+                }
+            }
+            if (is_string($preflight['proposal'] ?? null)) {
+                $lines[] = '    proposal (not applied): ' . $preflight['proposal'];
+            }
+        }
         if ($card->unknown !== []) {
             $lines[] = $german ? 'Unbekannt:' : 'Unknown:';
             foreach ($card->unknown as $item) {

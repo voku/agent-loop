@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- `workflow preflight <task> start|record --workspace <draft>` observes a host-validated draft before Contract approval. Loop executes no validation itself. The result is bound to the Contract revision and intent, the full base commit, the draft content (uncommitted and untracked files included) and the declared validation. It reports changed paths outside the scope as `observed_out_of_scope_change`, with an `--add-scope` proposal that is never applied. The Contract approval card shows it as `proof.preflight` (`not_run`, `unknown`, `stale`, `validation_failed` or `validation_passed`; `host_reported`, `advisory_only`). On the #1178 history it reports exactly the missed `tests/WorkflowPlanCommandTest.php`, where the earlier static design found 83 candidates for one real dependency.
+
 ### Fixed
 
 - `workflow plan --base-commit` now resolves the value with `git rev-parse --verify <rev>^{commit}` and stores the exact commit id before the Contract is written; a value that is not a commit is refused at plan time. Before, an abbreviated base such as `7e7da68` was stored as given, approved, and only refused later by `enter` ("requires an exact Git base commit"), which forced another revision and approval. Outside a Git repository the value is kept as before (#1178).

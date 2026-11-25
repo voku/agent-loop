@@ -119,6 +119,19 @@ one it was (`rejection_kind`), and the next revision's card names the kind, the
 actor and the reason. Record a response only when that human gave it. A
 recommendation is not approval and must never be recorded as the human's choice.
 
+Before asking for approval, the host may run a scope preflight on a throwaway
+draft worktree at the Contract base: `agent-loop workflow preflight <task> start
+--workspace <draft>`, then run the Contract's declared validation there under the
+host's own permissions, then `agent-loop workflow preflight <task> record
+--workspace <draft> --validation passed|failed --by <actor>`. Loop never runs the
+commands itself, because before approval it holds no authority to execute them.
+The card shows the result under `proof.preflight` as `host_reported` and
+`advisory_only`: `not_run`, `unknown`, `stale` (Contract, base, draft or
+validation changed since the record), `validation_failed` or `validation_passed`,
+plus any `observed_out_of_scope_change` with a scope-amendment proposal that is
+never applied. A changed file outside the scope is observed drift, not proof that
+the change was necessary, and no preflight state blocks the decision.
+
 Projects may set `interaction.decision_presentation` to `cli` (the default) or
 `html` in `.agent-loop/init.json`. It prefers the existing agent-ui view for
 Contract approval when the control plane is enabled and reports ready. The

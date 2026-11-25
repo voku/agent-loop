@@ -117,6 +117,8 @@ final readonly class WorkflowDecisionCardFactory
             [
                 'validation' => $validation,
                 'review' => $review,
+                // Pre-approval scope observation of a host-validated draft; advisory and never a gate.
+                'preflight' => WorkflowScopePreflightCommand::projection($this->rootPath, $contract),
             ],
             [
                 $this->choice('approve', $this->t('Approve', 'Freigeben'), $this->t(
