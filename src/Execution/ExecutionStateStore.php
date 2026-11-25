@@ -474,13 +474,16 @@ final readonly class ExecutionStateStore
         StageOutcome $outcome,
         ?string $nextStageId,
     ): array {
-        if ($state->routedValidationAttentionIds === [] || $nextStageId === null) {
+        $pendingAttentionIds = $nextStageId === null
+            ? []
+            : $this->restoreLegacyRoutedValidationAttentionIds($plan, $state);
+        if ($pendingAttentionIds === []) {
             return [];
         }
 
         $pending = [];
         $store = new AttentionResolutionStore($this->rootPath);
-        foreach ($state->routedValidationAttentionIds as $attentionId) {
+        foreach ($pendingAttentionIds as $attentionId) {
             $resolution = $store->load($plan->taskId, $attentionId);
             if ($resolution->taskId !== $plan->taskId
                 || $resolution->runId !== $plan->runId
