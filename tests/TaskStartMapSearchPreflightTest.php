@@ -31,4 +31,22 @@ final class TaskStartMapSearchPreflightTest extends TestCase
             );
         }
     }
+
+    public function testTaskStartInspectsActualRuntimeAndTestDependenciesBeforeFirstPlan(): void
+    {
+        $skill = (string) file_get_contents(
+            dirname(__DIR__) . '/resources/skills/agent-loop-task-start/SKILL.md',
+        );
+
+        // Amy's Echo NG-54 needed two approved scope revisions solely to add the
+        // service-worker precache and an existing browser test. The host should
+        // inspect those integration paths before sealing its first Contract.
+        self::assertStringContainsString('Before the first non-trivial PLAN, do one bounded read-only scope pass.', $skill);
+        self::assertStringContainsString('regression or browser', $skill);
+        self::assertStringContainsString('service-worker precache entry', $skill);
+        self::assertStringContainsString('Derive these paths from repository evidence', $skill);
+        self::assertStringContainsString('rather than serially', $skill);
+        self::assertStringContainsString('named human approval', $skill);
+    }
+
 }
