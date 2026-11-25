@@ -524,7 +524,7 @@ final readonly class ExecutionStateStore
 
         $validationStage = $plan->stage($resolution->stageId);
         if ($validationStage->kind !== ExecutionStageKind::DETERMINISTIC
-            || $validationStage->next(StageOutcome::FAILED) !== $state->currentStageId) {
+            || ($validationStage->transitions[StageOutcome::FAILED->value] ?? null) !== $state->currentStageId) {
             return $state->routedValidationAttentionIds;
         }
         foreach (array_reverse($state->history) as $accepted) {
