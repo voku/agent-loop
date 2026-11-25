@@ -188,8 +188,12 @@ final readonly class WorkflowScopePreflightCommand
         if ($real === false || !is_dir($real)) {
             throw new RuntimeException('Draft workspace does not exist: ' . $workspace);
         }
-        if (self::git($real, ['rev-parse', '--show-toplevel']) !== $real) {
-            throw new RuntimeException('Draft workspace must be the root of a linked worktree: ' . $workspace);
+        $commonDir = static fn (string $directory): string|false => realpath(self::git($directory, ['rev-parse', '--path-format=absolute', '--git-common-dir']));
+        $owner = dirname($contract->path);
+        if (self::git($real, ['rev-parse', '--show-toplevel']) !== $real
+            || $commonDir($real) !== $commonDir($owner)
+            || self::git($real, ['rev-parse', '--path-format=absolute', '--git-dir']) === $commonDir($real)) {
+            throw new RuntimeException('Draft workspace must be the root of a linked worktree of this repository: ' . $workspace);
         }
         $head = self::git($real, ['rev-parse', '--verify', 'HEAD']);
         if ($head !== $base) {
@@ -207,13 +211,17 @@ final readonly class WorkflowScopePreflightCommand
     {
         $tree = substr($draft, strrpos($draft, ':') + 1);
         $fields = explode("\0", self::git(dirname(self::path($contract)), ['diff', '--no-ext-diff', '--no-renames', '--name-status', '-z', (string) $contract->baseCommit, $tree], false));
+        // normalizeScope() returns [] for a whole-repository ('.') scope: nothing can then be outside it.
         $scope = CandidateWorkspaceIdentity::normalizeScope($contract->scope);
+        if ($scope === [] && $contract->scope !== []) {
+            return [];
+        }
         $changes = [];
         for ($i = 0; $i + 1 < count($fields); $i += 2) {
             [$status, $path] = [$fields[$i], $fields[$i + 1]];
             $inScope = false;
             foreach ($scope as $entry) {
-                if ($entry === '.' || $path === $entry || str_starts_with($path, rtrim($entry, '/') . '/')) {
+                if ($path === $entry || str_starts_with($path, rtrim($entry, '/') . '/')) {
                     $inScope = true;
                     break;
                 }

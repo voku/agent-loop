@@ -43,7 +43,7 @@ final class WorkflowScopePreflightTest extends TestCase
 
     protected function tearDown(): void
     {
-        exec('env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git -C ' . escapeshellarg($this->root) . ' worktree remove --force ' . escapeshellarg($this->draft) . ' 2>/dev/null');
+        exec('env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES git -C ' . escapeshellarg($this->root) . ' worktree remove --force ' . escapeshellarg($this->draft) . ' 2>/dev/null');
         exec('rm -rf ' . escapeshellarg($this->root) . ' ' . escapeshellarg($this->draft));
     }
 
@@ -181,12 +181,33 @@ final class WorkflowScopePreflightTest extends TestCase
         self::assertStringContainsString("--add-scope 'x;id/a.php'", (string) $result['proposal']);
     }
 
+    public function testAWholeRepositoryScopeReportsNoDrift(): void
+    {
+        $this->plan('true');
+        $path = (new TaskContractStore($this->root))->load('T-1')->path;
+        $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        $data['scope'] = ['.'];
+        file_put_contents($path, json_encode($data));
+        file_put_contents($this->draft . '/tests/UnrelatedTest.php', "<?php\n// changed\n");
+        $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft]);
+        $this->cli(['preflight', 'T-1', 'record', '--workspace', $this->draft, '--validation', 'passed', '--by', 'host']);
+        self::assertSame([], $this->projection()['observed_out_of_scope_change']);
+    }
+
+    public function testTheMainCheckoutIsNotAcceptedAsDraft(): void
+    {
+        $this->plan('true');
+        [$exit, $output] = $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->root]);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('linked worktree of this repository', $output);
+    }
+
     public function testASubdirectoryOfTheDraftIsRefused(): void
     {
         $this->plan('true');
         [$exit, $output] = $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft . '/src']);
         self::assertSame(1, $exit);
-        self::assertStringContainsString('root of a linked worktree', $output);
+        self::assertStringContainsString('linked worktree of this repository', $output);
     }
 
     public function testUnreadableRecordIsUnknownNeverClean(): void
@@ -266,7 +287,7 @@ final class WorkflowScopePreflightTest extends TestCase
 
     private function git(string $directory, string ...$arguments): string
     {
-        exec('env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git -C ' . escapeshellarg($directory) . ' ' . implode(' ', array_map('escapeshellarg', array_values($arguments))) . ' 2>&1', $output, $exit);
+        exec('env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES git -C ' . escapeshellarg($directory) . ' ' . implode(' ', array_map('escapeshellarg', array_values($arguments))) . ' 2>&1', $output, $exit);
         self::assertSame(0, $exit, implode("\n", $output));
 
         return trim(implode("\n", $output));
