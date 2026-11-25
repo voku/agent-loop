@@ -8,6 +8,10 @@
 
 - The host session is bound from `AGENT_LOOP_HOST_SESSION_ID` or, without it, `CLAUDE_CODE_SESSION_ID`, so Claude Code sessions need no setup. Preferences live in `AGENT_LOOP_INTERACTION_DIR` or, without it, below `$XDG_STATE_HOME` or `~/.local/state`. An invalid explicit identity is reported and never replaced by another source. `workflow interaction` no longer requires `AGENT_LOOP_INTERACTION_DIR`, and a task override or language on a session that only inherits the shared default binds it first (#1126).
 
+### Fixed
+
+- A candidate validation that keeps failing no longer loops between the mutation stage and validation without limit. Every third consecutive failure of `pre-review-validation` (or `pre-independent-validation`) opens a human-owned `validation_conflict` Attention with the failing command and output; a pass ends the count. Resolving it resumes the mutation stage with that feedback and the human response. 0.20.107 removed the Attention that used to end such a Run, so an unattended runner stopped only at its own iteration limit. Earlier failures, review rounds, plans and persisted state are unchanged (voku/agent-loop-runner#113).
+
 ## [0.20.107] - 2026-11-23
 
 ### Added

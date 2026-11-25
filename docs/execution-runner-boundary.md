@@ -249,7 +249,12 @@ This is distinct from `workflow handoff`:
 `BLOCKED` and `NEEDS_CLARIFICATION` results, and `FAILED` results without an
 ordinary mutating recovery route, create typed pending Attention and leave the
 current stage bound to its current candidate. A failed pre-review validation is
-an ordinary transition back to its mutation stage and does not create Attention.
+an ordinary transition back to its mutation stage and does not create Attention,
+except that every `MAX_VALIDATION_FAILURES`-th (3rd) consecutive failure of the
+same validation stage creates `validation_conflict` Attention, so a repair that
+does not converge stops for a human instead of looping. A pass ends the count.
+Resolving it resumes the mutation stage with the validation feedback and the
+human response.
 Resolving pending Attention starts a new attempt of its routed stage.
 
 A review that requests changes once too often (every `MAX_REVIEW_ROUNDS`-th

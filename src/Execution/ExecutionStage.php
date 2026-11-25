@@ -45,6 +45,13 @@ final readonly class ExecutionStage
         }
     }
 
+    /** The mutation route a human-resolved review or validation cap resumes; null when this stage has none. */
+    public function repairRoute(): ?string
+    {
+        return $this->transitions[StageOutcome::CHANGES_REQUIRED->value]
+            ?? ($this->kind === ExecutionStageKind::DETERMINISTIC ? ($this->transitions[StageOutcome::FAILED->value] ?? null) : null);
+    }
+
     /**
      * @return array{
      *     id: string,
