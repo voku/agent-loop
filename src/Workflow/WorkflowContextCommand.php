@@ -157,101 +157,6 @@ final readonly class WorkflowContextCommand
     }
 
     /**
-     * The host session's interaction state, projected so a host can tell a
-     * missing binding from a bound session whose preference is unknown. Only
-     * the latter carries the one question; its choices are the existing
-     * `workflow interaction` commands. Every value is behavioral guidance and
-     * grants no authority. Reading never writes or binds a preference.
-     *
-     * @return array{
-     *     host_session: array{state: 'unbound'|'invalid'|'bound', id: string|null, prerequisite: string|null},
-     *     preference: array{state: 'unknown'|'unavailable'|'known', mode: string|null, source: 'session_default'|'task_override'|null},
-     *     question: array{id: string, authority: string, prompt: string, choices: list<array{id: string, label: string, command: string}>}|null
-     * }
-     */
-    private static function sessionInteraction(string $taskId): array
-    {
-        $directory = getenv('AGENT_LOOP_INTERACTION_DIR');
-        $session = getenv('AGENT_LOOP_HOST_SESSION_ID');
-        $unknown = ['state' => 'unknown', 'mode' => null, 'source' => null];
-        if (!is_string($directory) || $directory === '' || !is_string($session) || $session === '') {
-            return [
-                'host_session' => [
-                    'state' => 'unbound',
-                    'id' => null,
-                    'prerequisite' => 'Set AGENT_LOOP_HOST_SESSION_ID and AGENT_LOOP_INTERACTION_DIR from the host session before a preference can be recorded or read.',
-                ],
-                'preference' => $unknown,
-                'question' => null,
-            ];
-        }
-        // Same safe-identifier rule as `workflow interaction` and the SessionStart hook.
-        if (strlen($session) > 128 || preg_match('/\\A[A-Za-z0-9._-]+\\z/', $session) !== 1) {
-            return [
-                'host_session' => [
-                    'state' => 'invalid',
-                    'id' => null,
-                    'prerequisite' => 'AGENT_LOOP_HOST_SESSION_ID must be 1-128 characters of A-Z, a-z, 0-9, dot, underscore or hyphen.',
-                ],
-                'preference' => $unknown,
-                'question' => null,
-            ];
-        }
-        $bound = ['state' => 'bound', 'id' => $session, 'prerequisite' => null];
-        $unavailable = ['host_session' => $bound, 'preference' => ['state' => 'unavailable', 'mode' => null, 'source' => null], 'question' => null];
-        // The store reads a path it cannot list as "no preference"; an existing
-        // directory that cannot be used must not invite answers that cannot be saved.
-        // A directory that does not exist yet is fine: the first answer creates it.
-        if (file_exists($directory) && (!is_dir($directory) || !is_readable($directory) || !is_executable($directory))) {
-            return $unavailable;
-        }
-
-        try {
-            $store = new InteractionPreferenceStore($directory);
-            $preference = $store->find($session);
-            $sharedDefault = $preference === null ? $store->find("\0host-default") : null;
-        } catch (Throwable) {
-            // Fail closed: an unreadable session or shared-default record offers no question.
-            return $unavailable;
-        }
-        if ($preference !== null) {
-            return [
-                'host_session' => $bound,
-                'preference' => [
-                    'state' => 'known',
-                    'mode' => $preference->modeFor($taskId),
-                    'source' => isset($preference->taskOverrides[$taskId]) ? 'task_override' : 'session_default',
-                ],
-                'question' => null,
-            ];
-        }
-
-        $command = 'agent-loop workflow interaction ' . $session . ' ';
-        $choices = [
-            ['id' => 'collaborative', 'label' => 'Collaborative: discuss meaningful engineering and product choices', 'command' => $command . 'collaborative'],
-            ['id' => 'autonomous', 'label' => 'Autonomous: continue authorized work and escalate genuine blockers', 'command' => $command . 'autonomous'],
-        ];
-        if ($sharedDefault !== null) {
-            $choices[] = [
-                'id' => 'reuse',
-                'label' => 'Reuse the previous default (' . $sharedDefault->defaultMode . ')',
-                'command' => $command . $sharedDefault->defaultMode,
-            ];
-        }
-
-        return [
-            'host_session' => $bound,
-            'preference' => $unknown,
-            'question' => [
-                'id' => 'interaction_mode',
-                'authority' => 'behavioral_preference_only',
-                'prompt' => 'How should this session operate? The answer changes only how often the agent asks; approval, review, Attention, merge and release gates are unchanged.',
-                'choices' => $choices,
-            ],
-        ];
-    }
-
-    /**
      * @return array{
      *     schema_version: string,
      *     task_id: string,
@@ -260,10 +165,7 @@ final readonly class WorkflowContextCommand
      *         human_explanations: 'ask'|'always'|'never',
      *         interactive_behavior: 'ask'|'generate'|'skip',
      *         unattended_behavior: 'generate'|'skip',
-     *         authority_bearing_decisions: 'human_required',
-     *         host_session: array{state: 'unbound'|'invalid'|'bound', id: string|null, prerequisite: string|null},
-     *         preference: array{state: 'unknown'|'unavailable'|'known', mode: string|null, source: 'session_default'|'task_override'|null},
-     *         question: array{id: string, authority: string, prompt: string, choices: list<array{id: string, label: string, command: string}>}|null
+     *         authority_bearing_decisions: 'human_required'
      *     },
      *     future_work: array{
      *         mode: 'focus'|'discover'|'invest',
@@ -307,17 +209,21 @@ final readonly class WorkflowContextCommand
             . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
         $budget->add('policy', 'Blind-spot presentation: ' . $prompting['blindspots']['tone'] . ' tone. Focus on the task or concern supplied by the user; do not invent personal motives or evidence.');
 
-        $sessionInteraction = self::sessionInteraction($taskId);
-        if ($sessionInteraction['preference']['state'] === 'known') {
-            $mode = $sessionInteraction['preference']['mode'];
-            $guidance = $mode === 'autonomous'
-                ? 'Continue authorized implementation, verification, independent review and in-scope repair without redundant permission requests.'
-                : 'Discuss meaningful implementation choices and invite feedback; handle routine work without ceremonial confirmations.';
-            $budget->add('policy', 'Interaction mode: ' . $mode . '. ' . $guidance . ' Behavioral guidance only; no authorization or gate changes.');
-        } elseif ($sessionInteraction['preference']['state'] === 'unavailable') {
-            $budget->add('policy', 'Interaction preference unavailable or invalid; no authority is inferred.');
-        } elseif ($sessionInteraction['question'] !== null) {
-            $budget->add('policy', 'Interaction preference unknown for this host session; interaction.question holds the one choice to offer. No authority is inferred.');
+        $interactionDirectory = getenv('AGENT_LOOP_INTERACTION_DIR');
+        $hostSession = getenv('AGENT_LOOP_HOST_SESSION_ID');
+        if (is_string($interactionDirectory) && $interactionDirectory !== '' && is_string($hostSession) && $hostSession !== '') {
+            try {
+                $preference = (new InteractionPreferenceStore($interactionDirectory))->find($hostSession);
+                if ($preference !== null) {
+                    $mode = $preference->modeFor($taskId);
+                    $guidance = $mode === 'autonomous'
+                        ? 'Continue authorized implementation, verification, independent review and in-scope repair without redundant permission requests.'
+                        : 'Discuss meaningful implementation choices and invite feedback; handle routine work without ceremonial confirmations.';
+                    $budget->add('policy', 'Interaction mode: ' . $mode . '. ' . $guidance . ' Behavioral guidance only; no authorization or gate changes.');
+                }
+            } catch (Throwable) {
+                $budget->add('policy', 'Interaction preference unavailable or invalid; no authority is inferred.');
+            }
         }
 
         $this->addLifecycleAuthority($budget, $taskId);
@@ -389,7 +295,7 @@ final readonly class WorkflowContextCommand
                 'interactive_behavior' => $policy->interactiveBehavior(),
                 'unattended_behavior' => $policy->unattendedBehavior(),
                 'authority_bearing_decisions' => 'human_required',
-            ] + $sessionInteraction,
+            ],
             'future_work' => [
                 'mode' => $futureWorkMode->value,
                 'max_follow_up_slices' => $maxFollowUpSlices,
