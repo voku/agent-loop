@@ -85,6 +85,31 @@ final class WorkflowContextInteractionStateTest extends TestCase
         $this->assertExistingFieldsUnchanged($interaction);
     }
 
+    public function testAPreferencePathThatIsNotADirectoryIsUnavailableAndAsksNothing(): void
+    {
+        // The store would read this as "no preference"; offering commands that cannot save must not happen.
+        file_put_contents($this->directory, 'not a directory');
+        $this->bind('host-1');
+
+        $interaction = $this->interaction('TASK-1');
+
+        self::assertSame('bound', $interaction['host_session']['state']);
+        self::assertSame('unavailable', $interaction['preference']['state']);
+        self::assertNull($interaction['question']);
+    }
+
+    public function testACorruptSharedDefaultFailsClosedWithoutAQuestion(): void
+    {
+        mkdir($this->directory, 0o700, true);
+        file_put_contents($this->directory . '/' . hash('sha256', "\0host-default") . '.json', '{not json');
+        $this->bind('host-1');
+
+        $interaction = $this->interaction('TASK-1');
+
+        self::assertSame('unavailable', $interaction['preference']['state']);
+        self::assertNull($interaction['question']);
+    }
+
     public function testBoundWithoutPreferenceAsksExactlyOneQuestionWithTheExistingCommands(): void
     {
         $this->bind('host-1');

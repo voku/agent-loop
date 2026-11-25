@@ -198,13 +198,21 @@ final readonly class WorkflowContextCommand
             ];
         }
         $bound = ['state' => 'bound', 'id' => $session, 'prerequisite' => null];
+        $unavailable = ['host_session' => $bound, 'preference' => ['state' => 'unavailable', 'mode' => null, 'source' => null], 'question' => null];
+        // The store reads a path it cannot list as "no preference"; an existing
+        // directory that cannot be used must not invite answers that cannot be saved.
+        // A directory that does not exist yet is fine: the first answer creates it.
+        if (file_exists($directory) && (!is_dir($directory) || !is_readable($directory) || !is_executable($directory))) {
+            return $unavailable;
+        }
 
         try {
             $store = new InteractionPreferenceStore($directory);
             $preference = $store->find($session);
             $sharedDefault = $preference === null ? $store->find("\0host-default") : null;
         } catch (Throwable) {
-            return ['host_session' => $bound, 'preference' => ['state' => 'unavailable', 'mode' => null, 'source' => null], 'question' => null];
+            // Fail closed: an unreadable session or shared-default record offers no question.
+            return $unavailable;
         }
         if ($preference !== null) {
             return [
@@ -252,7 +260,10 @@ final readonly class WorkflowContextCommand
      *         human_explanations: 'ask'|'always'|'never',
      *         interactive_behavior: 'ask'|'generate'|'skip',
      *         unattended_behavior: 'generate'|'skip',
-     *         authority_bearing_decisions: 'human_required'
+     *         authority_bearing_decisions: 'human_required',
+     *         host_session: array{state: 'unbound'|'invalid'|'bound', id: string|null, prerequisite: string|null},
+     *         preference: array{state: 'unknown'|'unavailable'|'known', mode: string|null, source: 'session_default'|'task_override'|null},
+     *         question: array{id: string, authority: string, prompt: string, choices: list<array{id: string, label: string, command: string}>}|null
      *     },
      *     future_work: array{
      *         mode: 'focus'|'discover'|'invest',

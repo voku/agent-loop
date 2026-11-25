@@ -40,7 +40,7 @@ the existing policy fields:
 | --- | --- | --- | --- |
 | `unbound` | `AGENT_LOOP_HOST_SESSION_ID` or `AGENT_LOOP_INTERACTION_DIR` is not set; `prerequisite` says what to set. | `unknown` | `null` |
 | `invalid` | The session id breaks the safe-identifier rule; it is not echoed. | `unknown` | `null` |
-| `bound` | The preference directory is unreadable or invalid. | `unavailable` | `null` |
+| `bound` | The preference directory exists but is not a usable directory, or a session or shared-default record is unreadable or invalid (fail closed). | `unavailable` | `null` |
 | `bound` | No saved preference for this session. | `unknown` | one `interaction_mode` question |
 | `bound` | A session default or a task override applies (`source`). | `known` (`mode`) | `null` |
 
