@@ -152,6 +152,7 @@ final readonly class ExecutionStateStore
                     $state->recoveryHistory,
                     $state->lastAttentionId,
                     $this->routedReviewAttentionIdsAfterAccept($plan, $state, $stage->id, $stage->id),
+                    $this->routedValidationAttentionIdsAfterAccept($plan, $state, $stage->id, $result->outcome, $stage->id),
                 );
                 $this->write($next);
 
@@ -186,6 +187,7 @@ final readonly class ExecutionStateStore
                 $state->recoveryHistory,
                 $this->carriedAttentionId($plan, $state, $nextStageId),
                 $this->routedReviewAttentionIdsAfterAccept($plan, $state, $stage->id, $nextStageId),
+                $this->routedValidationAttentionIdsAfterAccept($plan, $state, $stage->id, $result->outcome, $nextStageId),
             );
             $this->write($next);
 
@@ -356,6 +358,12 @@ final readonly class ExecutionStateStore
                 $state->attention->kind === AttentionKind::REVIEW_CHANGES_REQUIRED
                     ? $this->appendRoutedReviewAttentionId($state->routedReviewAttentionIds, $attentionId)
                     : $this->restoreLegacyRoutedReviewAttentionId($plan, $state),
+                $state->attention->kind === AttentionKind::VALIDATION_CONFLICT
+                    ? $this->appendRoutedValidationAttentionId(
+                        $this->restoreLegacyRoutedValidationAttentionIds($plan, $state),
+                        $attentionId,
+                    )
+                    : $this->restoreLegacyRoutedValidationAttentionIds($plan, $state),
             );
             $this->write($next);
 
@@ -450,6 +458,99 @@ final readonly class ExecutionStateStore
         }
 
         return $accepted + 1;
+    }
+
+    /**
+     * Preserve a resolved validation-cap response across nested clarification
+     * or another validation cap. Consume it only after the failed validation
+     * stage eventually passes, not when an intermediate build asks a question.
+     *
+     * @return list<non-empty-string>
+     */
+    private function routedValidationAttentionIdsAfterAccept(
+        ExecutionPlan $plan,
+        ExecutionState $state,
+        string $acceptedStageId,
+        StageOutcome $outcome,
+        ?string $nextStageId,
+    ): array {
+        if ($state->routedValidationAttentionIds === [] || $nextStageId === null) {
+            return [];
+        }
+
+        $pending = [];
+        $store = new AttentionResolutionStore($this->rootPath);
+        foreach ($state->routedValidationAttentionIds as $attentionId) {
+            $resolution = $store->load($plan->taskId, $attentionId);
+            if ($resolution->taskId !== $plan->taskId
+                || $resolution->runId !== $plan->runId
+                || $resolution->contractRevision !== $plan->contractRevision
+                || !hash_equals($resolution->executionPlanDigest, $plan->digest())
+                || $plan->stage($resolution->stageId)->kind !== ExecutionStageKind::DETERMINISTIC) {
+                throw new RuntimeException('ATTENTION_RESOLUTION_STALE: pending validation response does not match the current execution.');
+            }
+            if ($acceptedStageId === $resolution->stageId && $outcome === StageOutcome::PASS) {
+                continue;
+            }
+            $pending[] = $attentionId;
+        }
+
+        return $pending;
+    }
+
+    /**
+     * Restore a validation-cap response saved by an older release as just
+     * last_attention_id, before the durable pending-validation list existed.
+     *
+     * @return list<non-empty-string>
+     */
+    private function restoreLegacyRoutedValidationAttentionIds(ExecutionPlan $plan, ExecutionState $state): array
+    {
+        $attentionId = $state->lastAttentionId;
+        if ($attentionId === null || $state->currentStageId === null) {
+            return $state->routedValidationAttentionIds;
+        }
+
+        $resolution = (new AttentionResolutionStore($this->rootPath))->load($plan->taskId, $attentionId);
+        if ($resolution->taskId !== $plan->taskId
+            || $resolution->runId !== $plan->runId
+            || $resolution->contractRevision !== $plan->contractRevision
+            || !hash_equals($resolution->executionPlanDigest, $plan->digest())) {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: previous validation response does not match the current execution.');
+        }
+
+        $validationStage = $plan->stage($resolution->stageId);
+        if ($validationStage->kind !== ExecutionStageKind::DETERMINISTIC
+            || $validationStage->next(StageOutcome::FAILED) !== $state->currentStageId) {
+            return $state->routedValidationAttentionIds;
+        }
+        foreach (array_reverse($state->history) as $accepted) {
+            if ($accepted->result->stageId !== $resolution->stageId) {
+                continue;
+            }
+            if ($accepted->result->attempt === $resolution->attempt
+                && $accepted->result->outcome === StageOutcome::FAILED) {
+                return $this->appendRoutedValidationAttentionId($state->routedValidationAttentionIds, $attentionId);
+            }
+
+            break;
+        }
+
+        return $state->routedValidationAttentionIds;
+    }
+
+    /**
+     * @param list<non-empty-string> $ids
+     * @return list<non-empty-string>
+     */
+    private function appendRoutedValidationAttentionId(array $ids, string $attentionId): array
+    {
+        if (trim($attentionId) === '') {
+            throw new RuntimeException('ATTENTION_RESOLUTION_STALE: validation response requires a non-empty Attention id.');
+        }
+        $ids[] = $attentionId;
+
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -721,6 +822,15 @@ final readonly class ExecutionStateStore
                 throw new RuntimeException('Execution state routed_review_attention_ids must contain non-empty strings.');
             }
         }
+        $routedValidationAttentionIds = $data['routed_validation_attention_ids'] ?? [];
+        if (!is_array($routedValidationAttentionIds) || !array_is_list($routedValidationAttentionIds)) {
+            throw new RuntimeException('Execution state routed_validation_attention_ids must be an array.');
+        }
+        foreach ($routedValidationAttentionIds as $attentionId) {
+            if (!is_string($attentionId) || trim($attentionId) === '') {
+                throw new RuntimeException('Execution state routed_validation_attention_ids must contain non-empty strings.');
+            }
+        }
 
         return new ExecutionState(
             $taskId,
@@ -735,6 +845,7 @@ final readonly class ExecutionStateStore
             $this->decodeRecoveryHistory($data['recovery_history'] ?? [], $path),
             $lastAttentionId,
             $routedReviewAttentionIds,
+            $routedValidationAttentionIds,
         );
     }
 
