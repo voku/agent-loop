@@ -157,7 +157,7 @@ final class ExecutionValidationRepairCapTest extends TestCase
 
     public function testValidationDecisionSurvivesNestedBuildClarificationUntilValidationPasses(): void
     {
-        $this->fixture->reachPreReviewWith("<?php\\nbroken 1\\n");
+        $this->fixture->reachPreReviewWith("<?php\nbroken 1\n");
         $this->failUntilCap(2);
 
         $firstRepair = $this->gateway->prepareStage('VER-1', 'build');
@@ -196,14 +196,14 @@ final class ExecutionValidationRepairCapTest extends TestCase
 
     public function testPreviousValidationResponseSurvivesAnotherCappedFailure(): void
     {
-        $this->fixture->reachPreReviewWith("<?php\\nbroken 1\\n");
+        $this->fixture->reachPreReviewWith("<?php\nbroken 1\n");
         $this->failUntilCap(2);
         $firstState = (new ExecutionStateStore($this->fixture->root))->find('VER-1');
         self::assertNotNull($firstState);
         self::assertCount(1, $firstState->routedValidationAttentionIds);
 
         foreach ([4, 5, 6] as $failure) {
-            $this->build('build', "<?php\\nbroken $failure\\n", 'ctx:broken-' . $failure);
+            $this->build('build', "<?php\nbroken $failure\n", 'ctx:broken-' . $failure);
             $projection = $this->validate();
         }
         self::assertNotNull($projection->attention);
