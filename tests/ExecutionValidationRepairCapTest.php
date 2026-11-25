@@ -194,6 +194,40 @@ final class ExecutionValidationRepairCapTest extends TestCase
         self::assertSame([], $state->routedValidationAttentionIds);
     }
 
+    public function testOlderExecutionStateRecoversValidationResponseAcrossClarification(): void
+    {
+        $this->fixture->reachPreReviewWith("<?php\nbroken 1\n");
+        $this->failUntilCap(2);
+
+        // Simulate a persisted state written before routed validation answers
+        // were introduced. A later human clarification must not lose the reply.
+        $statePath = (new ExecutionStateStore($this->fixture->root))->path('VER-1');
+        $encodedState = file_get_contents($statePath);
+        self::assertIsString($encodedState);
+        $oldState = json_decode($encodedState, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($oldState);
+        unset($oldState['routed_validation_attention_ids']);
+        self::assertNotFalse(file_put_contents($statePath, json_encode($oldState, JSON_THROW_ON_ERROR)));
+
+        $repair = $this->gateway->prepareStage('VER-1', 'build');
+        self::assertSame(self::RESPONSE, $repair->attentionResolution?->response);
+        $this->fixture->submit(
+            $this->gateway,
+            $repair,
+            StageOutcome::NEEDS_CLARIFICATION,
+            $repair->candidateRevision,
+            'ctx:legacy-clarification',
+        );
+        $attention = $this->gateway->projection('VER-1')->attention;
+        self::assertNotNull($attention);
+        $this->resolve($attention->id, 'Continue after clarification.');
+
+        $resumed = $this->gateway->prepareStage('VER-1', 'build');
+        self::assertSame('Continue after clarification.', $resumed->attentionResolution?->response);
+        self::assertCount(1, $resumed->routedValidationAttentionResolutions);
+        self::assertSame(self::RESPONSE, $resumed->routedValidationAttentionResolutions[0]->response);
+    }
+
     public function testPreviousValidationResponseSurvivesAnotherCappedFailure(): void
     {
         $this->fixture->reachPreReviewWith("<?php\nbroken 1\n");
