@@ -48,5 +48,4 @@ final class TaskStartMapSearchPreflightTest extends TestCase
         self::assertStringContainsString('rather than serially', $skill);
         self::assertStringContainsString('named human approval', $skill);
     }
-
 }
