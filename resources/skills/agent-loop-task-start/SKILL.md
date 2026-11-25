@@ -30,6 +30,20 @@ Approval records authority for the exact Contract revision; Run, Session and Rec
 
 ## Contract Intent & Scope
 
+Before the first non-trivial PLAN, do one bounded read-only scope pass. Inspect the
+actual owning implementation and the directly relevant regression or browser
+tests, runtime entry points, and build/deployment integration that the requested
+change can affect. For example, a new runtime module in an offline application
+may also require a service-worker precache entry; a new view behavior may require
+its existing browser test. Derive these paths from repository evidence, not
+filename guesses or a mandatory repository-wide inventory. Include only paths
+expected to change, or use the smallest honest cohesive component boundary when
+an exact list is unstable. Never treat a first-file guess as a complete scope,
+or this inspection as permission to edit, widen an approved Contract, or bypass
+named human approval. If an essential path is discovered after approval, batch
+all evidenced scope additions into one supersession rather than serially
+restarting the Run for each file.
+
 A PLAN must carry enough durable intent that future agents do not need the chat context:
 - **Task ID:** Reuse a supplied stable external identifier (e.g. `ISSUE-123`). For an explicitly requested new local card without one, follow `agent-loop-workflow` to obtain the Kanban owner's generated card ID and reuse it unchanged. Never derive an ID by incrementing a branch-local maximum.
 - **Scope (`--file` / `--scope`):** Smallest stable boundary containing the change (single file or cohesive component directory plus tests; never the entire repo root).
