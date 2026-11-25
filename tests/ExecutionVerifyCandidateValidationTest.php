@@ -6,10 +6,12 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use voku\AgentLoop\Execution\AttentionKind;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Tests\Support\VerifyStageRunFixture;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionService;
 
 /**
  * The deterministic verify stage must validate the candidate the Run accepted, not the project checkout.
@@ -38,6 +40,31 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
         self::assertFalse($projection->complete());
         self::assertNotNull($projection->attention);
         self::assertStringContainsString('[FAIL] php -l src/Foo.php', $projection->attention->message);
+    }
+
+    public function testRepeatedFailedFinalVerifyRemainsResolvableWithoutFailedTransition(): void
+    {
+        $this->run->reachVerifyWith("<?php\nfinal class Foo { this is not php }\n");
+        $gateway = new ExecutionGateway($this->run->root);
+        $decisions = new WorkflowHumanDecisionService($this->run->root);
+
+        $firstFailure = $gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace);
+        self::assertNotNull($firstFailure->attention);
+        self::assertSame(AttentionKind::RUNNER_FAILED, $firstFailure->attention->kind);
+        $firstResume = $decisions->resolveAttention('VER-1', $firstFailure->attention->id, 'reviewer', 'Retry final validation.');
+        self::assertNull($firstResume->attention);
+        self::assertSame('verify', $firstResume->currentStageId);
+
+        // Final verify has PASS but no FAILED transition. A second failure
+        // must open another Attention rather than crash during legacy recovery.
+        $secondFailure = $gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace);
+        self::assertNotNull($secondFailure->attention);
+        self::assertSame(AttentionKind::RUNNER_FAILED, $secondFailure->attention->kind);
+        self::assertNotSame($firstFailure->attention->id, $secondFailure->attention->id);
+
+        $secondResume = $decisions->resolveAttention('VER-1', $secondFailure->attention->id, 'reviewer', 'Investigate the failing validation.');
+        self::assertNull($secondResume->attention);
+        self::assertSame('verify', $secondResume->currentStageId);
     }
 
     public function testCandidateThatPassesItsDeclaredValidationCompletesThePlan(): void
