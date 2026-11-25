@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\AgentGuidance\HostSessionBinding;
 use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 
 /** Manages behavioral preferences for an explicitly identified host session. */
@@ -15,10 +16,8 @@ final readonly class WorkflowInteractionCommand
     public function run(array $args): int
     {
         try {
-            $directory = getenv('AGENT_LOOP_INTERACTION_DIR');
-            if (!is_string($directory) || $directory === '') {
-                throw new RuntimeException('Set AGENT_LOOP_INTERACTION_DIR to a host-owned preference directory.');
-            }
+            $directory = HostSessionBinding::preferenceDirectory()
+                ?? throw new RuntimeException('Set AGENT_LOOP_INTERACTION_DIR to a host-owned preference directory.');
             $language = null;
             $languageGiven = false;
             $positional = [];
@@ -41,11 +40,13 @@ final readonly class WorkflowInteractionCommand
             if (count($args) > 3 || trim($session) === '' || ($task !== null && trim($task) === '') || ($mode === '' && !$languageGiven)) {
                 throw new RuntimeException('Usage: workflow interaction <host-session-id> [<collaborative|autonomous> [task-id]] [--language=<BCP47>|--language=inherit].');
             }
-            if (strlen($session) > 128 || preg_match('/\\A[A-Za-z0-9._-]+\\z/', $session) !== 1) {
+            if (!HostSessionBinding::isValidSessionId($session)) {
                 throw new RuntimeException('Host session identity must match [A-Za-z0-9._-]+ and be at most 128 bytes.');
             }
             if ($mode === '') {
-                (new InteractionPreferenceStore($directory))->setLanguage($session, $language);
+                $store = new InteractionPreferenceStore($directory);
+                $store->bindSession($session);
+                $store->setLanguage($session, $language);
                 echo '[OK] session language ' . ($language ?? 'cleared (project prompting.language applies)') . "; presentation only, it grants no authority.\n";
 
                 return 0;

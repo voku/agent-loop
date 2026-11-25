@@ -6,7 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
-use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
+use voku\AgentLoop\AgentGuidance\HostSessionBinding;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
 
@@ -26,17 +26,13 @@ final readonly class WorkflowPresentationLanguage
 
     public static function resolve(string $rootPath): self
     {
-        $directory = getenv('AGENT_LOOP_INTERACTION_DIR');
-        $session = getenv('AGENT_LOOP_HOST_SESSION_ID');
-        if (is_string($directory) && $directory !== '' && is_string($session) && $session !== '') {
-            try {
-                $language = (new InteractionPreferenceStore($directory))->find($session)?->language;
-                if ($language !== null) {
-                    return new self($language, self::SOURCE_HOST_SESSION);
-                }
-            } catch (Throwable) {
-                // An unreadable host preference cannot change presentation; the project setting applies.
+        try {
+            $language = HostSessionBinding::fromEnvironment()->preference()?->language;
+            if ($language !== null) {
+                return new self($language, self::SOURCE_HOST_SESSION);
             }
+        } catch (Throwable) {
+            // An unreadable host preference cannot change presentation; the project setting applies.
         }
 
         $config = (new InitConfigLoader($rootPath))->load((new ProjectLayout($rootPath))->configPath());
