@@ -119,8 +119,9 @@ one it was (`rejection_kind`), and the next revision's card names the kind, the
 actor and the reason. Record a response only when that human gave it. A
 recommendation is not approval and must never be recorded as the human's choice.
 
-Before asking for approval, the host may run a scope preflight on a throwaway
-draft worktree at the Contract base: `agent-loop workflow preflight <task> start
+Before asking for approval, the host may run a scope preflight on a draft: the
+root of a linked worktree of this repository at the Contract base, kept until the
+decision (the card re-observes it): `agent-loop workflow preflight <task> start
 --workspace <draft>`, then run the Contract's declared validation there under the
 host's own permissions, then `agent-loop workflow preflight <task> record
 --workspace <draft> --validation passed|failed --by <actor>`. Loop never runs the

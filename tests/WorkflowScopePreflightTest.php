@@ -43,7 +43,7 @@ final class WorkflowScopePreflightTest extends TestCase
 
     protected function tearDown(): void
     {
-        exec('git -C ' . escapeshellarg($this->root) . ' worktree remove --force ' . escapeshellarg($this->draft) . ' 2>/dev/null');
+        exec('env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git -C ' . escapeshellarg($this->root) . ' worktree remove --force ' . escapeshellarg($this->draft) . ' 2>/dev/null');
         exec('rm -rf ' . escapeshellarg($this->root) . ' ' . escapeshellarg($this->draft));
     }
 
@@ -63,7 +63,7 @@ final class WorkflowScopePreflightTest extends TestCase
         self::assertSame('host_reported', $result['provenance']);
         self::assertSame(['tests/WorkflowPlanCommandTest.php'], array_column($result['observed_out_of_scope_change'], 'path'));
         self::assertSame('M', $result['observed_out_of_scope_change'][0]['status']);
-        self::assertStringContainsString('--supersede --add-scope tests/WorkflowPlanCommandTest.php', (string) $result['proposal']);
+        self::assertStringContainsString("--supersede --add-scope 'tests/WorkflowPlanCommandTest.php'", (string) $result['proposal']);
         self::assertSame('advisory_only', $result['authority']);
         // The preflight never executes validation and never changes the Contract.
         self::assertFileDoesNotExist($this->root . '/validation-ran');
@@ -167,6 +167,28 @@ final class WorkflowScopePreflightTest extends TestCase
         self::assertSame($refs, $this->git($this->root, 'for-each-ref'));
     }
 
+    public function testProposalQuotesPathsAndNonAsciiPathsMatchLiterally(): void
+    {
+        $this->plan('true');
+        mkdir($this->draft . '/x;id', 0o775, true);
+        file_put_contents($this->draft . '/x;id/a.php', "<?php\n");
+        file_put_contents($this->draft . '/src/Workflow/Über.php', "<?php\n");
+        $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft]);
+        $this->cli(['preflight', 'T-1', 'record', '--workspace', $this->draft, '--validation', 'passed', '--by', 'host']);
+        $result = $this->projection();
+        // The non-ASCII path arrives literally (git diff -z), not Git-quoted.
+        self::assertSame(['src/Workflow/Über.php', 'x;id/a.php'], array_column($result['observed_out_of_scope_change'], 'path'), (string) json_encode($result));
+        self::assertStringContainsString("--add-scope 'x;id/a.php'", (string) $result['proposal']);
+    }
+
+    public function testASubdirectoryOfTheDraftIsRefused(): void
+    {
+        $this->plan('true');
+        [$exit, $output] = $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft . '/src']);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('root of a linked worktree', $output);
+    }
+
     public function testUnreadableRecordIsUnknownNeverClean(): void
     {
         $this->plan('true');
@@ -244,7 +266,7 @@ final class WorkflowScopePreflightTest extends TestCase
 
     private function git(string $directory, string ...$arguments): string
     {
-        exec('git -C ' . escapeshellarg($directory) . ' ' . implode(' ', array_map('escapeshellarg', array_values($arguments))) . ' 2>&1', $output, $exit);
+        exec('env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git -C ' . escapeshellarg($directory) . ' ' . implode(' ', array_map('escapeshellarg', array_values($arguments))) . ' 2>&1', $output, $exit);
         self::assertSame(0, $exit, implode("\n", $output));
 
         return trim(implode("\n", $output));

@@ -157,7 +157,7 @@ final readonly class WorkflowScopePreflightCommand
         $result['observed_out_of_scope_change'] = $drift;
         if ($drift !== []) {
             $result['proposal'] = 'agent-loop workflow plan ' . $contract->taskId . ' --by <actor> --supersede'
-                . implode('', array_map(static fn (array $change): string => ' --add-scope ' . $change['path'], $drift));
+                . implode('', array_map(static fn (array $change): string => ' --add-scope ' . escapeshellarg($change['path']), $drift));
         }
 
         return $result;
@@ -188,6 +188,9 @@ final readonly class WorkflowScopePreflightCommand
         if ($real === false || !is_dir($real)) {
             throw new RuntimeException('Draft workspace does not exist: ' . $workspace);
         }
+        if (self::git($real, ['rev-parse', '--show-toplevel']) !== $real) {
+            throw new RuntimeException('Draft workspace must be the root of a linked worktree: ' . $workspace);
+        }
         $head = self::git($real, ['rev-parse', '--verify', 'HEAD']);
         if ($head !== $base) {
             throw new RuntimeException('Draft workspace HEAD ' . $head . ' is not the Contract base ' . $base . '.');
@@ -203,14 +206,14 @@ final readonly class WorkflowScopePreflightCommand
     private static function drift(TaskContract $contract, string $draft): array
     {
         $tree = substr($draft, strrpos($draft, ':') + 1);
-        $output = self::git(dirname(self::path($contract)), ['diff', '--no-ext-diff', '--no-renames', '--name-status', (string) $contract->baseCommit, $tree]);
+        $fields = explode("\0", self::git(dirname(self::path($contract)), ['diff', '--no-ext-diff', '--no-renames', '--name-status', '-z', (string) $contract->baseCommit, $tree], false));
+        $scope = CandidateWorkspaceIdentity::normalizeScope($contract->scope);
         $changes = [];
-        foreach (array_filter(explode("\n", $output)) as $line) {
-            [$status, $path] = explode("\t", $line, 2) + [1 => ''];
+        for ($i = 0; $i + 1 < count($fields); $i += 2) {
+            [$status, $path] = [$fields[$i], $fields[$i + 1]];
             $inScope = false;
-            foreach ($contract->scope as $entry) {
-                $entry = rtrim($entry, '/');
-                if ($path === $entry || str_starts_with($path, $entry . '/')) {
+            foreach ($scope as $entry) {
+                if ($entry === '.' || $path === $entry || str_starts_with($path, rtrim($entry, '/') . '/')) {
                     $inScope = true;
                     break;
                 }
@@ -224,13 +227,18 @@ final readonly class WorkflowScopePreflightCommand
     }
 
     /** @param list<string> $arguments */
-    private static function git(string $directory, array $arguments): string
+    private static function git(string $directory, array $arguments, bool $trim = true): string
     {
-        $process = proc_open(['git', '-C', $directory, ...$arguments], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $environment = getenv();
+        foreach (['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'] as $variable) {
+            unset($environment[$variable]);
+        }
+        $process = proc_open(['git', '-C', $directory, ...$arguments], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $environment);
         if (!is_resource($process)) {
             throw new RuntimeException('Unable to run git.');
         }
-        $output = trim((string) stream_get_contents($pipes[1]));
+        $raw = (string) stream_get_contents($pipes[1]);
+        $output = $trim ? trim($raw) : rtrim($raw, "\0");
         fclose($pipes[1]);
         fclose($pipes[2]);
         if (proc_close($process) !== 0) {
