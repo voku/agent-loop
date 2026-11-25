@@ -198,8 +198,9 @@ final class ExecutionValidationRepairCapTest extends TestCase
     {
         $this->fixture->reachPreReviewWith("<?php\\nbroken 1\\n");
         $this->failUntilCap(2);
-        $firstId = (new ExecutionStateStore($this->fixture->root))->find('VER-1')?->routedValidationAttentionIds;
-        self::assertCount(1, $firstId);
+        $firstState = (new ExecutionStateStore($this->fixture->root))->find('VER-1');
+        self::assertNotNull($firstState);
+        self::assertCount(1, $firstState->routedValidationAttentionIds);
 
         foreach ([4, 5, 6] as $failure) {
             $this->build('build', "<?php\\nbroken $failure\\n", 'ctx:broken-' . $failure);
@@ -217,7 +218,9 @@ final class ExecutionValidationRepairCapTest extends TestCase
 
         $this->build('build', self::VALID, 'ctx:validated');
         self::assertSame('review', $this->validate()->currentStageId);
-        self::assertSame([], (new ExecutionStateStore($this->fixture->root))->find('VER-1')?->routedValidationAttentionIds);
+        $finalState = (new ExecutionStateStore($this->fixture->root))->find('VER-1');
+        self::assertNotNull($finalState);
+        self::assertSame([], $finalState->routedValidationAttentionIds);
     }
 
     private function failUntilCap(int $firstNext): void
