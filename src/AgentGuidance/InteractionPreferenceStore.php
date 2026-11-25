@@ -56,7 +56,9 @@ final readonly class InteractionPreferenceStore
             if (!flock($lock, LOCK_EX)) {
                 throw new RuntimeException('Cannot lock interaction preference.');
             }
-            $existing = $this->find($sessionId);
+            // A task override of a session that only inherits the shared default binds
+            // it in the same write, so a rejected mode leaves the session unbound.
+            $existing = $taskId === null ? $this->find($sessionId) : $this->effective($sessionId);
             if ($taskId !== null) {
                 if ($existing === null) {
                     throw new RuntimeException('Set a session default before setting a task override.');
@@ -136,6 +138,7 @@ final readonly class InteractionPreferenceStore
         if (trim($sessionId) === '') {
             return null;
         }
+        $this->assertSearchable();
         if (!is_dir($this->directory)) {
             return null;
         }
@@ -163,11 +166,27 @@ final readonly class InteractionPreferenceStore
         }
     }
 
+    /**
+     * The session's preference or, before it is bound, the shared default it
+     * would be bound to. Never writes, so read-only projections may use it.
+     */
+    public function effective(string $sessionId): ?InteractionPreference
+    {
+        $current = $this->find($sessionId);
+        if ($current !== null || trim($sessionId) === '') {
+            return $current;
+        }
+        $default = $this->find("\0host-default");
+
+        return $default === null ? null : new InteractionPreference($sessionId, $default->defaultMode);
+    }
+
     public function find(string $sessionId): ?InteractionPreference
     {
         if (trim($sessionId) === '') {
             return null;
         }
+        $this->assertSearchable();
         $path = $this->path($sessionId);
         if (is_link($path)) {
             throw new RuntimeException('Interaction preference must not be a symlink.');
@@ -175,7 +194,7 @@ final readonly class InteractionPreferenceStore
         if (!is_file($path)) {
             return null;
         }
-        $contents = file_get_contents($path);
+        $contents = is_readable($path) ? file_get_contents($path) : false;
         if (!is_string($contents)) {
             throw new RuntimeException('Cannot read interaction preference.');
         }
@@ -198,6 +217,19 @@ final readonly class InteractionPreferenceStore
         }
 
         return new InteractionPreference($sessionId, $data['default'], $data['tasks'], $language);
+    }
+
+    /** Without search permission, also on a parent, every file looks absent; that is not "no preference". */
+    private function assertSearchable(): void
+    {
+        $nearest = $this->directory;
+        while (!file_exists($nearest) && dirname($nearest) !== $nearest) {
+            $nearest = dirname($nearest);
+        }
+        // is_executable() describes search permission of a directory on POSIX only.
+        if (!is_dir($nearest) || (DIRECTORY_SEPARATOR === '/' && !is_executable($nearest))) {
+            throw new RuntimeException('Cannot read interaction preference directory.');
+        }
     }
 
     private function path(string $sessionId): string

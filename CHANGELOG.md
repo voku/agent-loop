@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Added
+
+- `enter` asks how to work in the session once, up front. In a bound host session without a saved preference it returns a non-blocking `session_question` (collaborative or autonomous, with one command per answer); the context JSON reports `interaction.host_session` and `interaction.question`, and the text output of both commands prints it outside the context budget, so it never displaces Contract content. A session default, task override or shared default ends it. `next_action` and every approval, review and close gate are unchanged (#1126).
+
+### Changed
+
+- The host session is bound from `AGENT_LOOP_HOST_SESSION_ID` or, without it, `CLAUDE_CODE_SESSION_ID`, so Claude Code sessions need no setup. Preferences live in `AGENT_LOOP_INTERACTION_DIR` or, without it, below `$XDG_STATE_HOME` or `~/.local/state`. An invalid explicit identity is reported and never replaced by another source. `workflow interaction` no longer requires `AGENT_LOOP_INTERACTION_DIR`, and a task override or language on a session that only inherits the shared default binds it first (#1126).
+
 ## [0.20.107] - 2026-11-23
 
 ### Added

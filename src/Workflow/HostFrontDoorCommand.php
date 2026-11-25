@@ -243,6 +243,9 @@ final readonly class HostFrontDoorCommand
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
+        if ($context['interaction']['question'] !== null) {
+            $payload['session_question'] = $context['interaction']['question'];
+        }
         if ($discovery !== null) {
             $payload['references'] = ['discovery' => $discovery];
         }
@@ -275,6 +278,9 @@ final readonly class HostFrontDoorCommand
             }
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
+            if ($context['interaction']['question'] !== null) {
+                echo WorkflowContextCommand::questionLine($context['interaction']['question']) . "\n";
+            }
             if ($discovery !== null) {
                 echo 'Pre-PLAN discovery (agent-map, ' . $discovery['status'] . "):\n";
                 if (($discovery['status'] ?? null) === 'ready') {
