@@ -228,6 +228,41 @@ final class ExecutionValidationRepairCapTest extends TestCase
         self::assertSame(self::RESPONSE, $resumed->routedValidationAttentionResolutions[0]->response);
     }
 
+    public function testLegacyValidationReplySurvivesOrdinaryRepairWithAnotherFailure(): void
+    {
+        $this->fixture->reachPreReviewWith("<?php\nbroken 1\n");
+        $this->failUntilCap(2);
+
+        // Model an old execution state with only last_attention_id.
+        // Normal build completion must restore the reply before advancing to validation.
+        $statePath = (new ExecutionStateStore($this->fixture->root))->path('VER-1');
+        $encoded = file_get_contents($statePath);
+        self::assertIsString($encoded);
+        $oldState = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($oldState);
+        unset($oldState['routed_validation_attention_ids']);
+        self::assertNotFalse(file_put_contents($statePath, json_encode($oldState, JSON_THROW_ON_ERROR)));
+
+        $this->build('build', "<?php\nbroken 4\n", 'ctx:legacy-repair-failed');
+        $afterBuild = (new ExecutionStateStore($this->fixture->root))->find('VER-1');
+        self::assertNotNull($afterBuild);
+        self::assertCount(1, $afterBuild->routedValidationAttentionIds);
+
+        $failed = $this->validate();
+        self::assertSame('build', $failed->currentStageId);
+        self::assertNull($failed->attention);
+        $nextRepair = $this->gateway->prepareStage('VER-1', 'build');
+        self::assertCount(1, $nextRepair->routedValidationAttentionResolutions);
+        self::assertSame(self::RESPONSE, $nextRepair->routedValidationAttentionResolutions[0]->response);
+        self::assertStringContainsString(self::RESPONSE, $nextRepair->prompt);
+
+        $this->build('build', self::VALID, 'ctx:legacy-repaired');
+        self::assertSame('review', $this->validate()->currentStageId);
+        $passedState = (new ExecutionStateStore($this->fixture->root))->find('VER-1');
+        self::assertNotNull($passedState);
+        self::assertSame([], $passedState->routedValidationAttentionIds);
+    }
+
     public function testPreviousValidationResponseSurvivesAnotherCappedFailure(): void
     {
         $this->fixture->reachPreReviewWith("<?php\nbroken 1\n");
