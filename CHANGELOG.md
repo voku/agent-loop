@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- `workflow plan --base-commit` now resolves the value with `git rev-parse --verify <rev>^{commit}` and stores the exact commit id before the Contract is written; a value that is not a commit is refused at plan time. Before, an abbreviated base such as `7e7da68` was stored as given, approved, and only refused later by `enter` ("requires an exact Git base commit"), which forced another revision and approval. Outside a Git repository the value is kept as before (#1178).
+
 ### Added
 
 - `enter` asks how to work in the session once, up front. In a bound host session without a saved preference it returns a non-blocking `session_question` (collaborative or autonomous, with one command per answer); the context JSON reports `interaction.host_session` and `interaction.question`, and the text output of both commands prints it outside the context budget, so it never displaces Contract content. A session default, task override or shared default ends it. `next_action` and every approval, review and close gate are unchanged (#1126).

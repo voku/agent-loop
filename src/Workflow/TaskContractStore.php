@@ -10,6 +10,7 @@ use DateTimeInterface;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionProjection;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\ProjectLayout;
 
@@ -134,7 +135,6 @@ final class TaskContractStore
             $plannedBy = WorkflowActorAttribution::normalize($plannedBy, 'revise a Task Contract');
             $this->assertClosableScope($scope);
             $previous = $this->load($taskId);
-            $this->archive($previous);
             $now = $this->now();
             $contract = $this->newContract(
                 $taskId,
@@ -155,6 +155,7 @@ final class TaskContractStore
                 $acceptanceCriteria,
                 $acceptanceObservations,
             );
+            $this->archive($previous);
             $this->write($contract);
 
             return $contract;
@@ -508,7 +509,7 @@ final class TaskContractStore
             $updatedAt,
             $this->path($taskId),
             $plannedBy,
-            $this->optionalString($baseCommit),
+            $this->resolvedBaseCommit($baseCommit),
             $tags,
             $behaviorAnchors,
             $operatingPromptManifest,
@@ -516,6 +517,23 @@ final class TaskContractStore
             acceptanceCriteria: $acceptanceCriteria,
             acceptanceObservations: $acceptanceObservations,
         );
+    }
+
+    /**
+     * Resolve before writing a Contract or archiving an approved revision.
+     * A non-Git project retains its historical behavior.
+     */
+    private function resolvedBaseCommit(?string $baseCommit): ?string
+    {
+        $baseCommit = $this->optionalString($baseCommit);
+        if ($baseCommit === null || !GitWorkTree::detected($this->rootPath)) {
+            return $baseCommit;
+        }
+
+        return GitWorkTree::resolveCommit($this->rootPath, $baseCommit)
+            ?? throw new RuntimeException(
+                'Contract base_commit must resolve to exactly one Git commit before planning: ' . $baseCommit,
+            );
     }
 
     private function write(TaskContract $contract): void
