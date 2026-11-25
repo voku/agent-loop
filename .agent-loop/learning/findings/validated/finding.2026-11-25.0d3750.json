@@ -24,7 +24,7 @@
         }
     ],
     "hypothesis": "Approval rounds are wasted when a Contract can reach the approval card in a state execution will refuse, or when existing tests that pin the changed behaviour are outside the proposed scope; deterministic checks before approval prevent both without weakening the gate.",
-    "validated_conclusion": "Fixed the first cause in code: plan now resolves --base-commit to the exact commit or refuses it (PR #1178, regression plan->approve->standard->enter fails before and passes after). The second cause remains: a pre-approval scope check that runs the existing tests or Map references against the proposed scope (TASK-REFINEMENT) is the next executable improvement; also the approval card reports 'No Contract field changed' when only base_commit changed.",
+    "validated_conclusion": "Fixed the first cause in code: in a Git worktree, plan now resolves --base-commit to the exact commit or refuses it (PR #1178, regression plan->approve->standard->enter fails before and passes after). Outside a Git worktree, --base-commit is stored unchanged. The second cause remains: a pre-approval scope check that runs the existing tests or Map references against the proposed scope (TASK-REFINEMENT) is the next executable improvement; also the approval card reports 'No Contract field changed' when only base_commit changed.",
     "confidence": "high",
     "validation_status": "validated",
     "status": "validated",
