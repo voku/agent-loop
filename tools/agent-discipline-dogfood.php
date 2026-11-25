@@ -416,7 +416,7 @@ try {
             'remote_installers' => 0,
         ],
     ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
-    exit(0);
+    $exitCode = 0;
 } catch (Throwable $throwable) {
     echo json_encode([
         'schema_version' => 1,
@@ -424,7 +424,10 @@ try {
         'checks' => $checks,
         'error' => $throwable->getMessage(),
     ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
-    exit(1);
+    $exitCode = 1;
 } finally {
+    // exit() inside try would skip this block and leave the workspace behind.
     removeTree($workspace);
 }
+
+exit($exitCode);
