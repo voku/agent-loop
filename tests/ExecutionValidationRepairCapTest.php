@@ -155,6 +155,71 @@ final class ExecutionValidationRepairCapTest extends TestCase
         self::assertSame('Keep the reviewed behavior.', $this->gateway->prepareStage('VER-1', 'blindspot-review')->attentionResolution?->response);
     }
 
+    public function testValidationDecisionSurvivesNestedBuildClarificationUntilValidationPasses(): void
+    {
+        $this->fixture->reachPreReviewWith("<?php\\nbroken 1\\n");
+        $this->failUntilCap(2);
+
+        $firstRepair = $this->gateway->prepareStage('VER-1', 'build');
+        self::assertSame(self::RESPONSE, $firstRepair->attentionResolution?->response);
+
+        // Reviewer-observed regression #1167: the resumed build itself needs
+        // clarification. Resolving it must not discard the earlier answer.
+        $this->fixture->submit(
+            $this->gateway,
+            $firstRepair,
+            StageOutcome::NEEDS_CLARIFICATION,
+            $firstRepair->candidateRevision,
+            'ctx:needs-clarification',
+        );
+        $attention = $this->gateway->projection('VER-1')->attention;
+        self::assertNotNull($attention);
+        self::assertSame(AttentionKind::CLARIFICATION_REQUIRED, $attention->kind);
+        $this->resolve($attention->id, 'Proceed with the isolated repair.');
+
+        $resumed = $this->gateway->prepareStage('VER-1', 'build');
+        self::assertSame('Proceed with the isolated repair.', $resumed->attentionResolution?->response);
+        self::assertCount(1, $resumed->routedValidationAttentionResolutions);
+        self::assertSame(self::RESPONSE, $resumed->routedValidationAttentionResolutions[0]->response);
+        self::assertStringContainsString(self::RESPONSE, $resumed->prompt);
+
+        $state = (new ExecutionStateStore($this->fixture->root))->find('VER-1');
+        self::assertNotNull($state);
+        self::assertCount(1, $state->routedValidationAttentionIds);
+
+        $this->build('build', self::VALID, 'ctx:repair-complete');
+        self::assertSame('review', $this->validate()->currentStageId);
+        $state = (new ExecutionStateStore($this->fixture->root))->find('VER-1');
+        self::assertNotNull($state);
+        self::assertSame([], $state->routedValidationAttentionIds);
+    }
+
+    public function testPreviousValidationResponseSurvivesAnotherCappedFailure(): void
+    {
+        $this->fixture->reachPreReviewWith("<?php\\nbroken 1\\n");
+        $this->failUntilCap(2);
+        $firstId = (new ExecutionStateStore($this->fixture->root))->find('VER-1')?->routedValidationAttentionIds;
+        self::assertCount(1, $firstId);
+
+        foreach ([4, 5, 6] as $failure) {
+            $this->build('build', "<?php\\nbroken $failure\\n", 'ctx:broken-' . $failure);
+            $projection = $this->validate();
+        }
+        self::assertNotNull($projection->attention);
+        self::assertSame(AttentionKind::VALIDATION_CONFLICT, $projection->attention->kind);
+        $this->resolve($projection->attention->id, 'Try a different repair, preserving the original decision.');
+
+        $repair = $this->gateway->prepareStage('VER-1', 'build');
+        self::assertCount(1, $repair->routedValidationAttentionResolutions);
+        self::assertSame(self::RESPONSE, $repair->routedValidationAttentionResolutions[0]->response);
+        self::assertSame('Try a different repair, preserving the original decision.', $repair->attentionResolution?->response);
+        self::assertStringContainsString(self::RESPONSE, $repair->prompt);
+
+        $this->build('build', self::VALID, 'ctx:validated');
+        self::assertSame('review', $this->validate()->currentStageId);
+        self::assertSame([], (new ExecutionStateStore($this->fixture->root))->find('VER-1')?->routedValidationAttentionIds);
+    }
+
     private function failUntilCap(int $firstNext): void
     {
         for ($next = $firstNext; $next <= 3; ++$next) {
