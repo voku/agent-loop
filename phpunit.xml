@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit bootstrap="vendor/autoload.php" colors="true">
+  <php>
+    <!-- Never read the developer's host session or stored preferences in tests. -->
+    <env name="CLAUDE_CODE_SESSION_ID" value="" force="true"/>
+    <env name="AGENT_LOOP_HOST_SESSION_ID" value="" force="true"/>
+    <env name="AGENT_LOOP_INTERACTION_DIR" value="" force="true"/>
+    <env name="XDG_STATE_HOME" value="/nonexistent/agent-loop-tests-state" force="true"/>
+  </php>
   <testsuites>
     <testsuite name="agent-loop">
       <directory>tests</directory>

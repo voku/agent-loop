@@ -83,6 +83,21 @@ final class AgentDisciplineHookTest extends TestCase
         }
     }
 
+    public function testSessionStartBindsTheSharedDefaultFromTheUserStateDirectory(): void
+    {
+        $state = sys_get_temp_dir() . '/interaction-state-' . bin2hex(random_bytes(6));
+        $previous = getenv('XDG_STATE_HOME');
+        putenv('XDG_STATE_HOME=' . $state);
+        try {
+            (new InteractionPreferenceStore($state . '/agent-loop/interaction'))->setDefault('earlier', 'autonomous');
+            $output = $this->hook()->contextOutput('SessionStart', $this->json(['hook_event_name' => 'SessionStart', 'session_id' => 'host-new']));
+            self::assertStringContainsString('Session default: autonomous', $output['hookSpecificOutput']['additionalContext']);
+        } finally {
+            putenv($previous === false ? 'XDG_STATE_HOME' : 'XDG_STATE_HOME=' . $previous);
+            $this->removeTree($state);
+        }
+    }
+
     public function testSubagentStartUsesTheSameDiscipline(): void
     {
         $output = $this->hook()->contextOutput('SubagentStart', $this->json([
