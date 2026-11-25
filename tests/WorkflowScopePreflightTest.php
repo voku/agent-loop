@@ -138,6 +138,35 @@ final class WorkflowScopePreflightTest extends TestCase
         self::assertContains('validation', $stale['stale_identities']);
     }
 
+    public function testABaseChangeAfterRecordIsStaleNotAnUnavailableDraft(): void
+    {
+        $this->plan('true');
+        $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft]);
+        $this->cli(['preflight', 'T-1', 'record', '--workspace', $this->draft, '--validation', 'passed', '--by', 'host']);
+        file_put_contents($this->root . '/README.md', "moved base\n");
+        $this->git($this->root, 'add', 'README.md');
+        $this->git($this->root, 'commit', '-qm', 'second');
+        $this->base = $this->git($this->root, 'rev-parse', 'HEAD');
+        $this->plan('true');
+
+        $result = $this->projection();
+        self::assertSame('stale', $result['state'], (string) json_encode($result));
+        self::assertContains('base', $result['stale_identities']);
+    }
+
+    public function testPreflightLeavesTheRootIndexAndRefsByteIdentical(): void
+    {
+        $this->plan('true');
+        file_put_contents($this->draft . '/tests/WorkflowPlanCommandTest.php', "<?php\n// changed\n");
+        $index = (string) file_get_contents($this->root . '/.git/index');
+        $refs = $this->git($this->root, 'for-each-ref');
+        $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft]);
+        $this->cli(['preflight', 'T-1', 'record', '--workspace', $this->draft, '--validation', 'passed', '--by', 'host']);
+        $this->projection();
+        self::assertSame($index, (string) file_get_contents($this->root . '/.git/index'));
+        self::assertSame($refs, $this->git($this->root, 'for-each-ref'));
+    }
+
     public function testUnreadableRecordIsUnknownNeverClean(): void
     {
         $this->plan('true');

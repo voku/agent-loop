@@ -68,7 +68,7 @@ final readonly class WorkflowScopePreflightCommand
                 'provenance' => 'host_reported',
                 'recorded_by' => $by,
                 'recorded_at' => gmdate('Y-m-d\TH:i:s\Z'),
-                'workspace' => $workspace,
+                'workspace' => $identity['workspace'],
                 'drift' => self::drift($contract, (string) $identity['draft']),
             ];
             $comparable = $identity;
@@ -128,20 +128,32 @@ final readonly class WorkflowScopePreflightCommand
         if (($record['phase'] ?? null) === 'draft_changed') {
             return ['state' => 'unknown', 'reason' => 'draft_changed_during_validation'] + $result;
         }
-        try {
-            $current = self::identity($contract, $record['workspace']);
-        } catch (Throwable) {
-            return ['state' => 'unknown', 'reason' => 'draft_unavailable'] + $result;
-        }
-        $stale = array_keys(array_filter(
-            ['contract' => 'contract', 'base' => 'base', 'draft' => 'draft', 'validation' => 'validation'],
-            static fn (string $key): bool => ($identity[$key] ?? null) !== $current[$key],
+        // Contract, base and validation come from the Contract alone and are
+        // compared first, so a changed base reads as stale, not as an
+        // unavailable draft; only then is the draft itself observed.
+        $declared = self::declaredIdentity($contract);
+        $stale = array_values(array_filter(
+            ['contract', 'base', 'validation'],
+            static fn (string $key): bool => ($identity[$key] ?? null) !== $declared[$key],
         ));
+        if ($stale === []) {
+            try {
+                if (($identity['draft'] ?? null) !== self::identity($contract, $record['workspace'])['draft']) {
+                    $stale[] = 'draft';
+                }
+            } catch (Throwable) {
+                return ['state' => 'unknown', 'reason' => 'draft_unavailable'] + $result;
+            }
+        }
         if ($stale !== []) {
             return ['state' => 'stale', 'stale_identities' => $stale] + $result;
         }
         /** @var list<array{path: string, status: string}> $drift */
-        $result['state'] = $record['validation'] === 'passed' ? 'validation_passed' : 'validation_failed';
+        $validation = $record['validation'] ?? null;
+        if (!in_array($validation, ['passed', 'failed'], true)) {
+            return ['state' => 'unknown', 'reason' => 'unreadable_record'] + $result;
+        }
+        $result['state'] = $validation === 'passed' ? 'validation_passed' : 'validation_failed';
         $result['observed_out_of_scope_change'] = $drift;
         if ($drift !== []) {
             $result['proposal'] = 'agent-loop workflow plan ' . $contract->taskId . ' --by <actor> --supersede'
@@ -152,6 +164,20 @@ final readonly class WorkflowScopePreflightCommand
     }
 
     /** @return array{contract: string, base: string, draft: string, validation: string} */
+    /** @return array{contract: string, base: string, validation: string} */
+    private static function declaredIdentity(TaskContract $contract): array
+    {
+        return [
+            'contract' => 'sha256:' . hash('sha256', CanonicalJson::pretty([
+                'revision' => $contract->revision, 'goal' => $contract->goal, 'scope' => $contract->scope,
+                'non_goals' => $contract->nonGoals, 'acceptance' => $contract->acceptanceCriteria,
+            ])),
+            'base' => (string) $contract->baseCommit,
+            'validation' => 'sha256:' . hash('sha256', CanonicalJson::pretty(['validation' => $contract->validation])),
+        ];
+    }
+
+    /** @return array{contract: string, base: string, draft: string, validation: string, workspace: string} */
     private static function identity(TaskContract $contract, string $workspace): array
     {
         $base = $contract->baseCommit;
@@ -167,14 +193,9 @@ final readonly class WorkflowScopePreflightCommand
             throw new RuntimeException('Draft workspace HEAD ' . $head . ' is not the Contract base ' . $base . '.');
         }
 
-        return [
-            'contract' => 'sha256:' . hash('sha256', CanonicalJson::pretty([
-                'revision' => $contract->revision, 'goal' => $contract->goal, 'scope' => $contract->scope,
-                'non_goals' => $contract->nonGoals, 'acceptance' => $contract->acceptanceCriteria,
-            ])),
-            'base' => $base,
+        return self::declaredIdentity($contract) + [
             'draft' => (new CandidateWorkspaceIdentity())->observe($real, $base, $real . '/.agent-loop'),
-            'validation' => 'sha256:' . hash('sha256', CanonicalJson::pretty(['validation' => $contract->validation])),
+            'workspace' => $real,
         ];
     }
 
