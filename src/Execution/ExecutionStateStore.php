@@ -22,6 +22,9 @@ final readonly class ExecutionStateStore
      */
     public const int MAX_REVIEW_ROUNDS = 3;
 
+    /** Consecutive failed runs of one candidate-validation stage before a human decides. */
+    public const int MAX_VALIDATION_FAILURES = 3;
+
     public function __construct(private string $rootPath)
     {
     }
@@ -88,11 +91,20 @@ final readonly class ExecutionStateStore
 
             $reviewRoundsExhausted = $result->outcome === StageOutcome::CHANGES_REQUIRED
                 && ($this->changesRequiredCount($history) + 1) % self::MAX_REVIEW_ROUNDS === 0;
+            $repairStageId = $stage->transitions[StageOutcome::FAILED->value] ?? null;
+            $validationRepair = $stage->kind === ExecutionStageKind::DETERMINISTIC
+                && $result->outcome === StageOutcome::FAILED
+                && $repairStageId !== null
+                && $plan->stage($repairStageId)->mayMutate;
+            // A repair that keeps failing the same deterministic validation is
+            // not converging; without a bound an unattended host would loop.
+            $validationFailures = $validationRepair ? $this->consecutiveFailures($stage->id, $history) + 1 : 0;
+            $validationRepairsExhausted = $validationRepair && $validationFailures % self::MAX_VALIDATION_FAILURES === 0;
             $capHandoff = null;
-            if ($reviewRoundsExhausted) {
+            if ($reviewRoundsExhausted || $validationRepairsExhausted) {
                 // The cap cannot turn a stage-illegal outcome into durable Attention.
                 $reworkStageId = $stage->next($result->outcome);
-                // Keep this review's findings as the handoff to its rework stage:
+                // Keep this stage's findings as the handoff to its rework stage:
                 // once a human resolves the cap, that stage resumes with them.
                 $capHandoff = new HandoffEnvelope(
                     $plan->taskId,
@@ -107,24 +119,22 @@ final readonly class ExecutionStateStore
                     $acceptedAt,
                 );
             }
-            $repairStageId = $stage->transitions[StageOutcome::FAILED->value] ?? null;
-            $validationRepair = $stage->kind === ExecutionStageKind::DETERMINISTIC
-                && $result->outcome === StageOutcome::FAILED
-                && $repairStageId !== null
-                && $plan->stage($repairStageId)->mayMutate;
-            if ($reviewRoundsExhausted || (!$validationRepair && in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true))) {
+            if ($reviewRoundsExhausted || $validationRepairsExhausted || (!$validationRepair && in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true))) {
                 $attention = new AttentionRequest(
                     'attention:' . bin2hex(random_bytes(8)),
                     $plan->taskId,
                     $plan->runId,
                     match (true) {
                         $reviewRoundsExhausted => AttentionKind::REVIEW_CHANGES_REQUIRED,
+                        $validationRepairsExhausted => AttentionKind::VALIDATION_CONFLICT,
                         $result->outcome === StageOutcome::NEEDS_CLARIFICATION => AttentionKind::CLARIFICATION_REQUIRED,
                         default => AttentionKind::RUNNER_FAILED,
                     },
-                    $reviewRoundsExhausted
-                        ? trim(sprintf('Review requested changes in %d rounds; a human decides how to continue. %s', $this->changesRequiredCount($history) + 1, $result->summary))
-                        : (trim($result->summary) !== '' ? trim($result->summary) : 'Execution stage requires human attention.'),
+                    match (true) {
+                        $reviewRoundsExhausted => trim(sprintf('Review requested changes in %d rounds; a human decides how to continue. %s', $this->changesRequiredCount($history) + 1, $result->summary)),
+                        $validationRepairsExhausted => trim(sprintf('%s failed %d times in a row; a human decides how to continue. %s', $stage->id, $validationFailures, $result->summary)),
+                        default => trim($result->summary) !== '' ? trim($result->summary) : 'Execution stage requires human attention.',
+                    },
                     $stage->id,
                     $acceptedAt,
                 );
@@ -318,13 +328,14 @@ final readonly class ExecutionStateStore
             // human resolves that, the Run follows the review's own changes route
             // (e.g. back to build) so a fix made after the Attention can become
             // the next candidate; repeating the review would only re-judge the
-            // old one. Every other Attention resumes the stage that raised it.
+            // old one. A capped validation repair resumes its mutation stage for
+            // the same reason. Every other Attention resumes the stage that raised it.
             $resumeStageId = $state->currentStageId;
             $resumeAttempt = $state->currentAttempt + 1;
-            if ($state->attention->kind === AttentionKind::REVIEW_CHANGES_REQUIRED) {
-                $reworkStageId = $plan->stage($state->currentStageId)->next(StageOutcome::CHANGES_REQUIRED);
+            if (in_array($state->attention->kind, [AttentionKind::REVIEW_CHANGES_REQUIRED, AttentionKind::VALIDATION_CONFLICT], true)) {
+                $reworkStageId = $plan->stage($state->currentStageId)->repairRoute();
                 if ($reworkStageId === null) {
-                    throw new RuntimeException('Review stage ' . $state->currentStageId . ' has no changes-required route to resume.');
+                    throw new RuntimeException('Stage ' . $state->currentStageId . ' has no repair route to resume.');
                 }
                 $resumeStageId = $reworkStageId;
                 $resumeAttempt = $this->attemptFor($reworkStageId, $state->history);
@@ -587,6 +598,23 @@ final readonly class ExecutionStateStore
             if ($entry->result->outcome === StageOutcome::CHANGES_REQUIRED) {
                 ++$count;
             }
+        }
+
+        return $count;
+    }
+
+    /** @param list<AcceptedStageResult> $history */
+    private function consecutiveFailures(string $stageId, array $history): int
+    {
+        $count = 0;
+        foreach (array_reverse($history) as $entry) {
+            if ($entry->result->stageId !== $stageId) {
+                continue;
+            }
+            if ($entry->result->outcome !== StageOutcome::FAILED) {
+                break;
+            }
+            ++$count;
         }
 
         return $count;

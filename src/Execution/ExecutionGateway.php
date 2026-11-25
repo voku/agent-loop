@@ -802,7 +802,7 @@ final readonly class ExecutionGateway
             : (new AttentionResolutionStore($this->rootPath))->load($taskId, $state->lastAttentionId);
         $resolutionRoutesToStage = $resolution === null
             ? null
-            : ($plan->stage($resolution->stageId)->transitions[StageOutcome::CHANGES_REQUIRED->value] ?? null);
+            : $plan->stage($resolution->stageId)->repairRoute();
         $stageFailedRoute = $stage->kind === ExecutionStageKind::DETERMINISTIC
             ? ($stage->transitions[StageOutcome::FAILED->value] ?? null)
             : null;
