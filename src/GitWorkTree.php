@@ -26,6 +26,27 @@ final readonly class GitWorkTree
     }
 
     /**
+     * Resolve a revision expression to one exact commit, or refuse it.
+     *
+     * Only commit objects are accepted. Passing arguments as an array and
+     * ending option parsing prevents a caller-supplied ref from becoming an
+     * option to Git.
+     */
+    public static function resolveCommit(string $rootPath, string $revision): ?string
+    {
+        $revision = trim($revision);
+        if ($revision === '') {
+            return null;
+        }
+
+        $commit = self::ask($rootPath, ['git', 'rev-parse', '--verify', '--end-of-options', $revision . '^{commit}']);
+
+        return $commit !== null && preg_match('/^[0-9a-f]{40,64}$/D', $commit) === 1
+            ? $commit
+            : null;
+    }
+
+    /**
      * Whether Git ignores a repository-relative path.
      *
      * The answer depends on global excludes, nested `.gitignore` files and
