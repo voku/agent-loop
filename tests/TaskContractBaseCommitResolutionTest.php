@@ -167,7 +167,13 @@ final class TaskContractBaseCommitResolutionTest extends TestCase
         try {
             $plainStore = new TaskContractStore($plain);
             self::assertSame('short-base', $plainStore->create(
-                'BASE-2', 'Plain root.', ['src/Foo.php'], [], ['true'], 'fixture', 'short-base',
+                'BASE-2',
+                'Plain root.',
+                ['src/Foo.php'],
+                [],
+                ['true'],
+                'fixture',
+                'short-base',
             )->baseCommit);
         } finally {
             foreach (new RecursiveIteratorIterator(
