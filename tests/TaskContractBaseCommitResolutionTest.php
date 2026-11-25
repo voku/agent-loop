@@ -12,6 +12,7 @@ use RuntimeException;
 use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 final class TaskContractBaseCommitResolutionTest extends TestCase
 {
@@ -84,6 +85,32 @@ final class TaskContractBaseCommitResolutionTest extends TestCase
         self::assertSame($expected, $store->load('BASE-1')->baseCommit);
         self::assertSame(TaskContract::APPROVED, $store->approve('BASE-1', 'fixture', 1)->status);
         self::assertMatchesRegularExpression('/^[a-f0-9]{40,64}$/D', (string) $contract->baseCommit);
+    }
+
+    public function testWorkflowPlanCliNormalizesShortBaseBeforeApproval(): void
+    {
+        $head = GitWorkTree::headCommit($this->root);
+        self::assertNotNull($head);
+
+        ob_start();
+        try {
+            $exit = (new WorkflowPlanCommand($this->root))->run([
+                'CLI-BASE-1',
+                '--by', 'fixture',
+                '--file', 'README.md',
+                '--goal', 'Avoid unusable approved base.',
+                '--validation', 'true',
+                '--base-commit', substr($head, 0, 9),
+            ]);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $exit, $output);
+        $store = new TaskContractStore($this->root);
+        self::assertSame($head, $store->load('CLI-BASE-1')->baseCommit);
+        self::assertSame(TaskContract::APPROVED, $store->approve('CLI-BASE-1', 'fixture', 1)->status);
     }
 
     /** @return iterable<string, array{string}> */
