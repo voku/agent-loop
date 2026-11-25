@@ -29,6 +29,8 @@ use voku\AgentRecallCompiler\Output\CompiledRecallOutputPaths;
 final readonly class ExecutionGateway
 {
     public const string COMPLETION_MARKER = 'AGENT_LOOP_STAGE_RESULT ';
+    /** The summary value the completion-protocol template shows; an unfilled result still carries it. */
+    public const string COMPLETION_SUMMARY_PLACEHOLDER = '<brief factual summary>';
 
     public function __construct(private string $rootPath)
     {
@@ -1494,7 +1496,7 @@ final readonly class ExecutionGateway
         $lines[] = '# Completion protocol';
         $lines[] = 'Your final non-empty output line must start with the exact marker below and contain one JSON object on the same line.';
         $lines[] = 'Allowed outcomes for this stage: ' . $outcomes;
-        $lines[] = self::COMPLETION_MARKER . '{"outcome":"<allowed-outcome>","summary":"<brief factual summary>","artifact_references":[],"validation_references":[]}';
+        $lines[] = self::COMPLETION_MARKER . '{"outcome":"<allowed-outcome>","summary":"' . self::COMPLETION_SUMMARY_PLACEHOLDER . '","artifact_references":[],"validation_references":[]}';
         $lines[] = 'Do not place Markdown fences around that final line. The marker is transport syntax, not workflow approval.';
 
         if ($executionContract !== null) {

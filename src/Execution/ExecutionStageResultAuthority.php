@@ -283,11 +283,16 @@ final readonly class ExecutionStageResultAuthority
 
     /**
      * Whether a repair stage's summary states a rebuttal rather than the CLI's
-     * default summary or the unfilled `<summary>` of a suggested command.
+     * default summary, the unfilled `<summary>` of a suggested command, or the
+     * unfilled summary of the completion-protocol template.
      */
     public static function isRebuttalSummary(StageResult $result): bool
     {
-        return !in_array($result->summary, ['', '<summary>', 'Stage result: ' . $result->outcome->value], true);
+        return !in_array(
+            $result->summary,
+            ['', '<summary>', ExecutionGateway::COMPLETION_SUMMARY_PLACEHOLDER, 'Stage result: ' . $result->outcome->value],
+            true,
+        );
     }
 
     private function latestAcceptedResultForStage(ExecutionState $state, string $stageId): ?StageResult

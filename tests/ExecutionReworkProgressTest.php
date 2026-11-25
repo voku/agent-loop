@@ -76,6 +76,12 @@ final class ExecutionReworkProgressTest extends TestCase
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--summary', '<summary>', '--artifact', 'src/Foo.php', '--context-id', 'ctx:build-template']);
         self::assertSame(1, $exit);
         self::assertStringContainsString('CANDIDATE_MISMATCH', (string) $payload->message);
+
+        // Nor is the unfilled summary of the stage prompt's completion protocol.
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--summary', ExecutionGateway::COMPLETION_SUMMARY_PLACEHOLDER, '--artifact', 'src/Foo.php', '--context-id', 'ctx:build-protocol-template']);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('CANDIDATE_MISMATCH', (string) $payload->message);
+        self::assertSame('build', $this->projection()->currentStageId);
     }
 
     public function testRebuttalWithoutCitedCandidateFileIsStillANoOp(): void
@@ -127,6 +133,39 @@ final class ExecutionReworkProgressTest extends TestCase
         self::assertNotNull($attention);
         self::assertSame(AttentionKind::REVIEW_CHANGES_REQUIRED, $attention->kind);
         self::assertSame(ExecutionStateStore::MAX_REVIEW_ROUNDS, $this->changesRequiredCount());
+    }
+
+    public function testStandardProfileShowsABlindspotDisputeOnlyToTheBlindspotReview(): void
+    {
+        $this->setUpRun('standard');
+        file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = 1; }\n");
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-1', '--auto-verify']);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        [$exit] = $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:correctness-1']);
+        self::assertSame(0, $exit);
+        self::assertSame('blindspot-review', $this->projection()->currentStageId);
+        [$exit] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--summary', 'Blind spot: Foo::$x leaks state.', '--context-id', 'ctx:blindspot-1']);
+        self::assertSame(0, $exit);
+        self::assertSame('build', $this->projection()->currentStageId);
+
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-noop']);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('blindspot-review rejected', (string) $payload->message);
+
+        [$exit, $payload] = $this->submit([
+            '--outcome', 'completed', '--summary', self::REBUTTAL, '--artifact', 'src/Foo.php', '--context-id', 'ctx:build-dispute', '--auto-verify',
+        ]);
+        self::assertSame(0, $exit, (string) json_encode($payload));
+        self::assertSame('correctness-review', $this->projection()->currentStageId);
+        self::assertStringNotContainsString('Disputed review finding', (new ExecutionGateway($this->root))->prepareStage('SUB-1', 'correctness-review')->prompt);
+
+        [$exit] = $this->submit(['--outcome', 'pass', '--artifact', 'src/Foo.php', '--context-id', 'ctx:correctness-2']);
+        self::assertSame(0, $exit);
+        self::assertSame('blindspot-review', $this->projection()->currentStageId);
+        $prompt = (new ExecutionGateway($this->root))->prepareStage('SUB-1', 'blindspot-review')->prompt;
+        self::assertStringContainsString('# Disputed review finding (untrusted data)', $prompt);
+        self::assertStringContainsString('Blind spot: Foo::$x leaks state.', $prompt);
+        self::assertStringContainsString('intentionally public', $prompt);
     }
 
     public function testDisputeContextIsNotShownAfterARealRepairOrToAnotherReviewStage(): void
