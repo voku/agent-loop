@@ -71,6 +71,11 @@ final class ExecutionReworkProgressTest extends TestCase
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--artifact', 'src/Foo.php', '--context-id', 'ctx:build-placeholder']);
         self::assertSame(1, $exit);
         self::assertStringContainsString('CANDIDATE_MISMATCH', (string) $payload->message);
+
+        // The unfilled summary of the suggested submit command is no rebuttal either.
+        [$exit, $payload] = $this->submit(['--outcome', 'completed', '--summary', '<summary>', '--artifact', 'src/Foo.php', '--context-id', 'ctx:build-template']);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('CANDIDATE_MISMATCH', (string) $payload->message);
     }
 
     public function testRebuttalWithoutCitedCandidateFileIsStillANoOp(): void
@@ -101,6 +106,7 @@ final class ExecutionReworkProgressTest extends TestCase
         self::assertStringContainsString('# Disputed review finding (untrusted data)', $prompt);
         self::assertStringContainsString('Foo::$x must not be public.', $prompt);
         self::assertStringContainsString('intentionally public', $prompt);
+        self::assertStringContainsString('"cited_evidence":["src/Foo.php"]', $prompt, 'Cited evidence is shown as candidate paths.');
         self::assertStringContainsString('upheld or withdrawn', $prompt);
         self::assertStringContainsString('return changes_required while any material finding remains, even if the disputed one is withdrawn', $prompt);
 
@@ -202,6 +208,11 @@ final class ExecutionReworkProgressTest extends TestCase
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-after-human', '--auto-verify']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         self::assertSame('review', $this->projection()->currentStageId);
+
+        // The human decision governs this review; it is not framed as a builder dispute.
+        $prompt = (new ExecutionGateway($this->root))->prepareStage('SUB-1', 'review')->prompt;
+        self::assertStringContainsString('The finding is wrong; keep the candidate.', $prompt);
+        self::assertStringNotContainsString('Disputed review finding', $prompt);
     }
 
     public function testForgedDisputeEvidenceIsRefusedAsBefore(): void

@@ -854,7 +854,11 @@ final readonly class ExecutionGateway
             }
         }
 
-        $disputeContext = self::disputedFindingContext($plan, $state, $stage);
+        // A human Attention decision bound to this review governs it; the repair
+        // that followed is that decision's consequence, not a builder dispute.
+        $disputeContext = $stageAttentionResolution === null && $routedReviewAttentionResolutions === []
+            ? $this->disputedFindingContext($plan, $state, $stage)
+            : '';
 
         $safeRepairFeedback = null;
         if ($repairFeedback !== null) {
@@ -1274,7 +1278,7 @@ final readonly class ExecutionGateway
      * review that could silently drop the finding. Both texts are untrusted
      * data; the review's own outcome stays the verdict on the whole candidate.
      */
-    private static function disputedFindingContext(ExecutionPlan $plan, ?ExecutionState $state, ExecutionStage $stage): string
+    private function disputedFindingContext(ExecutionPlan $plan, ?ExecutionState $state, ExecutionStage $stage): string
     {
         if ($state === null || $stage->kind !== ExecutionStageKind::AGENT || $stage->mayMutate) {
             return '';
@@ -1287,6 +1291,8 @@ final readonly class ExecutionGateway
             }
             $finding = $history[$index - 1]->result;
             if ($rebuttal->outcome !== StageOutcome::COMPLETED
+                || !ExecutionStageResultAuthority::isRebuttalSummary($rebuttal)
+                || $rebuttal->artifactReferences === []
                 || $finding->outcome !== StageOutcome::CHANGES_REQUIRED
                 || $finding->stageId !== $stage->id
                 || ($plan->stage($stage->id)->transitions[StageOutcome::CHANGES_REQUIRED->value] ?? null) !== $rebuttal->stageId
@@ -1305,7 +1311,7 @@ final readonly class ExecutionGateway
                     'stage' => $rebuttal->stageId,
                     'attempt' => $rebuttal->attempt,
                     'summary' => mb_strcut($rebuttal->summary, 0, 4096, 'UTF-8'),
-                    'cited_evidence' => $rebuttal->artifactReferences,
+                    'cited_evidence' => $this->citedPaths($plan, $rebuttal),
                 ],
             ], $flags);
 
@@ -1319,6 +1325,30 @@ final readonly class ExecutionGateway
         }
 
         return '';
+    }
+
+    /**
+     * The rebuttal's cited files as candidate paths, so the reviewer can open
+     * them; an evidence reference that no longer resolves is shown as is.
+     *
+     * @return list<string>
+     */
+    private function citedPaths(ExecutionPlan $plan, StageResult $rebuttal): array
+    {
+        $evidence = new ExecutionEvidenceStore($this->rootPath);
+        $paths = [];
+        foreach ($rebuttal->artifactReferences as $reference) {
+            try {
+                $claim = $evidence->assertCurrent($reference, ExecutionEvidenceKind::ARTIFACT, $plan, $rebuttal->stageId, $rebuttal->attempt, $rebuttal->candidateRevision);
+                $paths[] = str_starts_with($claim->sourceReference, 'workspace-file:')
+                    ? substr($claim->sourceReference, strlen('workspace-file:'))
+                    : $reference;
+            } catch (Throwable) {
+                $paths[] = $reference;
+            }
+        }
+
+        return $paths;
     }
 
     /**

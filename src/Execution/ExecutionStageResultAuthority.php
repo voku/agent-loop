@@ -261,15 +261,15 @@ final readonly class ExecutionStageResultAuthority
     }
 
     /**
-     * A dispute is a reasoned claim, not proof: it needs a rebuttal that is not
-     * the CLI's default summary and at least one cited file of the current
+     * A dispute is a reasoned claim, not proof: it needs a rebuttal (see
+     * isRebuttalSummary()) and at least one cited file of the current
      * candidate. The fresh review that follows decides whether it holds.
      *
      * @param list<ExecutionEvidenceClaim> $artifactClaims
      */
     private static function isEvidencedDispute(StageResult $result, array $artifactClaims): bool
     {
-        if ($result->summary === '' || $result->summary === 'Stage result: ' . $result->outcome->value) {
+        if (!self::isRebuttalSummary($result)) {
             return false;
         }
         foreach ($artifactClaims as $claim) {
@@ -279,6 +279,15 @@ final readonly class ExecutionStageResultAuthority
         }
 
         return false;
+    }
+
+    /**
+     * Whether a repair stage's summary states a rebuttal rather than the CLI's
+     * default summary or the unfilled `<summary>` of a suggested command.
+     */
+    public static function isRebuttalSummary(StageResult $result): bool
+    {
+        return !in_array($result->summary, ['', '<summary>', 'Stage result: ' . $result->outcome->value], true);
     }
 
     private function latestAcceptedResultForStage(ExecutionState $state, string $stageId): ?StageResult
