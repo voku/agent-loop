@@ -85,7 +85,7 @@ final readonly class WorkflowArchitectureRuleHints
         }
 
         if ($byRule === []) {
-            return $this->abstained('no_rules_in_inspected_files', [
+            return $this->abstained($inspected === [] ? 'no_readable_php_files' : 'no_rules_in_inspected_files', [
                 'inspected_files' => $inspected,
                 'ignored_paths' => $ignored,
             ]);
@@ -125,6 +125,8 @@ final readonly class WorkflowArchitectureRuleHints
             || str_starts_with($relativePath, '/')
             || str_contains($relativePath, "\0")
             || str_contains($relativePath, '\\')
+            || in_array('.', explode('/', $relativePath), true)
+            || in_array('..', explode('/', $relativePath), true)
             || preg_match('/^[A-Za-z]:/', $relativePath) === 1
             || preg_match('/\.(?:php|phtml)$/i', $relativePath) !== 1
         ) {
