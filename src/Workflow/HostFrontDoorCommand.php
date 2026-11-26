@@ -475,14 +475,29 @@ final readonly class HostFrontDoorCommand
 
                         if ($this->validationComplete($boundary) && $reviewSha256 !== null && !$review['invalid'] && in_array($review['report_status'], ['ok', 'warn'], true)) {
                             $ackStore = new ReviewAcknowledgementStore($this->rootPath);
+                            $explicitSha256 = $options['reviewedReportSha256'];
                             if ($ackStore->find($run->taskId) === null) {
-                                $ackStore->record(
-                                    $run,
-                                    $contract,
-                                    $boundary->implementation,
-                                    $reviewSha256,
-                                    'fast-path-auto-review',
-                                );
+                                if ($explicitSha256 === null) {
+                                    $ackStore->record(
+                                        $run,
+                                        $contract,
+                                        $boundary->implementation,
+                                        $reviewSha256,
+                                        'fast-path-auto-review',
+                                    );
+                                } elseif ($options['by'] !== null && hash_equals($reviewSha256, $explicitSha256)) {
+                                    // An explicit acknowledgement in this call takes the automatic one's
+                                    // place, keeping its own actor and recorder; anything else is refused
+                                    // by the explicit acknowledgement step below.
+                                    $ackStore->record(
+                                        $run,
+                                        $contract,
+                                        $boundary->implementation,
+                                        $reviewSha256,
+                                        $options['by'],
+                                        $options['recordedBy'],
+                                    );
+                                }
                             }
                             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
                             $learningStore = new RunLearningDecisionStore($learningRoot);
@@ -492,6 +507,7 @@ final readonly class HostFrontDoorCommand
                             if (
                                 $learningStore->find($run->runId) === null
                                 && $options['learning'] === null
+                                && $ackStore->find($run->taskId) !== null
                                 && $recorder->reviewObservations($run) === []
                             ) {
                                 $recorder->record(

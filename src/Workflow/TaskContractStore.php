@@ -207,6 +207,13 @@ final class TaskContractStore
                 );
             }
             if ($contract->status === TaskContract::APPROVED && $contract->approvedBy !== null && $contract->approvedAt !== null) {
+                if ($recordedBy !== null && $recordedBy !== $contract->recordedBy) {
+                    throw new RuntimeException(sprintf(
+                        'Contract revision %d is already approved with a different recorder; the existing approval is kept unchanged.',
+                        $contract->revision,
+                    ));
+                }
+
                 return $contract;
             }
             if ($contract->status !== TaskContract::CANDIDATE) {
