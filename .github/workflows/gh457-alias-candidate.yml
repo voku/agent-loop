@@ -19,6 +19,36 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare exact candidate Contract without approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/gh457-candidate
+          php bin/agent-loop enter GH-457-ALIAS --format=json > build/gh457-candidate/enter.json || true
+          php bin/agent-loop workflow plan GH-457-ALIAS --format=json --by chatgpt \
+            --goal 'Reject adjacent local .git path aliases in direct is_dir returns and conditions; preserve existing direct detection and avoid false positives after reassignment or on unrelated variables.' \
+            --file phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php \
+            --file phpstan.neon.dist \
+            --file phpstan/project-rule-test.neon \
+            --file tools/Dogfood/ProjectRuleFixtureCheck.php \
+            --scope phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php \
+            --scope phpstan/Rules/NoGitDirectoryShapeAliasRule.php \
+            --scope phpstan.neon.dist \
+            --scope phpstan/project-rule-test.neon \
+            --scope tools/Dogfood/ProjectRuleFixtureCheck.php \
+            --scope tests/PHPStan/data/git-directory-shape-alias.php \
+            --scope tests/PHPStan/data/git-directory-shape-alias-negative.php \
+            --non-goal 'General dataflow, indirect aliases, arbitrary control flow, runtime changes, authority changes, or generic prompt rules.' \
+            --behavior-anchor 'Finding 2026-08-14.013 and proposal 2026-08-14.003; Actions 45874720212 reproduced the alias blind spot on a real linked worktree.' \
+            --acceptance 'The original direct and split paths and adjacent function/method/closure alias forms report agentLoop.git.metadataShape; safe owner use, unrelated path, reassigned alias, branch-local reassignment and different variables do not.' \
+            --acceptance 'The permanent fixture gate distinguishes expected diagnostic count from negative-control errors; the existing runtime regression and composer ci pass.' \
+            --validation 'composer ci' \
+            --base-commit 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a > build/gh457-candidate/plan.json
+          jq -e '.next_action_kind == "decision_required" and .human_decision.type == "contract_approval"' build/gh457-candidate/plan.json
+          cp "$(jq -r .path build/gh457-candidate/plan.json)" build/gh457-candidate/contract.json
+          sha256sum build/gh457-candidate/contract.json | tee build/gh457-candidate/contract.sha256
+          jq '.human_decision' build/gh457-candidate/plan.json
+          # Do not approve. The following isolated scratch work is evidence only.
       - name: Calibrate baseline, apply bounded scratch candidate, compare identifiers
         shell: bash
         run: |
@@ -186,8 +216,30 @@ jobs:
           }
           PHP
           php -l phpstan/Rules/NoGitDirectoryShapeAliasRule.php
-          git add -N phpstan/Rules/NoGitDirectoryShapeAliasRule.php
+          # Persist the positive and negative controls in candidate test fixtures,
+          # using the existing project fixture gate rather than adding another gate.
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('tests/PHPStan/data')
+          source = Path('build/gh457-candidate/variants.php').read_text()
+          header, functions = source.split('function direct(', 1)
+          header = header.replace('namespace Evidence;', 'namespace voku\\AgentLoop\\Init\\GitShapeProbe;')
+          positive, negative = ('function direct(' + functions).split('function owner(', 1)
+          (root/'git-directory-shape-alias.php').write_text(header + positive)
+          (root/'git-directory-shape-alias-negative.php').write_text(header + 'function owner(' + negative)
+          p = Path('tools/Dogfood/ProjectRuleFixtureCheck.php')
+          s = p.read_text()
+          old = "'Do not infer Git repository state from is_dir(.git)' => 1,"
+          assert s.count(old) == 1
+          s = s.replace(old, old.replace('=> 1', '=> 6'))
+          anchor = '        return $problems;\n'
+          assert s.count(anchor) == 1
+          s = s.replace(anchor, "        if (str_contains($output, 'git-directory-shape-alias-negative.php:')) {\n            $problems[] = 'Git directory shape negative-control fixture must have no diagnostics.';\n        }\n\n" + anchor)
+          p.write_text(s)
+          PY
+          git add -N phpstan/Rules/NoGitDirectoryShapeAliasRule.php tests/PHPStan/data/git-directory-shape-alias.php tests/PHPStan/data/git-directory-shape-alias-negative.php
           git diff --binary > build/gh457-candidate/candidate.patch
+          sha256sum build/gh457-candidate/candidate.patch | tee build/gh457-candidate/candidate.sha256
           probe candidate
           python3 - <<'PY'
           from pathlib import Path
@@ -209,6 +261,20 @@ jobs:
           vendor/bin/phpunit --filter GitWorkTreeDetectionTest | tee build/gh457-candidate/runtime-regression.txt
           composer cs | tee build/gh457-candidate/cs.txt
           composer phpstan | tee build/gh457-candidate/phpstan.txt
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Full repository gate on exact scratch candidate
+        shell: bash
+        env:
+          AGENT_MAP_REQUIRE_TYPESCRIPT: '1'
+        run: |
+          set -euo pipefail
+          composer ci 2>&1 | tee build/gh457-candidate/full-ci.txt
+          git diff --binary > build/gh457-candidate/after-ci.patch
+          cmp build/gh457-candidate/candidate.patch build/gh457-candidate/after-ci.patch
       - name: Upload scratch candidate and evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
