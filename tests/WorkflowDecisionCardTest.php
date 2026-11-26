@@ -69,6 +69,8 @@ final class WorkflowDecisionCardTest extends TestCase
         self::assertSame('DEMO-1', $card['subject']['task_id']);
         self::assertSame(1, $card['subject']['contract_revision']);
         self::assertSame('first_revision', $card['why_now']['kind']);
+        self::assertSame(['state' => 'proposed', 'behavior_anchors' => [], 'acceptance_criteria' => []], $card['proposed_outcomes']);
+        self::assertStringContainsString('Change motivation: no separately recorded rationale', implode("\n", $card['unknown']));
         self::assertSame(['src/Foo.php'], $card['may_change']);
         self::assertSame(['No other class changes.'], $card['out_of_scope']);
         self::assertSame(WorkflowDecisionCardFactory::NOT_RUN, $card['proof']['validation']['state']);
@@ -79,6 +81,39 @@ final class WorkflowDecisionCardTest extends TestCase
         self::assertSame('agent-loop workflow request-changes DEMO-1 --revision 1 --by <actor> --reason <reason>', $card['choices'][1]['command']);
         self::assertNotSame([], $card['unknown']);
         self::assertStringNotContainsString('passed', (string) json_encode($card['proof']));
+    }
+
+    public function testDeclaredOutcomesAppearBeforeScopeInBothLanguages(): void
+    {
+        $anchor = 'Today: no bar method. Proposed: a public bar method.';
+        $criterion = 'Foo::bar returns a string.';
+        $text = $this->plan(['--file', 'src/Foo.php', '--behavior-anchor', $anchor, '--acceptance', $criterion]);
+        $card = $this->enterJson()['human_decision']['card'];
+        self::assertSame([
+            'state' => 'proposed',
+            'behavior_anchors' => [$anchor],
+            'acceptance_criteria' => [$criterion],
+        ], $card['proposed_outcomes']);
+        self::assertSame('not_run', $card['proof']['validation']['state']);
+        self::assertStringContainsString('Current behavior: no independently recorded baseline observation', implode("\n", $card['unknown']));
+        $expected = "Proposed outcomes (not verified):\nDeclared behavior anchors:\n  - $anchor\nAcceptance criteria:\n  - $criterion\nMay change:";
+        self::assertStringContainsString($expected, $text);
+
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->root . '/interaction');
+        putenv('AGENT_LOOP_HOST_SESSION_ID=sess-de');
+        ob_start();
+        (new WorkflowInteractionCommand())->run(['sess-de', 'collaborative']);
+        (new WorkflowInteractionCommand())->run(['sess-de', '--language=de-DE']);
+        ob_end_clean();
+        $localized = $this->enterJson()['human_decision']['card'];
+        self::assertSame('de', $localized['language']);
+        self::assertSame($card['proposed_outcomes'], $localized['proposed_outcomes']);
+        self::assertSame($card['choices'][0]['command'], $localized['choices'][0]['command']);
+        self::assertStringContainsString('Änderungsmotivation:', implode("\n", $localized['unknown']));
+        ob_start();
+        (new HostFrontDoorCommand($this->root))->run('enter', ['DEMO-1']);
+        $german = (string) ob_get_clean();
+        self::assertStringContainsString("Vorgeschlagene Ergebnisse (nicht nachgewiesen):\nDeklarierte Verhaltensanker:\n  - $anchor\nAbnahmekriterien:\n  - $criterion\nDarf ändern:", $german);
     }
 
     public function testSupersededRevisionCardNamesTheMechanicalChange(): void
@@ -128,6 +163,7 @@ final class WorkflowDecisionCardTest extends TestCase
         foreach ($subjects as $type => $subject) {
             $card = $factory->forDecision($type, 'DEMO-1', 'agent-loop do-something DEMO-1', $subject)->toArray();
             self::assertSame($type, $card['type']);
+            self::assertArrayNotHasKey('proposed_outcomes', $card);
             self::assertNotSame('', $card['why_now']['summary'], $type);
             self::assertNotSame([], $card['choices'], $type);
             self::assertNotSame('passed', $card['proof']['validation']['state'], $type);
