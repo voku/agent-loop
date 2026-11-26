@@ -1,4 +1,4 @@
-name: GH-1185 approved entry and GH-1184 review reproduction (do not merge)
+name: GH-1184 and GH-1185 exact candidate evidence (do not merge)
 on:
   pull_request:
     branches: [main]
@@ -7,13 +7,33 @@ permissions:
   contents: read
   actions: read
 jobs:
-  approved-entry:
+  governed-candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: GH-1184
+            base: e5e0e006fb052e262c18523bf6a19b7bcc213315
+            candidate: e597785987ad4b54e601389e3add1376e61569d6
+            artifact: '15126735850'
+            digest: 4ea897bfd21588cd1d00338646b1e3b2379e816de0834dcd5d354391bf4b3265
+          - task: GH-1185
+            base: 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+            candidate: 3007358db8c5193746228107fdb8e765b0434fce
+            artifact: '15136120151'
+            digest: 4677a2cfbbd87e19ee682ec909f6bd47f87fe86a1ed620aafd26517c63c8acbf
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    env:
+      TASK: ${{ matrix.task }}
+      BASE: ${{ matrix.base }}
+      CANDIDATE: ${{ matrix.candidate }}
+      ARTIFACT: ${{ matrix.artifact }}
+      DIGEST: ${{ matrix.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+          ref: ${{ matrix.base }}
           fetch-depth: 0
           persist-credentials: false
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
@@ -21,53 +41,77 @@ jobs:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
-      - name: Record genuine developer approval and enter
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          package-manager-cache: false
+      - name: Restore approved bytes and enter before changing candidate files
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+          test "$(git rev-parse HEAD)" = "$BASE"
           composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
-          mkdir -p proof .agent-loop/contracts/GH-1185
-          gh api repos/voku/agent-loop/actions/artifacts/15134461068/zip > proof/candidate.zip
-          echo 'e66f69818073051105163e5794f0214f91af5764d1dd69087b199fb4ad551a8b  proof/candidate.zip' | sha256sum -c -
-          unzip -p proof/candidate.zip contract.json > .agent-loop/contracts/GH-1185/contract.json
-          echo '08864fce73e5648d04ab60d7e157d142d9d207c08191780250f4681905410df3  .agent-loop/contracts/GH-1185/contract.json' | sha256sum -c -
-          php bin/agent-loop workflow approve GH-1185 --revision 1 --head 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a --by voku --recorded-by ChatGPT --format=json > proof/approval.json
-          jq -e '.status == "approved" and .revision == 1' proof/approval.json
-          cp .agent-loop/contracts/GH-1185/contract.json proof/approved-contract.json
-          php bin/agent-loop enter GH-1185 --format=json > proof/entry.json
-          jq '{mutation_ready,next_action_kind,next_action}' proof/entry.json
-          jq -e '.mutation_ready == true and .next_action_kind == "host_work"' proof/entry.json
+          npm ci --ignore-scripts
+          proof="build/evidence/$TASK"
+          mkdir -p "$proof" ".agent-loop/contracts/$TASK"
+          gh api "repos/voku/agent-loop/actions/artifacts/$ARTIFACT/zip" > "$proof/approved.zip"
+          echo "$DIGEST  $proof/approved.zip" | sha256sum -c -
+          entry="$(unzip -Z1 "$proof/approved.zip" | grep -E '(^|/)approved-contract\.json$')"
+          test "$(printf '%s\n' "$entry" | wc -l)" = 1
+          unzip -p "$proof/approved.zip" "$entry" > ".agent-loop/contracts/$TASK/contract.json"
+          jq -e --arg task "$TASK" '.task_id == $task and .status == "approved" and .revision == 1 and .approved_by == "voku"' ".agent-loop/contracts/$TASK/contract.json"
+          php bin/agent-loop enter "$TASK" --format=json > "$proof/entry.json"
+          jq -e '.mutation_ready == true and .next_action_kind == "host_work"' "$proof/entry.json"
+      - name: Reproduce only approved exact candidate files
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="build/evidence/$TASK"
+          git cat-file -e "$CANDIDATE^{commit}"
+          git merge-base --is-ancestor "$BASE" "$CANDIDATE"
+          git diff --name-only "$BASE" "$CANDIDATE" | LC_ALL=C sort > "$proof/changed-paths.txt"
+          jq -r '.scope[]' ".agent-loop/contracts/$TASK/contract.json" | LC_ALL=C sort > "$proof/approved-paths.txt"
+          diff -u "$proof/approved-paths.txt" "$proof/changed-paths.txt"
+          mapfile -t paths < "$proof/approved-paths.txt"
+          git restore --source "$CANDIDATE" -- "${paths[@]}"
+          git diff --exit-code "$CANDIDATE" -- "${paths[@]}"
+          git show -s --format=%B "$CANDIDATE" > "$proof/product-message.txt"
+          if [ "$TASK" = GH-1184 ]; then
+            php bin/agent-loop githooks verify | tee "$proof/examples.txt"
+            php bin/agent-loop githooks commit-msg "$proof/product-message.txt"
+            vendor/bin/phpunit tests/GitHooksRunnerTest.php | tee "$proof/targeted-tests.txt"
+          else
+            vendor/bin/phpunit tests/WorkflowDecisionCardTest.php tests/WorkflowContractApprovalBaselineTest.php | tee "$proof/targeted-tests.txt"
+          fi
+      - name: Preserve actual finish response and owner review artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="build/evidence/$TASK"
+          status=0
+          php bin/agent-loop finish "$TASK" --format=json > "$proof/finish.json" || status=$?
+          printf '%s\n' "$status" > "$proof/finish-exit.txt"
+          jq '{status,next_action_kind,next_action,human_decision,mutation_ready}' "$proof/finish.json"
+          echo "finish exit=$status (not necessarily complete)"
+          php -r 'require "vendor/autoload.php"; $l = new voku\AgentLoop\ProjectLayout(getcwd()); $r = new voku\AgentLoop\Workflow\WorkflowReviewReportReader(getcwd()); echo $r->absolutePath($argv[1]), PHP_EOL;' "$TASK" > "$proof/review-path.txt"
+          review="$(cat "$proof/review-path.txt")"
+          if [ -f "$review" ]; then
+            cp "$review" "$proof/review-report.json"
+            sha256sum "$proof/review-report.json"
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: gh-1185-approved-entry
+          name: ${{ matrix.task }}-exact-candidate-evidence
           path: |
-            proof/*.json
-            .agent-loop/contracts/GH-1185/
-            .agent-loop/runs/GH-1185/
+            build/evidence/${{ matrix.task }}/*.json
+            build/evidence/${{ matrix.task }}/*.txt
+            .agent-loop/contracts/${{ matrix.task }}/
+            .agent-loop/runs/${{ matrix.task }}/
+            .agent-loop/recall/${{ matrix.task }}/
+            .agent-loop/sessions/
           include-hidden-files: true
+          if-no-files-found: warn
           retention-days: 14
-  reproduce-finding:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: d58bcec4b67b173739c0490a9e6522c69bb4c1bd
-          persist-credentials: false
-      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
-        with:
-          php-version: '8.3'
-          coverage: none
-          tools: composer:v2
-      - name: Verify review counterexample against actual CLI
-        run: |
-          set -euo pipefail
-          composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
-          msg="$(mktemp)"
-          printf '%s\n' 'fix(parser): reject empty input' '' 'WHY:' '- Empty input crashed the tokenizer.' '- [FILL]' > "$msg"
-          php bin/agent-loop githooks commit-msg "$msg"
-          echo 'Confirmed: current candidate accepts unresolved placeholder after concrete WHY.'
-          rm "$msg"
