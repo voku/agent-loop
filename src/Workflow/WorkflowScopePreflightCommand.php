@@ -163,7 +163,6 @@ final readonly class WorkflowScopePreflightCommand
         return $result;
     }
 
-    /** @return array{contract: string, base: string, draft: string, validation: string} */
     /** @return array{contract: string, base: string, validation: string} */
     private static function declaredIdentity(TaskContract $contract): array
     {
@@ -188,12 +187,19 @@ final readonly class WorkflowScopePreflightCommand
         if ($real === false || !is_dir($real)) {
             throw new RuntimeException('Draft workspace does not exist: ' . $workspace);
         }
-        $commonDir = static fn (string $directory): string|false => realpath(self::git($directory, ['rev-parse', '--path-format=absolute', '--git-common-dir']));
         $owner = dirname($contract->path);
-        if (self::git($real, ['rev-parse', '--show-toplevel']) !== $real
-            || $commonDir($real) !== $commonDir($owner)
-            || self::git($real, ['rev-parse', '--path-format=absolute', '--git-dir']) === $commonDir($real)) {
+        $ownerRoot = realpath(self::git($owner, ['rev-parse', '--show-toplevel']));
+        if ($ownerRoot === false || $ownerRoot === $real) {
             throw new RuntimeException('Draft workspace must be the root of a linked worktree of this repository: ' . $workspace);
+        }
+        try {
+            // Reuse the registered-worktree and canonical repository identity checks.
+            (new CandidateWorkspaceIdentity())->assertSameRepository($owner, $real);
+        } catch (RuntimeException $exception) {
+            throw new RuntimeException(
+                'Draft workspace must be the root of a linked worktree of this repository: ' . $workspace,
+                previous: $exception,
+            );
         }
         $head = self::git($real, ['rev-parse', '--verify', 'HEAD']);
         if ($head !== $base) {
@@ -211,9 +217,9 @@ final readonly class WorkflowScopePreflightCommand
     {
         $tree = substr($draft, strrpos($draft, ':') + 1);
         $fields = explode("\0", self::git(dirname(self::path($contract)), ['diff', '--no-ext-diff', '--no-renames', '--name-status', '-z', (string) $contract->baseCommit, $tree], false));
-        // normalizeScope() returns [] for a whole-repository ('.') scope: nothing can then be outside it.
+        // Both [] and ['.'] designate the whole repository for candidate observation.
         $scope = CandidateWorkspaceIdentity::normalizeScope($contract->scope);
-        if ($scope === [] && $contract->scope !== []) {
+        if ($scope === []) {
             return [];
         }
         $changes = [];
@@ -238,7 +244,7 @@ final readonly class WorkflowScopePreflightCommand
     private static function git(string $directory, array $arguments, bool $trim = true): string
     {
         $environment = getenv();
-        foreach (['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'] as $variable) {
+        foreach (['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES'] as $variable) {
             unset($environment[$variable]);
         }
         $process = proc_open(['git', '-C', $directory, ...$arguments], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $environment);
