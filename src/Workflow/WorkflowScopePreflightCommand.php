@@ -217,7 +217,7 @@ final readonly class WorkflowScopePreflightCommand
     {
         $tree = substr($draft, strrpos($draft, ':') + 1);
         $fields = explode("\0", self::git(dirname(self::path($contract)), ['diff', '--no-ext-diff', '--no-renames', '--name-status', '-z', (string) $contract->baseCommit, $tree], false));
-        // Both [] and ['.'] designate the whole repository for candidate observation.
+        // A valid Contract scope containing '.' normalizes to [] (the whole repository).
         $scope = CandidateWorkspaceIdentity::normalizeScope($contract->scope);
         if ($scope === []) {
             return [];
