@@ -184,13 +184,14 @@ final class TaskContractStore
         }
     }
 
-    public function approve(string $taskId, string $by, int $expectedRevision, ?string $expectedHead = null): TaskContract
+    public function approve(string $taskId, string $by, int $expectedRevision, ?string $expectedHead = null, ?string $recordedBy = null): TaskContract
     {
+        $recordedBy = WorkflowActorAttribution::recorder($recordedBy);
         if (str_starts_with(trim($by), 'standing:')) {
             throw new RuntimeException('The standing: actor prefix is reserved and cannot approve a Task Contract.');
         }
 
-        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $expectedHead): TaskContract {
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $expectedHead, $recordedBy): TaskContract {
             $this->assertExpectedHead($expectedHead);
             $contract = $this->load($taskId);
             if ($expectedRevision !== $contract->revision) {
@@ -238,6 +239,7 @@ final class TaskContractStore
                 $now,
                 $contract->acceptanceCriteria,
                 $contract->acceptanceObservations,
+                recordedBy: $recordedBy,
             );
             $this->write($approved);
 
@@ -252,7 +254,9 @@ final class TaskContractStore
         string $reason,
         ?string $expectedHead = null,
         string $kind = TaskContract::REJECTION,
+        ?string $recordedBy = null,
     ): TaskContract {
+        $recordedBy = WorkflowActorAttribution::recorder($recordedBy);
         if (!in_array($kind, TaskContract::REJECTION_KINDS, true)) {
             throw new RuntimeException('Unsupported Contract rejection kind: ' . $kind . '.');
         }
@@ -262,7 +266,7 @@ final class TaskContractStore
             throw new RuntimeException('Contract rejection requires a named human actor and a reason of at most 4000 bytes.');
         }
 
-        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $reason, $expectedHead, $kind): TaskContract {
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $reason, $expectedHead, $kind, $recordedBy): TaskContract {
             $this->assertExpectedHead($expectedHead);
             $contract = $this->load($taskId);
             if ($contract->revision !== $expectedRevision || $contract->status !== TaskContract::CANDIDATE) {
@@ -294,6 +298,7 @@ final class TaskContractStore
                 $now,
                 $reason,
                 $kind,
+                $recordedBy,
             );
             $this->write($rejected);
 
@@ -435,6 +440,7 @@ final class TaskContractStore
             $contract->rejectedAt,
             $contract->rejectionReason,
             $contract->rejectionKind,
+            $contract->recordedBy,
         );
         $this->atomicWrite($superseded->path, CanonicalJson::pretty($superseded->toArray()));
     }
@@ -659,6 +665,11 @@ final class TaskContractStore
         if ($status === TaskContract::CANDIDATE && ($approvedBy !== null || $approvedAt !== null)) {
             throw new RuntimeException('Candidate Contract contains stale approval metadata in ' . $path . '.');
         }
+        $recordedBy = WorkflowActorAttribution::recorderFromRecord($data, $path);
+        if ($recordedBy !== null && $approvedBy === null && $rejectedBy === null) {
+            // A recorder only ever accompanies a recorded decision.
+            throw new RuntimeException('Contract names a recorder without a recorded decision in ' . $path . '.');
+        }
         if ($status === TaskContract::APPROVED && str_starts_with(trim($approvedBy), 'standing:')) {
             // A pre-upgrade pseudo-actor cannot authorize a current approval.
             // Keep the original artifact and actor metadata readable for audit and revise(),
@@ -691,6 +702,7 @@ final class TaskContractStore
             $rejectedAt,
             $rejectionReason,
             $rejectionKind,
+            $recordedBy,
         );
     }
 

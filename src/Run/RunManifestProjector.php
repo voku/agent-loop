@@ -22,6 +22,7 @@ use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContract;
+use voku\AgentLoop\Workflow\WorkflowActorAttribution;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\ValidationDiagnosticStore;
 use voku\AgentLoop\Workflow\EditResidueWork;
@@ -590,7 +591,7 @@ final class RunManifestProjector
             'approved_by' => $contract->approvedBy,
             'approved_at' => $contract->approvedAt,
             'source' => $this->artifact($contract->path),
-        ];
+        ] + WorkflowActorAttribution::recorderFields($contract->recordedBy);
     }
 
     /**

@@ -26,7 +26,7 @@ vendor/bin/agent-loop enter <task-id> --format=json
 
 For a new task, the kernel returns a `command_template` PLAN command. Fill missing Contract inputs from the request and repository evidence, execute without extra human confirmation, then call `enter` again and obey the structured `next_action_kind` / `next_action`.
 
-Approval records authority for the exact Contract revision; Run, Session and Recall preparation happens deterministically behind `enter`. Never fabricate an approval actor or self-approve.
+Approval records authority for the exact Contract revision; Run, Session and Recall preparation happens deterministically behind `enter`. Never fabricate an approval actor or self-approve. When you record a named human's explicit decision for them, keep their name in `--by` and pass `--recorded-by <your agent name>`; both are self-asserted attribution, not authenticated identity.
 
 ## Contract Intent & Scope
 

@@ -15,6 +15,8 @@ final readonly class ReviewAcknowledgement
         public string $acknowledgedBy,
         public string $acknowledgedAt,
         public string $path,
+        /** Who entered the acknowledgement, when it was not the acknowledging actor; attribution, not authentication. */
+        public ?string $recordedBy = null,
     ) {
     }
 
@@ -31,6 +33,6 @@ final readonly class ReviewAcknowledgement
             'report_sha256' => $this->reportSha256,
             'acknowledged_by' => $this->acknowledgedBy,
             'acknowledged_at' => $this->acknowledgedAt,
-        ];
+        ] + WorkflowActorAttribution::recorderFields($this->recordedBy);
     }
 }
