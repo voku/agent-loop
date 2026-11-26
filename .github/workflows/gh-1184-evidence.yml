@@ -84,6 +84,9 @@ jobs:
           cp .agent-loop/githooks.json "$fixture/.agent-loop/githooks.json"
           cp .gitmessage "$fixture/.gitmessage"
           cd "$fixture"
+          mkdir -p vendor/bin
+          printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$GITHUB_WORKSPACE/bin/agent-loop" > vendor/bin/agent-loop
+          chmod +x vendor/bin/agent-loop
           "$AGENT_LOOP_BIN" init sync-githooks --commit-template=.gitmessage
           "$AGENT_LOOP_BIN" githooks trust
           test "$(git config core.hooksPath)" = .githooks
