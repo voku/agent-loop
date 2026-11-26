@@ -92,3 +92,48 @@ jobs:
           printf 'enter exit=%s\n' "$status"
           jq '{next_action_kind, next_action, mutation_ready, human_decision}' "$out"
           test -s "$out"
+
+      - name: Prepare exact candidate Contract using canonical PLAN action
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof=build/evidence/GH-1184
+          jq -e '.next_action_kind == "command_template" and (.next_action | startswith("agent-loop workflow plan GH-1184 ")) and .mutation_ready == false' "$proof/entry.json" >/dev/null
+          php bin/agent-loop workflow plan GH-1184 \
+            --by 'ChatGPT (planner; no approval)' \
+            --base-commit e5e0e006fb052e262c18523bf6a19b7bcc213315 \
+            --file .agent-loop/githooks.json \
+            --file .gitmessage \
+            --file src/GitHooks/GitHooksCli.php \
+            --file tests/GitHooksRunnerTest.php \
+            --file resources/instructions/project-instructions.md \
+            --file AGENTS.md \
+            --file resources/skills/agent-loop-workflow/SKILL.md \
+            --file docs/reference/git-hooks.md \
+            --goal 'First GH-1184 slice: enforce useful commit title/WHY structure in Loop itself and require agents to ask the developer when grounded motivation or intended outcome is missing; remove misleading hook-bypass advice.' \
+            --non-goal 'No new authorization mechanism, mandatory inference, automatic approval, change to consumer defaults, Git history rewrite, or claim that structural validation proves semantic truth. Runtime enforcement of a host clarification must be separately investigated if the existing host boundary cannot observe it.' \
+            --acceptance 'Loop declares and verifies passing/failing commit examples: accurate concise title and WHY pass; missing or empty WHY, unresolved placeholder and exact vague titles fail.' \
+            --acceptance 'Commit instructions require inspecting the actual staged change and task evidence, and a specific developer question with a stop of the affected commit when intent or meaningful rationale remains unknown, including autonomous mode; no fabricated title or WHY, self-answer, or hook bypass.' \
+            --acceptance 'Remove generic advice to bypass rejected messages with --no-verify; preserve ordinary manual Git compatibility and document structural versus semantic limits.' \
+            --acceptance 'Keep managed router source and repository projection consistent; reuse existing guidance and configuration rather than introducing a new lifecycle phase.' \
+            --acceptance 'Focused hook tests, declared examples, PHPStan/formatting and repository composer ci pass on the exact implementation candidate; actual host adherence is not claimed from unit tests.' \
+            --behavior-anchor 'exact staged change + authorized intent/evidence -> grounded title/WHY or developer clarification -> structural hook -> honest durable history' \
+            --validation 'composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress' \
+            --validation 'php bin/agent-loop githooks verify' \
+            --validation 'composer ci' \
+            --format=json > "$proof/plan.json"
+          jq -e '.next_action_kind == "decision_required" and .human_decision.type == "contract_approval"' "$proof/plan.json" >/dev/null
+          jq '{path, revision, goal, scope, validation, next_action, human_decision}' "$proof/plan.json"
+          contract="$(jq -er '.path' "$proof/plan.json")"
+          test -f "$contract"
+          cp "$contract" "$proof/contract.json"
+          sha256sum "$proof/contract.json"
+      - name: Retain only the generated public candidate and decision card
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: gh-1184-candidate-contract
+          path: |
+            build/evidence/GH-1184/contract.json
+            build/evidence/GH-1184/plan.json
+          if-no-files-found: error
+          retention-days: 14
