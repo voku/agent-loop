@@ -16,7 +16,7 @@ final readonly class WorkflowDecisionCard
      * @param array{kind: string, summary: string, changes: list<string>} $whyNow
      * @param list<string> $mayChange
      * @param list<string> $outOfScope
-     * @param array{validation: array{state: string, detail: string|null, planned: list<string>}, review: array{state: string, detail: string|null}, preflight?: array<string, mixed>} $proof
+     * @param array{validation: array{state: string, detail: string|null, planned: list<string>}, review: array{state: string, detail: string|null}} $proof
      * @param list<array{id: string, label: string, effect: string, command: string|null}> $choices
      * @param list<string> $unknown
      */

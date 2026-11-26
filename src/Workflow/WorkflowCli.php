@@ -41,7 +41,6 @@ final readonly class WorkflowCli
             'learn' => (new WorkflowLearningCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath))->run($rest),
             'retire' => (new WorkflowRetireCommand($this->rootPath))->run($rest),
-            'preflight' => (new WorkflowScopePreflightCommand($this->rootPath))->run($rest),
             default => $this->unknown($command),
         };
     }
@@ -72,7 +71,6 @@ Usage:
   agent-loop workflow handoff <task-id> (--context <text> | --context-file <path>)
   agent-loop workflow learn <task-id> --by <actor> (--status no_durable_learning | --finding <id> [--finding <id> ...] | --follow-up <ref>) [--reason <text>]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
-  agent-loop workflow preflight <task-id> start|record --workspace <draft> [--validation passed|failed --by <actor>]
   agent-loop workflow retire <task-id> --status superseded|abandoned --reason <text> --by <actor>
 
 Commands:
