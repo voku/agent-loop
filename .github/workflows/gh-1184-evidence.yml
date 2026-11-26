@@ -1,0 +1,94 @@
+name: GH-1184 isolated evidence (do not merge)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/gh-1184-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  commit-policy-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: e5e0e006fb052e262c18523bf6a19b7bcc213315
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies at exact baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = e5e0e006fb052e262c18523bf6a19b7bcc213315
+          composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
+      - name: Run existing commit hook regressions
+        run: php vendor/bin/phpunit tests/CommitMessageExamplesTest.php tests/CommitMessageCleanupTest.php tests/GitHooksRunnerTest.php
+      - name: Observe baseline and candidate policy in scratch files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence/GH-1184/probes
+          proof=build/evidence/GH-1184/probes
+          git config --local commit.cleanup strip
+          php bin/agent-loop githooks verify
+          python3 - "$proof" <<'PY'
+          import json, pathlib, sys
+          p = pathlib.Path(sys.argv[1])
+          cfg = json.loads(pathlib.Path('.agent-loop/githooks.json').read_text())
+          good = "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n"
+          missing = "fix(parser): reject empty input\n"
+          empty = "fix(parser): reject empty input\n\nWHY:\n"
+          vague = "Update\n\nWHY: Improve reliability.\n"
+          placeholder = "fix(parser): reject empty input\n\nWHY: [FILL]\n"
+          plausible = "fix(parser): prevent a security vulnerability\n\nWHY: An attacker could trigger a crash.\n"
+          cfg['commit_msg'].update({
+              'required_section': 'WHY',
+              'forbidden_patterns': [
+                  {'pattern': '/^\\s*WHY:\\s*\\[FILL\\]\\s*$/im', 'message': 'Unresolved WHY placeholder.'},
+                  {'pattern': '/\\A(?:Update|Fix|Changes|Miscellaneous|WIP)\\s*\\n/i', 'message': 'Name the concrete staged change.'}
+              ],
+              'examples': {'pass': [good], 'fail': [missing, empty, vague, placeholder]}
+          })
+          (p / 'candidate.json').write_text(json.dumps(cfg, indent=2) + '\n')
+          for name, message in {'good':good,'missing':missing,'empty':empty,'vague':vague,'placeholder':placeholder,'plausible-unverified':plausible}.items():
+              (p / (name + '.txt')).write_text(message)
+          PY
+          php bin/agent-loop githooks verify --config="$proof/candidate.json"
+          expect() {
+            local expected="$1"; shift
+            local status=0
+            "$@" || status=$?
+            printf 'observed exit=%s expected=%s\n' "$status" "$expected"
+            test "$status" = "$expected"
+          }
+          echo 'Baseline: missing WHY is accepted'
+          expect 0 php bin/agent-loop githooks commit-msg "$proof/missing.txt"
+          echo 'Candidate: valid concise WHY accepted; missing, empty, vague title, placeholder rejected'
+          expect 0 php bin/agent-loop githooks commit-msg "$proof/good.txt" --config="$proof/candidate.json"
+          for example in missing empty vague placeholder; do
+            echo "candidate: $example"
+            expect 1 php bin/agent-loop githooks commit-msg "$proof/$example.txt" --config="$proof/candidate.json"
+          done
+          echo 'Negative control: plausible but unverified semantic claim still passes format checks; this is NOT proof of truth'
+          expect 0 php bin/agent-loop githooks commit-msg "$proof/plausible-unverified.txt" --config="$proof/candidate.json"
+          echo 'No tracked product files changed'
+          git diff --exit-code
+      - name: Inspect canonical task entry (no approval or product changes)
+        shell: bash
+        run: |
+          set -uo pipefail
+          out=build/evidence/GH-1184/entry.json
+          status=0
+          php bin/agent-loop enter GH-1184 --format=json > "$out" || status=$?
+          printf 'enter exit=%s\n' "$status"
+          jq '{next_action_kind, next_action, mutation_ready, human_decision}' "$out"
+          test -s "$out"
