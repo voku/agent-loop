@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\GitHooks\CheckCommandFactory;
+use voku\AgentLoop\GitHooks\CommitMessageExamples;
 use voku\AgentLoop\GitHooks\CommitMessageValidator;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\GitHooks\GitHookConfig;
@@ -370,6 +371,52 @@ final class GitHooksRunnerTest extends TestCase
         self::assertStringContainsString('vague', $vague[0]);
 
         self::assertSame([], $validator->validate("[+]: \"scope\" -> subject\n\nWHY:\n- TICKET-42 blocked the nightly sync\n"));
+    }
+
+    public function testRepositoryCommitPolicyDeclaresWorkingExamples(): void
+    {
+        $config = GitHookConfig::load(dirname(__DIR__));
+        $examples = new CommitMessageExamples($config);
+
+        self::assertSame('WHY', $config->requiredSection);
+        self::assertTrue($examples->declared());
+        self::assertGreaterThan(0, $examples->passCount());
+        self::assertGreaterThan(0, $examples->failCount());
+        self::assertSame([], $examples->problems());
+
+        // A structurally valid claim is not evidence that the claimed motivation is true.
+        $validator = new CommitMessageValidator($config);
+        self::assertSame([], $validator->validate("fix(parser): prevent a security vulnerability\n\nWHY: An attacker could trigger a crash.\n"));
+    }
+
+    public function testRejectedCommitMessageRequestsClarificationInsteadOfHookBypass(): void
+    {
+        mkdir($this->root . '/.agent-loop');
+        self::assertTrue(copy(
+            dirname(__DIR__) . '/.agent-loop/githooks.json',
+            $this->root . '/.agent-loop/githooks.json',
+        ));
+        exec('git -C ' . escapeshellarg($this->root) . ' init --quiet', $output, $exitCode);
+        self::assertSame(0, $exitCode);
+        exec('git -C ' . escapeshellarg($this->root) . ' config commit.cleanup strip', $output, $exitCode);
+        self::assertSame(0, $exitCode);
+
+        $message = $this->root . '/message.txt';
+        file_put_contents($message, "fix(parser): reject empty input\n");
+
+        ob_start();
+        try {
+            $exit = (new GitHooksCli($this->root))->run(['commit-msg', $message]);
+        } finally {
+            $result = (string) ob_get_clean();
+        }
+
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('stop and ask the developer', $result);
+        self::assertStringNotContainsString('--no-verify', $result);
+
+        file_put_contents($message, "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n");
+        self::assertSame(0, (new GitHooksCli($this->root))->run(['commit-msg', $message]));
     }
 
     public function testBuiltInCheckTypesRenderTheStandardToolCommands(): void

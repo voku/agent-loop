@@ -1,7 +1,9 @@
-# <summary: what changed>
+# <concrete title: describe the actual staged change, not an assumed outcome>
 
 # WHY:
-# <the concrete failure, constraint, or task evidence that required the change>
+# <the actual reason this change was wanted or necessary, grounded in task evidence>
+# If the reason or intended outcome is unknown after investigation, stop and ask
+# the developer. Never invent a reason or bypass the hook to complete a commit.
 
 # EVIDENCE:
-# <the exact validation or observation that supports the commit>
+# <the exact validation or observation, if actually available>

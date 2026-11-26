@@ -166,6 +166,32 @@ vendor/bin/agent-loop githooks commit-msg /path/to/message.txt
 Put the file in a directory you own (for example one from `mktemp -d`); a fixed
 name in a shared `/tmp` can belong to another user or session.
 
+## Ground the title and WHY before committing
+
+The Loop development repository requires a non-empty WHY, rejects exact generic
+titles and an unresolved WHY placeholder, and declares executable pass/fail
+examples. Consumer repositories still choose their own rules.
+
+For developer-facing changes, inspect the exact commit selection, including
+partial staging, and the authorized task or decision evidence. Describe what
+actually changed in the title and why it was wanted in the body. A reproduced
+failure, an explicit developer request, a documented constraint or a confirmed
+review finding can ground the reason. A plausible benefit inferred from a diff
+is not the same as the developer's actual intent.
+
+When the reason or intended outcome remains materially unclear after bounded
+investigation, stop the affected commit and ask the developer a specific
+question, even in autonomous mode. Preserve the work and reuse a recorded
+answer where applicable. Do not invent a reason, self-answer, or bypass the
+hook. This is agent guidance, not a guarantee that Git can detect deception:
+a fabricated but well-formed WHY can still pass deterministic validation.
+A successful examples check says nothing about the truth of a message.
+
+For manual commits, use the same message convention; there is no required
+model, task ID, or additional runtime interaction in the hook. If the project
+hook configuration changes, review the new bytes before re-trusting them with
+the existing `githooks trust` command.
+
 ## Limits
 
 - The hook runs only where `core.hooksPath` points at the generated hooks

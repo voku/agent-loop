@@ -8,6 +8,29 @@
     ]
   },
   "commit_msg": {
-    "header_hint": "Use a concrete summary that names the change, not a vague placeholder."
+    "header_pattern": "/^(?!(?:update|fix|changes|miscellaneous|wip|fixed things|minor fixes|cleanup|update files|fix stuff)$).+$/i",
+    "header_hint": "Name the actual staged change; do not invent an outcome or use a generic title.",
+    "required_section": "WHY",
+    "forbidden_patterns": [
+      {
+        "pattern": "/^\\h*WHY:\\s*(?:[-*]\\h*)?\\[FILL\\]\\h*$/im",
+        "message": "Unresolved WHY placeholder; establish the real reason or ask the developer."
+      }
+    ],
+    "examples": {
+      "pass": [
+        "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n",
+        "Record interrupted task checkpoint\n\nWHY: Preserve recovery state.\n"
+      ],
+      "fail": [
+        "fix(parser): reject empty input\n",
+        "fix(parser): reject empty input\n\nWHY:\n",
+        "fix(parser): reject empty input\n\nWHY:\n\nEVIDENCE: A check ran.\n",
+        "Update\n\nWHY: Empty input crashed the tokenizer.\n",
+        "Fixed things\n\nWHY: Empty input crashed the tokenizer.\n",
+        "fix(parser): reject empty input\n\nWHY: [FILL]\n",
+        "fix(parser): reject empty input\n\nWHY:\n- [FILL]\n"
+      ]
+    }
   }
 }

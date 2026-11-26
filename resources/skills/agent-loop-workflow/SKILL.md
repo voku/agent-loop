@@ -92,6 +92,29 @@ vendor/bin/agent-loop finish <task-id> --format=json
 
 Then obey the returned `next_action_kind` / `next_action` until `none` / complete.
 
+## Commit preparation
+
+Apply the router's commit-motivation rule to the actual commit selection
+(including partial staging). The diff can show what changed; the task/card,
+Contract, explicit decision, reproduced failure or documented constraint must
+support why it was wanted. Distinguish the developer's intent from the agent's
+implementation choice and planned from observed evidence.
+
+When the reason is still missing, ask one specific question in the configured
+developer-facing language, identifying what changed, what is known and what is
+missing. For example: "The change removes the legacy fallback. Was the old
+client retired, or must compatibility remain?" Do not infer retirement. Wait
+for the real answer before the affected commit; record the answer through the
+existing task/decision owner where appropriate and reuse it when still
+applicable. Keep unrelated work moving. If the uncertainty affects product
+intent or scope, stop the affected implementation earlier. Clarification is not
+additional approval, nor proof of a technical assertion. A necessary recovery
+checkpoint must describe its real purpose, not claim completed product work.
+
+Use the repository's commit language, not a transient interaction-language
+override. Keep private session details and sensitive evidence out of Git history.
+The hook checks message structure, not semantic truth.
+
 ## Decision & Review Presentation
 
 Before asking for any `decision_required` action, present the smallest complete developer-readable projection of the decision subject. When the owner result carries `human_decision.card`, that card **is** the decision card: present its content fields (title, subject, why now, may change, out of scope, proof, unknown, what it authorizes, choices) and keep commands, paths and identifiers verbatim. Its `language` is the language the card text is written in and `requested_language` is what the session or project asked for; when `unknown` says the text needs translating, translate only the prose. Do not write a second card of your own. Only when `card` is absent or `null`, compose one from the `human_decision` subject as described below. Use the task's configured `prompting.language` (or the host session language set with `workflow interaction <host-session-id> --language=<BCP47>`) for your own explanatory prose. Read the normalized `prompting` projection from `agent-loop workflow context <task-id> --format=json` when needed; the default is `en`. Preserve exact source text, technical identifiers, paths, commands, citations, and machine-readable status tokens. For explanatory messages from pipeline Attention, translate the explanation for the developer while retaining the exact owner evidence.
