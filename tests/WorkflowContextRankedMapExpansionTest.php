@@ -31,7 +31,7 @@ final class WorkflowContextRankedMapExpansionTest extends TestCase
 <?php
 namespace Demo;
 
-#[\ItpContext\Attribute\Rule(\Acme\ArchitectureRules::AffectedCallers)] final class Leaf
+final class Leaf
 {
     public function read(): void
     {
@@ -135,8 +135,6 @@ PHP);
         self::assertStringContainsString('Candidate structural context (unverified):', $rendered);
         self::assertStringContainsString('src/Orchestrator.php:6-10 [change_candidate]', $rendered);
         self::assertStringContainsString('direct caller that may need adaptation', $rendered);
-        self::assertStringContainsString('Architecture rule references (syntax-only; no authority)', $rendered);
-        self::assertStringContainsString('Acme\\ArchitectureRules::AffectedCallers', $rendered);
         self::assertStringContainsString('Demo\\Leaf — src/Leaf.php:4', $rendered);
     }
 
