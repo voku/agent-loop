@@ -52,3 +52,9 @@ agent-map's incremental `refresh`, `prepare` and `watch` cover PHP-only maps and
 - **Semantic backend.** PHPStan analyses PHP files only. A TypeScript-only map is always structural.
 
 The index file keeps its name, `.agent-loop/map/php-symbols.json`, also when it holds TypeScript symbols.
+
+## Architecture hints and test-scope discovery
+
+The optional ITP-Context architecture hint projection is **PHP attribute-only**. On a current Map + Search result, pre-plan discovery can report exact PHP files carrying \`#[Rule]\` identifiers, and \`workflow context\` can repeat those hints for exact PHP files in approved scope. It uses token parsing without executing the project's rule enum; an identifier is a lead to inspect its owner definition, \`verifiedBy\` tests, ADR \`refs\`, and \`changeGuidance\`, not proof of a required edit.
+
+TypeScript and JavaScript declarations from agent-map do **not** have an equivalent ITP attribute model. Before proposing a Contract scope, inspect relevant existing \`test/\`, \`tests/\`, browser, service-worker, import/build and deployment integrations through bounded source search and the available Map evidence. Do not infer that no dependency exists merely because there are no PHP architecture hints. Adding JavaScript-native architecture annotations is a separate owner design decision; do not manufacture cross-language refs or silently widen a Contract.
