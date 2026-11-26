@@ -113,19 +113,6 @@ final readonly class WorkflowPrePlanDiscoveryProjector
 
         $candidates = $this->candidateRows($search['candidates']);
         $context = (new WorkflowPrePlanContextProjector())->project($map, $candidates);
-        $hintPaths = [];
-        foreach ($candidates as $candidate) {
-            if (is_string($candidate['file_path'] ?? null)) {
-                $hintPaths[] = $candidate['file_path'];
-            }
-        }
-        foreach ($context['structural_context'] as $slice) {
-            if (is_string($slice['path'] ?? null)) {
-                $hintPaths[] = $slice['path'];
-            }
-        }
-
-        $architectureHints = (new WorkflowArchitectureRuleHints($this->rootPath))->project($hintPaths);
         if (!$this->evidenceIsCurrent($artifacts, $mapSnapshot, $searchSnapshot)) {
             return $this->abstained('evidence_became_stale', [
                 'map_snapshot' => $mapSnapshot,
@@ -133,10 +120,7 @@ final readonly class WorkflowPrePlanDiscoveryProjector
             ]);
         }
 
-        $projection = $this->readyProjection($query, $mapSnapshot, $searchSnapshot, $search['search_mode'], $candidates, $context);
-        $projection['architecture_hints'] = $architectureHints;
-
-        return $projection;
+        return $this->readyProjection($query, $mapSnapshot, $searchSnapshot, $search['search_mode'], $candidates, $context);
     }
 
     /** @param array<mixed> $rows
