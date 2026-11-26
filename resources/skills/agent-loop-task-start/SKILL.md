@@ -33,6 +33,7 @@ Approval records authority for the exact Contract revision; Run, Session and Rec
 A PLAN must carry enough durable intent that future agents do not need the chat context:
 - **Task ID:** Reuse a supplied stable external identifier (e.g. `ISSUE-123`). For an explicitly requested new local card without one, follow `agent-loop-workflow` to obtain the Kanban owner's generated card ID and reuse it unchanged. Never derive an ID by incrementing a branch-local maximum.
 - **Scope (`--file` / `--scope`):** Smallest stable boundary containing the change (single file or cohesive component directory plus tests; never the entire repo root).
+Before requesting Contract approval, identify the behavior being changed and inspect existing tests that assert it, including CLI inputs, persisted fields, outputs and error cases. Include affected test files in the proposed scope. Treat filename matches and search hits as leads, not proof of affected behavior.
 For a required **scope-only** expansion after approval, batch paths with
 `workflow plan TASK --by ACTOR --supersede --add-scope PATH` (repeat
 `--add-scope` for each path). This preserves the Goal, validation,
