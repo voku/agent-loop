@@ -244,8 +244,10 @@ final class WorkflowScopePreflightTest extends TestCase
             // but this directory is not listed by git worktree list --porcelain.
             self::assertTrue(copy($this->draft . '/.git', $unregistered . '/.git'));
             self::assertSame($this->base, $this->git($unregistered, 'rev-parse', 'HEAD'));
-            self::assertSame($this->git($this->root, 'rev-parse', '--path-format=absolute', '--git-common-dir'),
-                $this->git($unregistered, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
+            self::assertSame(
+                $this->git($this->root, 'rev-parse', '--path-format=absolute', '--git-common-dir'),
+                $this->git($unregistered, 'rev-parse', '--path-format=absolute', '--git-common-dir'),
+            );
 
             [$exit, $output] = $this->cli(['preflight', 'T-1', 'start', '--workspace', $unregistered]);
             self::assertSame(1, $exit, $output);
