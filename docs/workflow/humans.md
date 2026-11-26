@@ -24,6 +24,12 @@ Once current authority permits the work, the agent should normally handle model 
 
 Do not ask a human to approve a shell command merely because the agent can execute it, and do not fabricate approval merely because continuing would be convenient.
 
+### Who decided and who recorded it
+
+A decision record names the decision-maker in its existing actor field (`approved_by`, `rejected_by`, `acknowledged_by`). When someone else enters that decision, for example an agent recording a human's explicit approval from the chat, the recording command takes `--recorded-by <recorder>` (`workflow approve`, `workflow reject`, `workflow request-changes`, `quick`, and `finish --reviewed-report-sha256`). The record then also stores `recorded_by` and `authority_evidence: {"status": "self_asserted"}`.
+
+Both fields are attribution, not authenticated identity: nothing verifies that the named human decided or that the recorder is who it says. `self_asserted` is the only status any command can write; `workflow status` shows it as "recorded by <recorder> (self-asserted, not verified)". A record without the fields only means that no separate recorder was declared, not that the decision-maker entered it. Records written without `--recorded-by` are byte-identical to earlier versions.
+
 ## What evidence should return to the human
 
 For non-trivial work, report concrete evidence rather than confidence:

@@ -54,6 +54,8 @@ final readonly class TaskContract
         public ?string $rejectedAt = null,
         public ?string $rejectionReason = null,
         public ?string $rejectionKind = null,
+        /** Who entered the decision, when it was not the decision-maker; attribution, not authentication. */
+        public ?string $recordedBy = null,
     ) {
     }
 
@@ -128,6 +130,7 @@ final readonly class TaskContract
             'rejection_reason' => $this->rejectionReason,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
-        ] + ($this->rejectionKind === null ? [] : ['rejection_kind' => $this->rejectionKind]);
+        ] + ($this->rejectionKind === null ? [] : ['rejection_kind' => $this->rejectionKind])
+            + WorkflowActorAttribution::recorderFields($this->recordedBy);
     }
 }

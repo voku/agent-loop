@@ -322,7 +322,14 @@ final readonly class WorkflowStatusCommand
             return $this->pathOrOwner($reference);
         }
 
-        return 'revision ' . $revision . ' by ' . $actor;
+        $recordedBy = $reference['recorded_by'] ?? null;
+        $recorder = is_string($recordedBy)
+            // Attribution only: nothing authenticated the decision-maker or the recorder.
+            // Encoded like retirementDetail(), so a control character cannot fake a status row.
+            ? ', recorded by ' . json_encode($recordedBy, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . ' (self-asserted, not verified)'
+            : '';
+
+        return 'revision ' . $revision . ' by ' . $actor . $recorder;
     }
 
     /** @param array<string, mixed> $reference */

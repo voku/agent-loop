@@ -390,7 +390,7 @@ final readonly class HostFrontDoorCommand
     private function finish(array $args, bool $showDecisionPresentation): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning no_durable_learning --by ACTOR] [--learning-reason TEXT] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT] [--revalidate]\n";
+            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR [--recorded-by ACTOR]] [--learning no_durable_learning --by ACTOR] [--learning-reason TEXT] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT] [--revalidate]\n";
             echo "Reconcile deterministic validation/review evidence, bind explicit judgments, create Learning Findings through their owner, and close when canonical policy permits.\n";
             echo "Finding input or --finding implies findings_recorded and --follow-up-ref implies follow_up_required; --learning-reason is optional context.\n";
             echo "--revalidate re-runs the Contract's declared validation for the current implementation after a failure whose cause was not the code (environment, missing tool); without it a failed result is not re-run.\n";
@@ -475,14 +475,29 @@ final readonly class HostFrontDoorCommand
 
                         if ($this->validationComplete($boundary) && $reviewSha256 !== null && !$review['invalid'] && in_array($review['report_status'], ['ok', 'warn'], true)) {
                             $ackStore = new ReviewAcknowledgementStore($this->rootPath);
+                            $explicitSha256 = $options['reviewedReportSha256'];
                             if ($ackStore->find($run->taskId) === null) {
-                                $ackStore->record(
-                                    $run,
-                                    $contract,
-                                    $boundary->implementation,
-                                    $reviewSha256,
-                                    'fast-path-auto-review',
-                                );
+                                if ($explicitSha256 === null) {
+                                    $ackStore->record(
+                                        $run,
+                                        $contract,
+                                        $boundary->implementation,
+                                        $reviewSha256,
+                                        'fast-path-auto-review',
+                                    );
+                                } elseif ($options['by'] !== null && hash_equals($reviewSha256, $explicitSha256)) {
+                                    // An explicit acknowledgement in this call takes the automatic one's
+                                    // place, keeping its own actor and recorder; anything else is refused
+                                    // by the explicit acknowledgement step below.
+                                    $ackStore->record(
+                                        $run,
+                                        $contract,
+                                        $boundary->implementation,
+                                        $reviewSha256,
+                                        $options['by'],
+                                        $options['recordedBy'],
+                                    );
+                                }
                             }
                             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
                             $learningStore = new RunLearningDecisionStore($learningRoot);
@@ -492,6 +507,7 @@ final readonly class HostFrontDoorCommand
                             if (
                                 $learningStore->find($run->runId) === null
                                 && $options['learning'] === null
+                                && $ackStore->find($run->taskId) !== null
                                 && $recorder->reviewObservations($run) === []
                             ) {
                                 $recorder->record(
@@ -528,6 +544,7 @@ final readonly class HostFrontDoorCommand
                             $boundary->implementation,
                             $reviewSha256,
                             $options['by'],
+                            $options['recordedBy'],
                         );
                         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
                         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
@@ -1081,6 +1098,7 @@ final readonly class HostFrontDoorCommand
      * @return array{
      *   reviewedReportSha256: string|null,
      *   by: string|null,
+     *   recordedBy: string|null,
      *   learning: string|null,
      *   learningReason: string|null,
      *   findingInputs: list<FinishFindingInput>,
@@ -1103,10 +1121,16 @@ final readonly class HostFrontDoorCommand
 
         $findingInputs = $this->findingInputs($tokens);
         $followUpRef = OptionTokens::value($tokens, 'follow-up-ref');
+        $recordedBy = OptionTokens::value($tokens, 'recorded-by');
+        if ($recordedBy !== null && $reviewedReportSha256 === null) {
+            // Only the review acknowledgement records a recorder in this slice.
+            throw new InvalidArgumentException('--recorded-by requires --reviewed-report-sha256.');
+        }
 
         return [
             'reviewedReportSha256' => $reviewedReportSha256,
             'by' => OptionTokens::value($tokens, 'by'),
+            'recordedBy' => $recordedBy,
             'learning' => WorkflowLearningRecorder::resolveDecision($learning, $findingInputs !== [], $followUpRef),
             'learningReason' => OptionTokens::value($tokens, 'learning-reason'),
             'findingInputs' => $findingInputs,
@@ -1230,6 +1254,7 @@ final readonly class HostFrontDoorCommand
             'format',
             'reviewed-report-sha256',
             'by',
+            'recorded-by',
             'learning',
             'learning-reason',
             'finding',
@@ -1286,7 +1311,7 @@ final readonly class HostFrontDoorCommand
     private function quick(array $args): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop quick [task-id] \"<goal>\" --file=<path> [--file=<path2>] [--verify=\"<cmd>\"] [--actor=<name>] [--format text|json] [--max-lines N] [--max-bytes N]\n";
+            echo "Usage: agent-loop quick [task-id] \"<goal>\" --file=<path> [--file=<path2>] [--verify=\"<cmd>\"] [--actor=<name>] [--recorded-by=<name>] [--format text|json] [--max-lines N] [--max-bytes N]\n";
             echo "Initiate, approve, and enter a bounded manual fast-path micro-task within up to 2 target files.\n";
             echo "Use agent-loop enter for the standard independent-review pipeline.\n";
 
@@ -1340,6 +1365,7 @@ final readonly class HostFrontDoorCommand
         $maxLines = $this->positiveOption($tokens, 'max-lines', 120);
         $maxBytes = $this->positiveOption($tokens, 'max-bytes', 12000);
         $actor = OptionTokens::value($tokens, 'actor') ?? OptionTokens::value($tokens, 'by') ?? 'fast-path-preapproval';
+        $recordedBy = WorkflowActorAttribution::recorder(OptionTokens::value($tokens, 'recorded-by'));
 
         $validations = OptionTokens::values($tokens, 'verify');
         if ($validations === []) {
@@ -1377,7 +1403,7 @@ final readonly class HostFrontDoorCommand
                 'Required verification passes',
             ],
         );
-        $contractStore->approve($taskId->value, $actor, $contract->revision);
+        $contractStore->approve($taskId->value, $actor, $contract->revision, recordedBy: $recordedBy);
         // Invoking `quick` is the explicit manual-profile choice for this bounded fast path.
         (new ExecutionProfileSelectionStore($this->rootPath))->select(
             $taskId->value,
@@ -1449,7 +1475,7 @@ final readonly class HostFrontDoorCommand
     {
         $positional = [];
         $count = count($tokens);
-        $valuedOptions = ['file', 'verify', 'actor', 'by', 'format', 'max-lines', 'max-bytes'];
+        $valuedOptions = ['file', 'verify', 'actor', 'by', 'recorded-by', 'format', 'max-lines', 'max-bytes'];
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];
             if (str_starts_with($token, '--')) {

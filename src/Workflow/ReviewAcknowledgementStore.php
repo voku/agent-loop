@@ -25,7 +25,9 @@ final readonly class ReviewAcknowledgementStore
         ImplementationSnapshot $implementation,
         string $reportSha256,
         string $acknowledgedBy,
+        ?string $recordedBy = null,
     ): ReviewAcknowledgement {
+        $recordedBy = WorkflowActorAttribution::recorder($recordedBy);
         $acknowledgedBy = trim($acknowledgedBy);
         if ($acknowledgedBy === '') {
             throw new RuntimeException('Review acknowledgement requires a named actor.');
@@ -62,6 +64,11 @@ final readonly class ReviewAcknowledgementStore
                             'The current review report is already acknowledged by ' . $existing->acknowledgedBy . '.',
                         );
                     }
+                    if ($existing->recordedBy !== $recordedBy) {
+                        throw new RuntimeException(
+                            'The current review report is already acknowledged with a different recorder; the existing record is kept unchanged.',
+                        );
+                    }
 
                     return $existing;
                 }
@@ -79,6 +86,7 @@ final readonly class ReviewAcknowledgementStore
             acknowledgedBy: $acknowledgedBy,
             acknowledgedAt: (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
             path: $path,
+            recordedBy: $recordedBy,
         );
         $this->write($acknowledgement);
 
@@ -189,6 +197,7 @@ final readonly class ReviewAcknowledgementStore
             acknowledgedBy: PersistedJson::requiredString($data, 'acknowledged_by', $path),
             acknowledgedAt: PersistedJson::requiredString($data, 'acknowledged_at', $path),
             path: $path,
+            recordedBy: WorkflowActorAttribution::recorderFromRecord($data, $path),
         );
     }
 
