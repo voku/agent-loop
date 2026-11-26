@@ -120,7 +120,22 @@ final readonly class WorkflowPrePlanDiscoveryProjector
             ]);
         }
 
-        return $this->readyProjection($query, $mapSnapshot, $searchSnapshot, $search['search_mode'], $candidates, $context);
+        $hintPaths = [];
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate['file_path'] ?? null)) {
+                $hintPaths[] = $candidate['file_path'];
+            }
+        }
+        foreach ($context['structural_context'] as $slice) {
+            if (is_string($slice['path'] ?? null)) {
+                $hintPaths[] = $slice['path'];
+            }
+        }
+
+        $projection = $this->readyProjection($query, $mapSnapshot, $searchSnapshot, $search['search_mode'], $candidates, $context);
+        $projection['architecture_hints'] = (new WorkflowArchitectureRuleHints($this->rootPath))->project($hintPaths);
+
+        return $projection;
     }
 
     /** @param array<mixed> $rows
