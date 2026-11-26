@@ -55,6 +55,12 @@ The index file keeps its name, `.agent-loop/map/php-symbols.json`, also when it 
 
 ## Architecture hints and test-scope discovery
 
-The optional ITP-Context architecture hint projection is **PHP attribute-only**. On a current Map + Search result, pre-plan discovery can report exact PHP files carrying `#[Rule]` identifiers, and `workflow context` can repeat those hints for exact PHP files in approved scope. It uses token parsing without executing the project's rule enum; an identifier is a lead to inspect its owner definition, `verifiedBy` tests, ADR `refs`, and `changeGuidance`, not proof of a required edit.
+The optional, **developer-side** `itp-context-source-hints` CLI (provided by `voku/itp-context`) can inspect exact PHP paths discovered by Map or named in a Contract:
 
-TypeScript and JavaScript declarations from agent-map do **not** have an equivalent ITP attribute model. Before proposing a Contract scope, inspect relevant existing `test/`, `tests/`, browser, service-worker, import/build and deployment integrations through bounded source search and the available Map evidence. Do not infer that no dependency exists merely because there are no PHP architecture hints. Adding JavaScript-native architecture annotations is a separate owner design decision; do not manufacture cross-language refs or silently widen a Contract.
+```shell
+vendor/bin/itp-context-source-hints --root=. --file=src/Ui/DashboardView.php
+```
+
+It returns bounded, syntax-only `#[Rule]` IDs and source digests without loading the project's enum definitions. The host must open the owning rule definition to verify `verifiedBy` tests, ADR `refs` and `changeGuidance`. This evidence is advisory and **never** promotes a file into approved scope. The CLI is optional: if it is not installed, do not interpret its absence as proof that no architecture rule applies. Loop's production PHP must not call ITP-Context, because it belongs to the isolated development-tool boundary.
+
+TypeScript and JavaScript declarations in agent-map do **not** have an equivalent ITP rule annotation model. Before proposing scope, inspect existing browser, service-worker, test, import/build and deployment integration paths via bounded source search and available Map evidence. Native JavaScript/TypeScript architectural rule metadata is a separate owner decision; do not manufacture test/ADR references or silently widen a Contract.
