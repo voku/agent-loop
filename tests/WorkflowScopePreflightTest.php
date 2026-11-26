@@ -234,6 +234,27 @@ final class WorkflowScopePreflightTest extends TestCase
         self::assertStringContainsString('linked worktree of this repository', $output);
     }
 
+    public function testUnregisteredCopyOfALinkedWorktreeIsRejected(): void
+    {
+        $this->plan('true');
+        $unregistered = $this->draft . '-unregistered';
+        mkdir($unregistered, 0o775, true);
+        try {
+            // Git discovers the same common directory through a copied .git pointer,
+            // but this directory is not listed by git worktree list --porcelain.
+            self::assertTrue(copy($this->draft . '/.git', $unregistered . '/.git'));
+            self::assertSame($this->base, $this->git($unregistered, 'rev-parse', 'HEAD'));
+            self::assertSame($this->git($this->root, 'rev-parse', '--path-format=absolute', '--git-common-dir'),
+                $this->git($unregistered, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
+
+            [$exit, $output] = $this->cli(['preflight', 'T-1', 'start', '--workspace', $unregistered]);
+            self::assertSame(1, $exit, $output);
+            self::assertStringContainsString('linked worktree of this repository', $output);
+        } finally {
+            exec('rm -rf ' . escapeshellarg($unregistered));
+        }
+    }
+
     public function testUnreadableRecordIsUnknownNeverClean(): void
     {
         $this->plan('true');
