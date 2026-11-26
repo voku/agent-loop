@@ -257,6 +257,42 @@ final class WorkflowScopePreflightTest extends TestCase
         }
     }
 
+    public function testRelativeDiffConfigurationCannotHideOutOfScopeChanges(): void
+    {
+        $this->plan('true');
+        $this->git($this->root, 'config', 'diff.relative', 'true');
+        file_put_contents($this->draft . '/tests/WorkflowPlanCommandTest.php', "<?php\n// changed outside scope\n");
+
+        [$started, $startOutput] = $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft]);
+        self::assertSame(0, $started, $startOutput);
+        [$recorded, $recordOutput] = $this->cli(['preflight', 'T-1', 'record', '--workspace', $this->draft, '--validation', 'passed', '--by', 'host']);
+        self::assertSame(0, $recorded, $recordOutput);
+
+        $result = $this->projection();
+        self::assertSame('validation_passed', $result['state']);
+        self::assertSame(['tests/WorkflowPlanCommandTest.php'], array_column($result['observed_out_of_scope_change'], 'path'));
+    }
+
+    public function testMalformedDriftEntriesCannotBreakAnApprovalCard(): void
+    {
+        $this->plan('true');
+        $this->cli(['preflight', 'T-1', 'start', '--workspace', $this->draft]);
+        $this->cli(['preflight', 'T-1', 'record', '--workspace', $this->draft, '--validation', 'passed', '--by', 'host']);
+        $recordPath = dirname((new TaskContractStore($this->root))->load('T-1')->path) . '/preflight.json';
+        $original = json_decode((string) file_get_contents($recordPath), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach ([['invalid'], [['path' => 'tests/FooTest.php']], [['path' => 'tests/FooTest.php', 'status' => 42]]] as $invalidDrift) {
+            $record = $original;
+            $record['drift'] = $invalidDrift;
+            file_put_contents($recordPath, json_encode($record, JSON_THROW_ON_ERROR));
+
+            $result = $this->projection();
+            self::assertSame('unknown', $result['state']);
+            self::assertSame('unreadable_record', $result['reason']);
+            self::assertSame([], $result['observed_out_of_scope_change']);
+        }
+    }
+
     public function testUnreadableRecordIsUnknownNeverClean(): void
     {
         $this->plan('true');
