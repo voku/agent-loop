@@ -109,7 +109,7 @@ PHP);
                 '/etc/passwd',
             ]);
             self::assertSame('abstained', $result['status']);
-            self::assertSame('no_rules_in_inspected_files', $result['reason']);
+            self::assertSame('no_readable_php_files', $result['reason']);
             self::assertSame([], $result['inspected_files']);
             self::assertSame(3, $result['ignored_paths']);
         } finally {
