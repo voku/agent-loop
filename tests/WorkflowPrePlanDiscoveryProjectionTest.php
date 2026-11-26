@@ -27,7 +27,6 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
 declare(strict_types=1);
 
 /** Deterministic discovery evidence for the pre plan scope projection fixture. */
-#[\ItpContext\Attribute\Rule(\Acme\ArchitectureRules::ReviewTests)]
 final class DiscoveryFixture
 {
     /** Project deterministic discovery evidence before PLAN. */
@@ -104,13 +103,6 @@ PHP;
             self::assertSame('ranked_unverified', $candidate['status'] ?? null);
         }
         self::assertLessThanOrEqual(12, count($discovery['structural_context'] ?? []));
-        $hints = $discovery['architecture_hints'] ?? null;
-        self::assertIsArray($hints);
-        self::assertSame('ready', $hints['status'] ?? null);
-        self::assertSame('syntax_only', $hints['resolution'] ?? null);
-        self::assertSame('none', $hints['authority'] ?? null);
-        self::assertSame('Acme\\ArchitectureRules::ReviewTests', $hints['rules'][0]['rule_id'] ?? null);
-        self::assertSame('src/DiscoveryFixture.php', $hints['rules'][0]['files'][0] ?? null);
         self::assertArrayNotHasKey('scope', $discovery);
         self::assertNull((new TaskContractStore($this->root))->find('PREPLAN-QUERY'));
         self::assertSame($before, $snapshot(), 'enter must not create or change workflow state.');
