@@ -118,8 +118,13 @@ final readonly class WorkflowScopePreflightCommand
         }
         $identity = $record['identity'] ?? null;
         $drift = $record['drift'] ?? null;
-        if (!is_array($identity) || !is_array($drift) || !is_string($record['workspace'] ?? null)) {
+        if (!is_array($identity) || !is_array($drift) || !array_is_list($drift) || !is_string($record['workspace'] ?? null)) {
             return ['state' => 'unknown', 'reason' => 'unreadable_record'] + $result;
+        }
+        foreach ($drift as $change) {
+            if (!is_array($change) || !is_string($change['path'] ?? null) || !is_string($change['status'] ?? null)) {
+                return ['state' => 'unknown', 'reason' => 'unreadable_record'] + $result;
+            }
         }
         $result['provenance'] = 'host_reported';
         $result['recorded_by'] = is_string($record['recorded_by'] ?? null) ? $record['recorded_by'] : null;
@@ -216,7 +221,7 @@ final readonly class WorkflowScopePreflightCommand
     private static function drift(TaskContract $contract, string $draft): array
     {
         $tree = substr($draft, strrpos($draft, ':') + 1);
-        $fields = explode("\0", self::git(dirname(self::path($contract)), ['diff', '--no-ext-diff', '--no-renames', '--name-status', '-z', (string) $contract->baseCommit, $tree], false));
+        $fields = explode("\0", self::git(dirname(self::path($contract)), ['diff', '--no-relative', '--no-ext-diff', '--no-renames', '--name-status', '-z', (string) $contract->baseCommit, $tree], false));
         // A valid Contract scope containing '.' normalizes to [] (the whole repository).
         $scope = CandidateWorkspaceIdentity::normalizeScope($contract->scope);
         if ($scope === []) {
