@@ -1,0 +1,124 @@
+name: GH-457 project-learning falsification evidence
+on:
+  push:
+    branches: [evidence/gh-457-git-shape-falsifier-20261126]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - name: Install existing project dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Verify source and original learning lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+          mkdir -p build/gh457
+          git rev-parse HEAD > build/gh457/source-sha.txt
+          composer show --format=json > build/gh457/installed.json
+          cp .agent-loop/learning/findings/consolidated/finding.2026-08-14.013.json build/gh457/source-finding.json
+          cp .agent-loop/learning/proposals/approved/proposal.2026-08-14.003.json build/gh457/source-proposal.json
+          jq -e '.source_findings | index("finding.2026-08-14.013") != null' build/gh457/source-proposal.json
+          vendor/bin/phpunit --filter GitWorkTreeDetectionTest | tee build/gh457/original-regression.txt
+          composer test:project-phpstan-rules | tee build/gh457/original-rule-gate.txt
+      - name: Compare real runtime behavior and static diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > build/gh457/variants.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          namespace Evidence;
+          use voku\AgentLoop\GitWorkTree;
+          function original(string $root): bool {
+              return is_dir($root . '/.git');
+          }
+          function aliasVariant(string $root): bool {
+              $metadata = $root . '/.git';
+              return is_dir($metadata);
+          }
+          function splitVariant(string $root): bool {
+              return is_dir($root . '/' . '.git');
+          }
+          function correct(string $root): bool {
+              return GitWorkTree::detected($root);
+          }
+          function unrelated(string $root): bool {
+              return is_dir($root . '/cache');
+          }
+          PHP
+          repo="$(mktemp -d)"
+          git init -q "$repo/main"
+          git -C "$repo/main" -c user.email=probe@example.invalid -c user.name=Probe -c commit.gpgsign=false commit --allow-empty -qm fixture
+          git -C "$repo/main" worktree add --detach -q "$repo/linked"
+          mkdir -p "$repo/plain"
+          cat > build/gh457/runtime.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require dirname(__DIR__, 2) . '/vendor/autoload.php';
+          require __DIR__ . '/variants.php';
+          $root = $argv[1];
+          $out = [];
+          foreach (['main', 'linked', 'plain'] as $kind) {
+              $path = $root . '/' . $kind;
+              $out[$kind] = [
+                  'original' => Evidence\original($path),
+                  'alias' => Evidence\aliasVariant($path),
+                  'split' => Evidence\splitVariant($path),
+                  'correct' => Evidence\correct($path),
+              ];
+          }
+          echo json_encode($out, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), PHP_EOL;
+          PHP
+          php build/gh457/runtime.php "$repo" | tee build/gh457/runtime.json
+          jq -e '.main == {original:true,alias:true,split:true,correct:true} and .linked == {original:false,alias:false,split:false,correct:true} and .plain == {original:false,alias:false,split:false,correct:false}' build/gh457/runtime.json
+          set +e
+          vendor/bin/phpstan analyse -c phpstan/project-rule-test.neon --no-progress --error-format=json build/gh457/variants.php > build/gh457/phpstan.json 2> build/gh457/phpstan.stderr
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          jq -e '.totals.file_errors > 0 and .totals.errors == 0' build/gh457/phpstan.json
+          jq '[.files[].messages[] | select(.identifier == "agentLoop.git.metadataShape") | .line]' build/gh457/phpstan.json > build/gh457/diagnostic-lines.json
+          original_line="$(grep -n "return is_dir(\$root . '/.git');" build/gh457/variants.php | cut -d: -f1)"
+          alias_line="$(grep -n 'return is_dir($metadata);' build/gh457/variants.php | cut -d: -f1)"
+          split_line="$(grep -n "return is_dir(\$root . '/' . '.git');" build/gh457/variants.php | cut -d: -f1)"
+          jq -e --argjson n "$original_line" 'index($n) != null' build/gh457/diagnostic-lines.json
+          jq -n --slurpfile lines build/gh457/diagnostic-lines.json --argjson original "$original_line" --argjson alias "$alias_line" --argjson split "$split_line" '{
+            original_detected: ($lines[0] | index($original) != null),
+            alias_detected: ($lines[0] | index($alias) != null),
+            split_detected: ($lines[0] | index($split) != null),
+            unrelated_diagnostic_lines: ($lines[0] - [$original,$alias,$split]),
+            interpretation: "A missing diagnostic on a runtime-confirmed wrong variant falsifies detector coverage, not GitWorkTree runtime correctness.",
+            task_b_causal_effect: "not run"
+          }' | tee build/gh457/falsification.json
+          jq -e '.unrelated_diagnostic_lines == []' build/gh457/falsification.json
+          git diff --exit-code --quiet
+      - name: Run owner corpus analytics and Dream preview (read only)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/gh457
+          vendor/bin/agent-learning corpus-analyze --root .agent-loop/learning --format json > build/gh457/corpus.json
+          vendor/bin/agent-learning dream --root .agent-loop/learning --format json > build/gh457/dream.json
+          git diff --exit-code --quiet
+      - name: Upload evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: gh457-git-shape-evidence
+          path: build/gh457/
+          if-no-files-found: error
