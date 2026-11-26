@@ -13,13 +13,14 @@
     "required_section": "WHY",
     "forbidden_patterns": [
       {
-        "pattern": "/^\\h*WHY:\\s*(?:[-*]\\h*)?\\[FILL\\]\\h*$/im",
-        "message": "Unresolved WHY placeholder; establish the real reason or ask the developer."
+        "pattern": "/\\[FILL\\]/i",
+        "message": "Unresolved commit-message placeholder; establish the real reason or ask the developer."
       }
     ],
     "examples": {
       "pass": [
         "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n",
+        "fix(parser): reject empty input\n\nWHY:\n- Empty input crashed the tokenizer.\n",
         "Record interrupted task checkpoint\n\nWHY: Preserve recovery state.\n"
       ],
       "fail": [
@@ -29,7 +30,9 @@
         "Update\n\nWHY: Empty input crashed the tokenizer.\n",
         "Fixed things\n\nWHY: Empty input crashed the tokenizer.\n",
         "fix(parser): reject empty input\n\nWHY: [FILL]\n",
-        "fix(parser): reject empty input\n\nWHY:\n- [FILL]\n"
+        "fix(parser): reject empty input\n\nWHY:\n- [FILL]\n",
+        "fix(parser): reject empty input\n\nWHY:\n- Empty input crashed the tokenizer.\n- [FILL]\n",
+        "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer. [FILL]\n"
       ]
     }
   }
