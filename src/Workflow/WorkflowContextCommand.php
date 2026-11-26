@@ -266,6 +266,7 @@ final readonly class WorkflowContextCommand
         if (!$hasBundleNavigation) {
             $this->addMap($budget, $this->stringList($contract['scope'] ?? null));
         }
+        $this->addArchitectureHints($budget, $this->stringList($contract['scope'] ?? null));
         $budget->section('Required validation');
         foreach ($report['validation'] as $validation) {
             $budget->add('validation', sprintf(
@@ -611,6 +612,39 @@ final readonly class WorkflowContextCommand
         }
 
         return $handledNavigation;
+    }
+
+    /** @param list<string> $scope */
+    private function addArchitectureHints(WorkflowContextBudget $budget, array $scope): void
+    {
+        if ($scope === []) {
+            return;
+        }
+
+        $hints = (new WorkflowArchitectureRuleHints($this->rootPath))->project($scope);
+        if (($hints['status'] ?? null) !== 'ready' || !is_array($hints['rules'] ?? null)) {
+            return;
+        }
+
+        $budget->section('Architecture rule references (syntax-only; no authority)');
+        foreach ($hints['rules'] as $rule) {
+            if (!is_array($rule) || !is_string($rule['rule_id'] ?? null)) {
+                continue;
+            }
+            $files = is_array($rule['files'] ?? null)
+                ? array_values(array_filter($rule['files'], 'is_string'))
+                : [];
+            $budget->add('architecture', '  ' . $rule['rule_id'] . ' — ' . implode(', ', $files));
+        }
+        $budget->add(
+            'architecture',
+            '  Read each referenced rule enum for ADRs, verifiedBy tests and changeGuidance before proposing edits. These are syntax-only pointers, not validated rule definitions or approved scope.',
+        );
+        $omitted = $hints['omitted_rules'] ?? 0;
+        $ignored = $hints['ignored_paths'] ?? 0;
+        if (is_int($omitted) && $omitted > 0 || is_int($ignored) && $ignored > 0) {
+            $budget->skip('itp-context: architecture hints are partial (rule limit or uninspected paths).');
+        }
     }
 
     /** @param list<string> $scope */
