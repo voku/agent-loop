@@ -634,10 +634,10 @@ final readonly class WorkflowContextCommand
             $files = is_array($rule['files'] ?? null)
                 ? array_values(array_filter($rule['files'], 'is_string'))
                 : [];
-            $budget->add('architecture', '  ' . $rule['rule_id'] . ' — ' . implode(', ', $files));
+            $budget->add('candidate_context', '  ' . $rule['rule_id'] . ' — ' . implode(', ', $files));
         }
         $budget->add(
-            'architecture',
+            'candidate_context',
             '  Read each referenced rule enum for ADRs, verifiedBy tests and changeGuidance before proposing edits. These are syntax-only pointers, not validated rule definitions or approved scope.',
         );
         $omitted = $hints['omitted_rules'] ?? 0;
