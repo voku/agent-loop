@@ -1,0 +1,218 @@
+name: GH-457 bounded alias detector candidate
+on:
+  push:
+    branches: [evidence/gh-457-alias-candidate-20261126]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Calibrate baseline, apply bounded scratch candidate, compare identifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+          mkdir -p build/gh457-candidate
+          cat > build/gh457-candidate/variants.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          namespace Evidence;
+          use voku\AgentLoop\GitWorkTree;
+          function direct(string $root): bool {
+              return is_dir($root . '/.git'); // MUST_DETECT
+          }
+          function alias(string $root): bool {
+              $metadata = $root . '/.git';
+              return is_dir($metadata); // MUST_DETECT
+          }
+          function split(string $root): bool {
+              return is_dir($root . '/' . '.git'); // MUST_DETECT
+          }
+          final class Example {
+              public function alias(string $root): bool {
+                  $metadata = $root . '/.git';
+                  if (is_dir($metadata)) { // MUST_DETECT
+                      return true;
+                  }
+                  return false;
+              }
+          }
+          function closure(string $root): \Closure {
+              return static function () use ($root): bool {
+                  $metadata = $root . '/.git';
+                  return is_dir($metadata); // MUST_DETECT
+              };
+          }
+          function owner(string $root): bool {
+              return GitWorkTree::detected($root);
+          }
+          function unrelated(string $root): bool {
+              $metadata = $root . '/cache';
+              return is_dir($metadata);
+          }
+          function overwritten(string $root): bool {
+              $metadata = $root . '/.git';
+              $metadata = $root . '/cache';
+              return is_dir($metadata);
+          }
+          function branch(string $root, bool $change): bool {
+              $metadata = $root . '/.git';
+              if ($change) {
+                  $metadata = $root . '/cache';
+                  return is_dir($metadata);
+              }
+              return false;
+          }
+          function differentVariable(string $root): bool {
+              $cache = $root . '/cache';
+              $metadata = $root . '/.git';
+              return is_dir($cache);
+          }
+          PHP
+          probe() {
+              local name="$1"
+              local rc=0
+              vendor/bin/phpstan analyse -c phpstan/project-rule-test.neon --no-progress --error-format=json build/gh457-candidate/variants.php > "build/gh457-candidate/$name.json" 2> "build/gh457-candidate/$name.stderr" || rc=$?
+              test "$rc" -eq 1
+              jq -e '.totals.errors == 0' "build/gh457-candidate/$name.json"
+              jq '[.files[].messages[] | select(.identifier == "agentLoop.git.metadataShape") | .line] | sort' "build/gh457-candidate/$name.json" > "build/gh457-candidate/$name-lines.json"
+              cat "build/gh457-candidate/$name-lines.json"
+          }
+          probe baseline
+          jq -e 'length == 2' build/gh457-candidate/baseline-lines.json
+          # Scratch-only candidate; production source is pinned and never pushed.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php')
+          s = p.read_text()
+          assert s.count('private function namesGitMetadata(') == 1
+          s = s.replace('private function namesGitMetadata(', 'public static function namesGitMetadata(')
+          s = s.replace('$this->namesGitMetadata(', 'self::namesGitMetadata(')
+          p.write_text(s)
+          for name in ['phpstan.neon.dist', 'phpstan/project-rule-test.neon']:
+              p = Path(name)
+              s = p.read_text()
+              p.write_text(s + '  -\n    class: voku\\AgentLoop\\PHPStan\\Rules\\NoGitDirectoryShapeAliasRule\n    tags:\n      - phpstan.rules.rule\n')
+          PY
+          cat > phpstan/Rules/NoGitDirectoryShapeAliasRule.php <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace voku\AgentLoop\PHPStan\Rules;
+
+          use PhpParser\Node;
+          use PhpParser\Node\Expr\Assign;
+          use PhpParser\Node\Expr\FuncCall;
+          use PhpParser\Node\Expr\Variable;
+          use PhpParser\Node\FunctionLike;
+          use PhpParser\Node\Name;
+          use PhpParser\Node\Stmt\Expression;
+          use PhpParser\Node\Stmt\If_;
+          use PhpParser\Node\Stmt\Return_;
+          use PHPStan\Analyser\Scope;
+          use PHPStan\Rules\Rule;
+          use PHPStan\Rules\RuleErrorBuilder;
+
+          /**
+           * Companion to the direct shape detector. Recognizes an adjacent local
+           * assignment followed by a direct return/condition; does not infer
+           * variable provenance across intervening statements or control flow.
+           *
+           * @implements Rule<FunctionLike>
+           */
+          final class NoGitDirectoryShapeAliasRule implements Rule
+          {
+              public function getNodeType(): string
+              {
+                  return FunctionLike::class;
+              }
+
+              /** @return list<\PHPStan\Rules\RuleError> */
+              public function processNode(Node $node, Scope $scope): array
+              {
+                  $namespace = $scope->getNamespace();
+                  if ($namespace !== null && str_starts_with($namespace, 'voku\\AgentLoop\\Tests')) {
+                      return [];
+                  }
+
+                  $statements = $node->getStmts() ?? [];
+                  $errors = [];
+                  foreach ($statements as $index => $statement) {
+                      if (!$statement instanceof Expression || !$statement->expr instanceof Assign) {
+                          continue;
+                      }
+                      $assignment = $statement->expr;
+                      if (
+                          !$assignment->var instanceof Variable
+                          || !is_string($assignment->var->name)
+                          || !NoGitDirectoryShapeAssumptionRule::namesGitMetadata($assignment->expr)
+                      ) {
+                          continue;
+                      }
+
+                      $next = $statements[$index + 1] ?? null;
+                      $call = match (true) {
+                          $next instanceof Return_ => $next->expr,
+                          $next instanceof If_ => $next->cond,
+                          default => null,
+                      };
+                      if (!$call instanceof FuncCall || !$call->name instanceof Name || strtolower($call->name->toString()) !== 'is_dir') {
+                          continue;
+                      }
+                      $argument = $call->getArgs()[0]->value ?? null;
+                      if (!$argument instanceof Variable || $argument->name !== $assignment->var->name) {
+                          continue;
+                      }
+                      $errors[] = RuleErrorBuilder::message(
+                          'Do not infer Git repository state from is_dir(.git); a linked worktree stores .git as a file. Ask Git through GitWorkTree instead.',
+                      )->identifier('agentLoop.git.metadataShape')->line($call->getStartLine())->build();
+                  }
+
+                  return $errors;
+              }
+          }
+          PHP
+          php -l phpstan/Rules/NoGitDirectoryShapeAliasRule.php
+          git add -N phpstan/Rules/NoGitDirectoryShapeAliasRule.php
+          git diff --binary > build/gh457-candidate/candidate.patch
+          probe candidate
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          root = Path('build/gh457-candidate')
+          expected = [i for i, s in enumerate((root/'variants.php').read_text().splitlines(), 1) if 'MUST_DETECT' in s]
+          baseline = json.loads((root/'baseline-lines.json').read_text())
+          actual = json.loads((root/'candidate-lines.json').read_text())
+          report = {'expected': expected, 'baseline': baseline, 'candidate': actual, 'missing': sorted(set(expected)-set(actual)), 'unexpected': sorted(set(actual)-set(expected))}
+          print(json.dumps(report, indent=2))
+          (root/'comparison.json').write_text(json.dumps(report, indent=2)+'\n')
+          assert actual == expected, report
+          PY
+      - name: Existing fixture gate, style and static analysis
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer test:project-phpstan-rules | tee build/gh457-candidate/rule-gate.txt
+          vendor/bin/phpunit --filter GitWorkTreeDetectionTest | tee build/gh457-candidate/runtime-regression.txt
+          composer cs | tee build/gh457-candidate/cs.txt
+          composer phpstan | tee build/gh457-candidate/phpstan.txt
+      - name: Upload scratch candidate and evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: gh457-alias-candidate
+          path: build/gh457-candidate/
+          if-no-files-found: error
