@@ -1,4 +1,4 @@
-name: GH-1184 exact candidate evidence (do not merge)
+name: GH-1184 evidence recovery and GH-1185 decision baseline (do not merge)
 
 on:
   pull_request:
@@ -9,18 +9,51 @@ on:
 permissions:
   contents: read
   actions: read
+  checks: read
 
 jobs:
-  exact-candidate:
+  recover-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    steps:
+      - name: Inspect prior exact-candidate evidence and check annotations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          gh api repos/voku/agent-loop/actions/artifacts/15129616210/zip > evidence/prior.zip
+          echo '7dfebb8407aa43654c5c262e92e493689245218881c32b6ed23f3a5f5504925d  evidence/prior.zip' | sha256sum -c -
+          unzip -Z1 evidence/prior.zip | tee evidence/inventory.txt
+          unzip -p evidence/prior.zip build/evidence/GH-1184/finish.json > evidence/finish.json
+          jq '{status,next_action_kind,next_action,human_decision,review,review_sha256,review_path,blockers}' evidence/finish.json
+          echo 'Review paths in archived state (if any):'
+          grep -Ei 'review|manifest' evidence/inventory.txt || true
+          gh api --paginate repos/voku/agent-loop/commits/d58bcec4b67b173739c0490a9e6522c69bb4c1bd/check-runs --jq '.check_runs[] | {id,name,conclusion,annotations:.output.annotations_count,details_url}' | tee evidence/checks.jsonl
+          while read -r id; do
+            gh api --paginate "repos/voku/agent-loop/check-runs/$id/annotations" --jq '.[] | {path,start_line,end_line,annotation_level,title,message}' | tee -a evidence/codacy-annotations.jsonl
+          done < <(jq -r 'select(.name|test("codacy";"i"))|.id' evidence/checks.jsonl)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: gh-1184-recovery-index
+          path: |
+            evidence/inventory.txt
+            evidence/finish.json
+            evidence/checks.jsonl
+            evidence/codacy-annotations.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+  decision-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
     env:
-      BASE: e5e0e006fb052e262c18523bf6a19b7bcc213315
-      CANDIDATE: d58bcec4b67b173739c0490a9e6522c69bb4c1bd
+      BASE: 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: e5e0e006fb052e262c18523bf6a19b7bcc213315
+          ref: 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
           fetch-depth: 0
           persist-credentials: false
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
@@ -28,108 +61,50 @@ jobs:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '26'
-          package-manager-cache: false
-      - name: Restore exact approved contract and re-enter on base
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Reproduce the existing approval presentation
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$BASE"
           composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
-          npm ci --ignore-scripts
-          proof=build/evidence/GH-1184
-          mkdir -p "$proof" .agent-loop/contracts/GH-1184
-          gh api repos/voku/agent-loop/actions/artifacts/15126735850/zip > "$proof/approved.zip"
-          echo "4ea897bfd21588cd1d00338646b1e3b2379e816de0834dcd5d354391bf4b3265  $proof/approved.zip" | sha256sum -c -
-          test ! -e .agent-loop/contracts/GH-1184/contract.json
-          unzip -p "$proof/approved.zip" approved-contract.json > .agent-loop/contracts/GH-1184/contract.json
-          unzip -p "$proof/approved.zip" approval.json > "$proof/approval.json"
-          jq -e '.status == "approved" and .revision == 1' "$proof/approval.json"
-          php bin/agent-loop enter GH-1184 --format=json > "$proof/entry.json"
-          jq '{mutation_ready,next_action_kind,next_action}' "$proof/entry.json"
-          jq -e '.mutation_ready == true and .next_action_kind == "host_work"' "$proof/entry.json"
-      - name: Reproduce exact approved candidate content
+          proof=build/evidence/GH-1185
+          mkdir -p "$proof"
+          vendor/bin/phpunit tests/WorkflowDecisionCardTest.php tests/WorkflowContractApprovalBaselineTest.php | tee "$proof/tests.txt"
+          php bin/agent-loop enter GH-1185 --format=json > "$proof/entry.json" || test "$?" = 1
+          jq -e '.next_action_kind == "command_template" and (.next_action | startswith("agent-loop workflow plan GH-1185 ")) and .mutation_ready == false' "$proof/entry.json"
+      - name: Create a bounded first presentation Contract using the owner CLI
         shell: bash
         run: |
           set -euo pipefail
-          proof=build/evidence/GH-1184
-          git cat-file -e "$CANDIDATE^{commit}"
-          test "$(git rev-parse "$CANDIDATE^")" = "$BASE"
-          git diff --name-only "$BASE" "$CANDIDATE" | LC_ALL=C sort > "$proof/changed-paths.txt"
-          printf '%s\n' .agent-loop/githooks.json .gitmessage AGENTS.md docs/reference/git-hooks.md resources/instructions/project-instructions.md resources/skills/agent-loop-workflow/SKILL.md src/GitHooks/GitHooksCli.php tests/GitHooksRunnerTest.php | LC_ALL=C sort > "$proof/approved-paths.txt"
-          diff -u "$proof/approved-paths.txt" "$proof/changed-paths.txt"
-          mapfile -t paths < "$proof/approved-paths.txt"
-          git restore --source "$CANDIDATE" -- "${paths[@]}"
-          git diff --exit-code "$CANDIDATE" -- "${paths[@]}"
-          git show -s --format=%B "$CANDIDATE" > "$proof/product-message.txt"
-          php bin/agent-loop githooks verify | tee "$proof/examples.txt"
-          php bin/agent-loop githooks commit-msg "$proof/product-message.txt"
-          vendor/bin/phpunit tests/GitHooksRunnerTest.php | tee "$proof/phpunit.txt"
-      - name: Exercise generated Git hooks in an isolated real repository
-        shell: bash
-        run: |
-          set -euo pipefail
-          proof="$GITHUB_WORKSPACE/build/evidence/GH-1184"
-          fixture="$(mktemp -d)"
-          export AGENT_LOOP_BIN="$GITHUB_WORKSPACE/bin/agent-loop"
-          git -C "$fixture" init -q
-          git -C "$fixture" config user.name 'GH-1184 test'
-          git -C "$fixture" config user.email 'test@example.invalid'
-          git -C "$fixture" config commit.cleanup strip
-          mkdir "$fixture/.agent-loop"
-          cp .agent-loop/githooks.json "$fixture/.agent-loop/githooks.json"
-          cp .gitmessage "$fixture/.gitmessage"
-          cd "$fixture"
-          mkdir -p vendor/bin
-          printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$GITHUB_WORKSPACE/bin/agent-loop" > vendor/bin/agent-loop
-          chmod +x vendor/bin/agent-loop
-          "$AGENT_LOOP_BIN" init sync-githooks --commit-template=.gitmessage
-          "$AGENT_LOOP_BIN" githooks trust
-          test "$(git config core.hooksPath)" = .githooks
-          test -x .githooks/commit-msg
-          printf '%s\n' 'test fixture' > sample.txt
-          git add sample.txt
-          reject() {
-            if git commit -m "$1" -m "$2" > "$proof/$3.log" 2>&1; then
-              cat "$proof/$3.log"
-              echo "unexpected successful commit: $3"
-              exit 1
-            fi
-            cat "$proof/$3.log"
-            grep -F 'Commit blocked:' "$proof/$3.log"
-            grep -F 'stop and ask the developer' "$proof/$3.log"
-          }
-          reject 'Add fixture' '' missing-why
-          reject 'Update' 'WHY: Exercise installed Git hooks.' vague-title
-          reject 'Add fixture' 'WHY: [FILL]' placeholder
-          git commit -m 'Add fixture' -m 'WHY: Exercise installed Git hooks.' | tee "$proof/valid-commit.log"
-          git log -1 --format=%B | tee "$proof/stored-message.txt"
-          grep -F 'WHY: Exercise installed Git hooks.' "$proof/stored-message.txt"
-      - name: Run actual governed finish and preserve next action
-        shell: bash
-        run: |
-          set -euo pipefail
-          proof=build/evidence/GH-1184
-          status=0
-          php bin/agent-loop finish GH-1184 --format=json > "$proof/finish.json" || status=$?
-          printf '%s\n' "$status" > "$proof/finish-exit.txt"
-          jq '{status,next_action_kind,next_action,mutation_ready,human_decision}' "$proof/finish.json"
-          echo "finish exit=$status (not necessarily complete)"
-      - name: Retain candidate evidence and task state
+          proof=build/evidence/GH-1185
+          php bin/agent-loop workflow plan GH-1185 \
+            --by 'ChatGPT (planner; no approval)' \
+            --base-commit "$BASE" \
+            --file src/Workflow/WorkflowDecisionCard.php \
+            --file src/Workflow/WorkflowDecisionCardFactory.php \
+            --file src/Workflow/WorkflowHumanDecisionTextRenderer.php \
+            --file tests/WorkflowDecisionCardTest.php \
+            --file docs/prompting-preferences.md \
+            --goal 'Make the existing Contract approval card decision-ready by projecting its existing goal, behavior anchors and acceptance criteria as proposed outcomes, and distinguish the approval trigger from the change motivation. The GH-1184 approval card required reconstructing the intended behavior from separate Contract details.' \
+            --non-goal 'No new Contract persistence schema, authority, provider, lifecycle stage, host-generated parallel card or duplicate implementation of the already present last-approved revision baseline. No inferred current behavior or factual motivation from a goal alone. A later separately scoped slice may add owner-backed motivation if existing sources are insufficient.' \
+            --acceptance 'The existing JSON card includes declared behavior anchors and acceptance criteria as proposed, not observed, alongside the actual goal and exact choices; the text card renders them before detailed file metadata. Preserve existing schema keys and exact approval commands.' \
+            --acceptance 'Separate lifecycle why_now from motivation; explicitly show unknown when the owner has no independent rationale or current behavior, rather than generating a reason. Do not parse arbitrary prose into purported facts.' \
+            --acceptance 'Existing last-approved baseline semantics, validation/review state, locale fallback and authority stay unchanged. No provider calls or extra human approval.' \
+            --acceptance 'Regression tests compare the actual CLI/JSON projection before and after, with populated and absent anchors/criteria, English and German labels, and no fabricated proof. Full composer ci passes on exact candidate.' \
+            --behavior-anchor 'Today: goal plus revision trigger and file list are visible in the card; behavioral acceptance criteria are in separate details. Proposed: declared outcomes visible at the decision point, unknown rationale remains explicit.' \
+            --validation 'composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress' \
+            --validation 'vendor/bin/phpunit tests/WorkflowDecisionCardTest.php tests/WorkflowContractApprovalBaselineTest.php' \
+            --validation 'composer ci' \
+            --format=json > "$proof/plan.json"
+          jq -e '.next_action_kind == "decision_required" and .human_decision.type == "contract_approval"' "$proof/plan.json"
+          jq '.human_decision.card' "$proof/plan.json"
+          contract="$(jq -er '.path' "$proof/plan.json")"
+          cp "$contract" "$proof/contract.json"
+          sha256sum "$proof/contract.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: gh-1184-exact-candidate
-          path: |
-            build/evidence/GH-1184/*.json
-            build/evidence/GH-1184/*.txt
-            build/evidence/GH-1184/*.log
-            .agent-loop/contracts/GH-1184/
-            .agent-loop/runs/GH-1184/
-          include-hidden-files: true
+          name: gh-1185-candidate-contract
+          path: build/evidence/GH-1185/
           if-no-files-found: warn
           retention-days: 14
