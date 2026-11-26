@@ -187,8 +187,8 @@ final class WorkflowScopePreflightTest extends TestCase
         $path = (new TaskContractStore($this->root))->load('T-1')->path;
         file_put_contents($this->draft . '/tests/UnrelatedTest.php', "<?php\n// changed\n");
 
-        // CandidateWorkspaceIdentity treats both forms as the entire repository.
-        foreach ([['.'], []] as $scope) {
+        // A non-empty Contract scope containing '.' covers the entire repository.
+        foreach ([['.'], ['src/Workflow/TaskContractStore.php', '.']] as $scope) {
             $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
             $data['scope'] = $scope;
             file_put_contents($path, json_encode($data, JSON_THROW_ON_ERROR));
