@@ -1,55 +1,15 @@
-name: GH-1184 evidence recovery and GH-1185 decision baseline (do not merge)
-
+name: GH-1185 approved entry and GH-1184 review reproduction (do not merge)
 on:
   pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/gh-1184-evidence.yml'
-
+    paths: ['.github/workflows/gh-1184-evidence.yml']
 permissions:
   contents: read
   actions: read
-  checks: read
-
 jobs:
-  recover-review:
+  approved-entry:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Inspect prior exact-candidate evidence and check annotations
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p evidence
-          gh api repos/voku/agent-loop/actions/artifacts/15129616210/zip > evidence/prior.zip
-          echo '7dfebb8407aa43654c5c262e92e493689245218881c32b6ed23f3a5f5504925d  evidence/prior.zip' | sha256sum -c -
-          unzip -Z1 evidence/prior.zip | tee evidence/inventory.txt
-          unzip -p evidence/prior.zip build/evidence/GH-1184/finish.json > evidence/finish.json
-          jq '{status,next_action_kind,next_action,human_decision,review,review_sha256,review_path,blockers}' evidence/finish.json
-          echo 'Review paths in archived state (if any):'
-          grep -Ei 'review|manifest' evidence/inventory.txt || true
-          gh api --paginate repos/voku/agent-loop/commits/d58bcec4b67b173739c0490a9e6522c69bb4c1bd/check-runs --jq '.check_runs[] | {id,name,conclusion,annotations:.output.annotations_count,details_url}' | tee evidence/checks.jsonl
-          while read -r id; do
-            gh api --paginate "repos/voku/agent-loop/check-runs/$id/annotations" --jq '.[] | {path,start_line,end_line,annotation_level,title,message}' | tee -a evidence/codacy-annotations.jsonl
-          done < <(jq -r 'select(.name|test("codacy";"i"))|.id' evidence/checks.jsonl)
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        if: always()
-        with:
-          name: gh-1184-recovery-index
-          path: |
-            evidence/inventory.txt
-            evidence/finish.json
-            evidence/checks.jsonl
-            evidence/codacy-annotations.jsonl
-          if-no-files-found: warn
-          retention-days: 14
-  decision-baseline:
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    env:
-      BASE: 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -61,50 +21,53 @@ jobs:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
-      - name: Reproduce the existing approval presentation
-        shell: bash
+      - name: Record genuine developer approval and enter
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$BASE"
+          test "$(git rev-parse HEAD)" = 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a
           composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
-          proof=build/evidence/GH-1185
-          mkdir -p "$proof"
-          vendor/bin/phpunit tests/WorkflowDecisionCardTest.php tests/WorkflowContractApprovalBaselineTest.php | tee "$proof/tests.txt"
-          php bin/agent-loop enter GH-1185 --format=json > "$proof/entry.json" || test "$?" = 1
-          jq -e '.next_action_kind == "command_template" and (.next_action | startswith("agent-loop workflow plan GH-1185 ")) and .mutation_ready == false' "$proof/entry.json"
-      - name: Create a bounded first presentation Contract using the owner CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          proof=build/evidence/GH-1185
-          php bin/agent-loop workflow plan GH-1185 \
-            --by 'ChatGPT (planner; no approval)' \
-            --base-commit "$BASE" \
-            --file src/Workflow/WorkflowDecisionCard.php \
-            --file src/Workflow/WorkflowDecisionCardFactory.php \
-            --file src/Workflow/WorkflowHumanDecisionTextRenderer.php \
-            --file tests/WorkflowDecisionCardTest.php \
-            --file docs/prompting-preferences.md \
-            --goal 'Make the existing Contract approval card decision-ready by projecting its existing goal, behavior anchors and acceptance criteria as proposed outcomes, and distinguish the approval trigger from the change motivation. The GH-1184 approval card required reconstructing the intended behavior from separate Contract details.' \
-            --non-goal 'No new Contract persistence schema, authority, provider, lifecycle stage, host-generated parallel card or duplicate implementation of the already present last-approved revision baseline. No inferred current behavior or factual motivation from a goal alone. A later separately scoped slice may add owner-backed motivation if existing sources are insufficient.' \
-            --acceptance 'The existing JSON card includes declared behavior anchors and acceptance criteria as proposed, not observed, alongside the actual goal and exact choices; the text card renders them before detailed file metadata. Preserve existing schema keys and exact approval commands.' \
-            --acceptance 'Separate lifecycle why_now from motivation; explicitly show unknown when the owner has no independent rationale or current behavior, rather than generating a reason. Do not parse arbitrary prose into purported facts.' \
-            --acceptance 'Existing last-approved baseline semantics, validation/review state, locale fallback and authority stay unchanged. No provider calls or extra human approval.' \
-            --acceptance 'Regression tests compare the actual CLI/JSON projection before and after, with populated and absent anchors/criteria, English and German labels, and no fabricated proof. Full composer ci passes on exact candidate.' \
-            --behavior-anchor 'Today: goal plus revision trigger and file list are visible in the card; behavioral acceptance criteria are in separate details. Proposed: declared outcomes visible at the decision point, unknown rationale remains explicit.' \
-            --validation 'composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress' \
-            --validation 'vendor/bin/phpunit tests/WorkflowDecisionCardTest.php tests/WorkflowContractApprovalBaselineTest.php' \
-            --validation 'composer ci' \
-            --format=json > "$proof/plan.json"
-          jq -e '.next_action_kind == "decision_required" and .human_decision.type == "contract_approval"' "$proof/plan.json"
-          jq '.human_decision.card' "$proof/plan.json"
-          contract="$(jq -er '.path' "$proof/plan.json")"
-          cp "$contract" "$proof/contract.json"
-          sha256sum "$proof/contract.json"
+          mkdir -p proof .agent-loop/contracts/GH-1185
+          gh api repos/voku/agent-loop/actions/artifacts/15134461068/zip > proof/candidate.zip
+          echo 'e66f69818073051105163e5794f0214f91af5764d1dd69087b199fb4ad551a8b  proof/candidate.zip' | sha256sum -c -
+          unzip -p proof/candidate.zip contract.json > .agent-loop/contracts/GH-1185/contract.json
+          echo '08864fce73e5648d04ab60d7e157d142d9d207c08191780250f4681905410df3  .agent-loop/contracts/GH-1185/contract.json' | sha256sum -c -
+          php bin/agent-loop workflow approve GH-1185 --revision 1 --head 8c925e74dcf4f5d34c504d86cb8ca1ce71427c7a --by voku --recorded-by ChatGPT --format=json > proof/approval.json
+          jq -e '.status == "approved" and .revision == 1' proof/approval.json
+          cp .agent-loop/contracts/GH-1185/contract.json proof/approved-contract.json
+          php bin/agent-loop enter GH-1185 --format=json > proof/entry.json
+          jq '{mutation_ready,next_action_kind,next_action}' proof/entry.json
+          jq -e '.mutation_ready == true and .next_action_kind == "host_work"' proof/entry.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: gh-1185-candidate-contract
-          path: build/evidence/GH-1185/
-          if-no-files-found: warn
+          name: gh-1185-approved-entry
+          path: |
+            proof/*.json
+            .agent-loop/contracts/GH-1185/
+            .agent-loop/runs/GH-1185/
+          include-hidden-files: true
           retention-days: 14
+  reproduce-finding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: d58bcec4b67b173739c0490a9e6522c69bb4c1bd
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Verify review counterexample against actual CLI
+        run: |
+          set -euo pipefail
+          composer install --no-interaction --prefer-dist --no-scripts --no-plugins --no-progress
+          msg="$(mktemp)"
+          printf '%s\n' 'fix(parser): reject empty input' '' 'WHY:' '- Empty input crashed the tokenizer.' '- [FILL]' > "$msg"
+          php bin/agent-loop githooks commit-msg "$msg"
+          echo 'Confirmed: current candidate accepts unresolved placeholder after concrete WHY.'
+          rm "$msg"
