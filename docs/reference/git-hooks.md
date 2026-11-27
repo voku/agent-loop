@@ -170,11 +170,16 @@ name in a shared `/tmp` can belong to another user or session.
 
 The Loop development repository requires a non-empty WHY, rejects exact generic
 titles and an unresolved WHY placeholder, and declares executable pass/fail
-examples. A WHY followed only by trailers such as `Refs:` or `Co-Authored-By:`
-counts as empty; put the reason before the trailer block. `fixup!`, `squash!`
-and `amend!` commits are exempt from the WHY rule because autosquash folds them
-into a commit that carries one. Consumer repositories still choose their own
-rules.
+examples. A WHY that contains only known Git trailers, such as `Refs:`,
+`Co-Authored-By:` or `Signed-off-by:`, counts as empty, whether the trailers end
+the message or another all-caps section follows; put the reason before the
+trailer block. Other `Key: value` lines, for example `PHPStan: reported ...`,
+are ordinary reasons. `fixup!`, `squash!` and `amend!` commits are exempt
+because autosquash folds them into a commit that carries a WHY, and Git's own
+`Revert "..."` message is exempt so a conflicted `git revert --continue` still
+completes. Amending or re-committing an older commit that has no WHY (for
+example `git commit --amend --no-edit` or a conflicted cherry-pick) needs a WHY
+added to its message. Consumer repositories still choose their own rules.
 
 For developer-facing changes, inspect the exact commit selection, including
 partial staging, and the authorized task or decision evidence. Describe what

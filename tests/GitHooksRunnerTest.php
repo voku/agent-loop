@@ -456,9 +456,25 @@ final class GitHooksRunnerTest extends TestCase
         self::assertNotSame(0, $commit("fix(parser): reject empty input\n\nWHY:\nRefs: #1184\n"));
         self::assertSame(0, $commit("fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n\n" . $trailers));
         self::assertSame(0, $commit("fixup! fix(parser): reject empty input\n"));
+        // A reason that merely looks like "Key: value" is a reason, not a trailer.
+        self::assertSame(0, $commit("fix(parser): reject empty input\n\nWHY:\nPHPStan: reported an undefined method on main.\n"));
+        // Trailers followed by another section still leave WHY empty.
+        self::assertNotSame(0, $commit("fix(parser): reject empty input\n\nWHY:\nRefs: #1184\n\nEVIDENCE:\n- tests ran\n"));
 
         exec($git . 'rev-list --count HEAD', $count);
-        self::assertSame(['2'], $count, 'only the two accepted messages were stored');
+        self::assertSame(['3'], $count, 'only the three accepted messages were stored');
+
+        // A conflicted revert finishes with Git's own "Revert ..." message, which has no WHY.
+        $target = trim((string) shell_exec($git . 'rev-parse HEAD~1'));
+        file_put_contents($this->root . '/tracked.txt', "diverged\n");
+        exec($git . 'commit --quiet -am ' . escapeshellarg("Diverge tracked file\n\nWHY: Force a revert conflict.") . ' 2>&1', $output, $exitCode);
+        self::assertSame(0, $exitCode);
+        exec($git . 'revert --no-edit ' . escapeshellarg($target) . ' 2>&1', $output, $exitCode);
+        self::assertNotSame(0, $exitCode, 'the revert must conflict for this check to mean anything');
+        file_put_contents($this->root . '/tracked.txt', "resolved\n");
+        exec($git . 'add tracked.txt', $output, $exitCode);
+        exec('GIT_EDITOR=true ' . $git . 'revert --continue 2>&1', $output, $exitCode);
+        self::assertSame(0, $exitCode, implode("\n", $output));
     }
 
     public function testBuiltInCheckTypesRenderTheStandardToolCommands(): void
