@@ -205,7 +205,8 @@ final readonly class HostFrontDoorCommand
         $targets = OptionTokens::values($tokens, 'target');
         $targetEvidence = $targets === []
             ? null
-            : (new WorkflowTargetEvidenceProjector($this->rootPath))->project($targets, (new TaskContractStore($this->rootPath))->find($taskId->value));
+            : WorkflowTargetEvidenceProjector::abstainOnFailure(fn (): array => (new WorkflowTargetEvidenceProjector($this->rootPath))
+                ->project($targets, (new TaskContractStore($this->rootPath))->find($taskId->value)));
         $warnings = [];
         if ($preparationResult?->searchWarning !== null) {
             $warnings[] = [

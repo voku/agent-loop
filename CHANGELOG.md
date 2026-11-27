@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- `enter --target` review follow-ups (#1194). A target that merely contains the word "ambiguous", such as `Contract::ambiguousNope`, is reported `target_unresolved` instead of `target_ambiguous`. A source file edited while the evidence was read now abstains as `evidence_became_stale`; before, only the stored Map fingerprint was compared, which a source edit does not change. Classes that `use` a trait are listed as its references (`uses_trait`). A namespaced function resolves by its short name when no global function has that name and exactly one namespaced function carries it. An owner failure while building the projection abstains as `projection_failed` instead of failing the whole `enter`.
+
 ## [0.20.108] - 2026-11-27
 
 ### Fixed

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\ProjectLayout;
@@ -40,7 +41,11 @@ final readonly class WorkflowTargetEvidenceProjector
         'extends',
         'implements',
         'overrides',
+        'uses_trait',
     ];
+
+    /** Every "is ambiguous" failure, from agent-map's method lookup and from this projector, starts like this. */
+    private const string AMBIGUOUS_PREFIX = '/^[A-Za-z]+ target is ambiguous: /';
 
     public function __construct(private string $rootPath)
     {
@@ -72,8 +77,7 @@ final readonly class WorkflowTargetEvidenceProjector
             $rows[] = $this->targetEvidence($map, $target, $scope);
         }
 
-        $after = (new MapReadinessInspector())->inspect($artifacts, false);
-        if ($after->mapSnapshot === null || !hash_equals($readiness->mapSnapshot, $after->mapSnapshot)) {
+        if (!$this->stillCurrent($readiness->mapSnapshot)) {
             return $this->abstained('evidence_became_stale', ['map_snapshot' => $readiness->mapSnapshot]);
         }
 
@@ -90,6 +94,42 @@ final readonly class WorkflowTargetEvidenceProjector
         }
 
         return $projection;
+    }
+
+    /**
+     * Whether the Map the evidence came from is still current: same fingerprint and no
+     * source file edited since. The fingerprint alone is stored, so it stays equal when a
+     * source changes; only the readiness state notices that.
+     */
+    public function stillCurrent(string $mapSnapshot): bool
+    {
+        $after = (new MapReadinessInspector())->inspect($this->mapArtifacts(), false);
+
+        return $after->mapState === 'ready'
+            && $after->mapSnapshot !== null
+            && hash_equals($mapSnapshot, $after->mapSnapshot);
+    }
+
+    /**
+     * Runs a projection and abstains when it throws. The evidence is optional context for
+     * `enter`; an owner failure while building it must not replace the lifecycle result.
+     *
+     * @param Closure(): array<string, mixed> $projection
+     * @return array<string, mixed>
+     */
+    public static function abstainOnFailure(Closure $projection): array
+    {
+        try {
+            return $projection();
+        } catch (Throwable $exception) {
+            return [
+                'owner' => 'agent-map',
+                'status' => 'abstained',
+                'reason' => 'projection_failed',
+                'authority' => 'none',
+                'detail' => strtok($exception->getMessage(), "\n"),
+            ];
+        }
     }
 
     /** @param array<string, mixed> $projection */
@@ -169,7 +209,7 @@ final readonly class WorkflowTargetEvidenceProjector
             return [
                 'target' => $target,
                 'status' => 'abstained',
-                'reason' => str_contains($exception->getMessage(), 'ambiguous') ? 'target_ambiguous' : 'target_unresolved',
+                'reason' => preg_match(self::AMBIGUOUS_PREFIX, $exception->getMessage()) === 1 ? 'target_ambiguous' : 'target_unresolved',
                 'detail' => strtok($exception->getMessage(), "\n"),
             ];
         }
@@ -229,9 +269,39 @@ final readonly class WorkflowTargetEvidenceProjector
         if ($type !== null) {
             return [$this->typeMemberIds($map, $type['symbol']), $type['file']->path];
         }
+        // An exact name wins, so a global `helper()` stays reachable next to `App\helper()`.
         $function = $map->symbolById('function:' . $target);
+        if ($function === null) {
+            $qualifiedFunction = $this->qualifyFunction($map, $target);
+            $function = $qualifiedFunction === null ? null : $map->symbolById('function:' . $qualifiedFunction);
+        }
 
         return $function === null ? null : [[$function['symbol']->id()], $function['file']->path];
+    }
+
+    /**
+     * The fully qualified name for an unqualified function target that names no global
+     * function, when exactly one function in the Map carries that short name.
+     */
+    private function qualifyFunction(AgentMapIndex $map, string $name): ?string
+    {
+        if (str_contains($name, '\\') || str_contains($name, '#')) {
+            return null;
+        }
+        $matches = [];
+        foreach ($map->files as $file) {
+            foreach ($file->symbols as $symbol) {
+                if ($symbol->kind === 'function' && $symbol->name === $name) {
+                    $matches[] = ltrim($symbol->fqn, '\\');
+                }
+            }
+        }
+        $matches = array_values(array_unique($matches));
+        if (count($matches) > 1) {
+            throw new RuntimeException('Function target is ambiguous: ' . $name . ' matches ' . implode(', ', $matches));
+        }
+
+        return $matches[0] ?? null;
     }
 
     /**
