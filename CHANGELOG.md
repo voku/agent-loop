@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.20.108] - 2026-11-27
+
 ### Fixed
 
 - `workflow plan --base-commit` now resolves the value with `git rev-parse --verify <rev>^{commit}` and stores the exact commit id before the Contract is written; a value that is not a commit is refused at plan time. Before, an abbreviated base such as `7e7da68` was stored as given, approved, and only refused later by `enter` ("requires an exact Git base commit"), which forced another revision and approval. Outside a Git repository the value is kept as before (#1178).
@@ -14,6 +16,7 @@
 
 ### Changed
 
+- Commit messages in this repository need a non-empty `WHY:` section and a title that names the actual change. `.agent-loop/githooks.json` rejects exact generic titles, an unresolved `[FILL]` placeholder and a WHY that holds only Git trailers (`Refs:`, `Co-Authored-By:`, …), exempts `fixup!`/`squash!`/`amend!` and Git's `Revert "..."` messages, and declares pass/fail examples that `githooks verify` checks. A rejected message now says to describe the real change and ask the developer instead of suggesting `--no-verify`. The router and the workflow skill tell agents to ground the title and reason in the staged change and task evidence, and to stop that commit and ask one targeted question, even in autonomous mode, when the reason is unclear; the projected router wording stays format-neutral, so consumer repositories keep their own commit convention. The hook checks structure only, not whether a reason is true (#1184, #1190; follow-ups in #1201).
 - The host session is bound from `AGENT_LOOP_HOST_SESSION_ID` or, without it, `CLAUDE_CODE_SESSION_ID`, so Claude Code sessions need no setup. Preferences live in `AGENT_LOOP_INTERACTION_DIR` or, without it, below `$XDG_STATE_HOME` or `~/.local/state`. An invalid explicit identity is reported and never replaced by another source. `workflow interaction` no longer requires `AGENT_LOOP_INTERACTION_DIR`, and a task override or language on a session that only inherits the shared default binds it first (#1126).
 - A repair stage entered because a review returned `changes_required` can no longer complete with the exact candidate that review rejected unless it disputes the finding: a `--summary` rebuttal (not the CLI default, an unfilled `<summary>`, or the completion protocol's `<brief factual summary>` placeholder) plus at least one cited current-candidate `--artifact`. Otherwise `pipeline submit` refuses with `CANDIDATE_MISMATCH`, writes no history and names the ways forward (change the candidate, dispute with evidence, or report `blocked`/`needs_clarification`), so a no-op repair no longer replays validation and a review round. Repairs after failed validation, builds that follow a human-resolved Attention, and blocker outcomes are unchanged. An evidenced dispute goes to a fresh run of the review stage that raised the finding; its prompt now shows the finding, the rebuttal and its cited candidate files as untrusted data and asks for the finding's disposition separately from any new finding. That review's own outcome stays the verdict on the whole candidate and counts toward the review-round cap as before (#863, #1142).
 
