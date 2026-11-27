@@ -105,10 +105,11 @@ final readonly class WorkflowInteractionCommand
             if ($languageGiven) {
                 $store->setLanguage($session, $language);
             }
+            echo "[OK] interaction preference saved; it grants no authority.\n";
             if ($defaultLanguageGiven) {
                 $store->setDefaultLanguage($defaultLanguage);
+                echo self::defaultLanguageMessage($defaultLanguage);
             }
-            echo "[OK] interaction preference saved; it grants no authority.\n";
             return 0;
         } catch (Throwable $exception) {
             fwrite(STDERR, '[FAIL] workflow interaction: ' . $exception->getMessage() . "\n");

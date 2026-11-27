@@ -179,6 +179,35 @@ final class InitWizardInteractiveTest extends TestCase
         self::assertStringContainsString('map.languages accepts only', $stderr);
     }
 
+    public function testTheRecommendedEffectSaysNoChangeWhenTheRecommendationProposesNothing(): void
+    {
+        // A PHP-only project: the recommended php equals what an unconfigured map build already indexes.
+        unlink($this->root . '/package.json');
+        unlink($this->root . '/lib/index.js');
+        $wizard = new InitWizardCommand($this->root);
+
+        $languages = array_column($wizard->next([])['step']['actions'], null, 'action')['recommended'];
+        self::assertSame(['php'], $languages['value']);
+        self::assertSame('No change.', $languages['effect'], 'Unconfigured map.languages already resolves to php, so php proposes nothing.');
+
+        $paths = array_column($wizard->next(['map.languages' => ['php']])['step']['actions'], null, 'action')['recommended'];
+        self::assertNotSame('No change.', $paths['effect'], 'Recommended paths propose a map build command.');
+    }
+
+    public function testARecommendationTheValidatorRefusesStillShowsTheStep(): void
+    {
+        // PHPStan evidence can propose `.`, which map.paths refuses as a project-relative directory.
+        file_put_contents($this->root . '/phpstan.neon', "parameters:\n    paths:\n        - .\n");
+        $wizard = new InitWizardCommand($this->root);
+
+        $step = $wizard->next(['map.languages' => ['php']])['step'];
+
+        self::assertSame('map.paths', $step['id']);
+        self::assertContains('.', $step['default']);
+        self::assertNotSame('No change.', array_column($step['actions'], null, 'action')['recommended']['effect']);
+        self::assertSame('checks.composer_scripts', $wizard->next(['map.languages' => ['php'], 'map.paths' => ['src']])['step']['id'], 'A valid answer moves past the question.');
+    }
+
     public function testAnswerActionsResolveAsSpecified(): void
     {
         $wizard = new InitWizardCommand($this->root);
