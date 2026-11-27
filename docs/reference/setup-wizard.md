@@ -40,9 +40,11 @@ Adding, removing or reordering a question, or changing what one means, requires 
 | `s` / `skip` | skip an optional question; nothing is proposed for it |
 | anything else | change to this value (comma-separated for lists) |
 
-An invalid answer is explained and asked again. Prompts go to standard error. When the last question is answered, standard output gets the same JSON result as an `--answers` run, plus an `answers_document` you can save and pass to `--answers` later. If input ends before the last question, the run exits 1 and changes nothing, so a pipe or CI job never waits.
+The words `k`, `keep`, `r`, `recommended`, `s` and `skip` are reserved. To answer `map.paths` with a directory of one of those names, add a trailing slash (`s/`); the slash is dropped from the stored path.
 
-For a coding host, `--next` is the same flow without a terminal. Pass the answers given so far. The output has `progress` and a `step`: the first question in contract order that has no answer yet, with its `actions` (`keep`, `recommended`, `change` and, for optional questions, `skip`, each with the value it resolves to and its effect) and its `consequence`. Once every asked question has an answer, `step` is `null` and the output is the full `--answers` result. Loop decides the order and the next question; the host relays the question, may explain it, and adds the person's answer. It never picks the next question or answers for the person. The same partial answers always give the same step.
+An invalid answer is explained and asked again. Prompts go to standard error. When the last question is answered, standard output gets the `--answers` result for the same answers, plus `progress`, `step: null` and an `answers_document` you can save and pass to `--answers` later. If input ends before the last question, the run exits 1 and changes nothing, so a pipe or CI job never waits.
+
+For a coding host, `--next` is the same flow without a terminal. Pass the answers given so far. The output has `progress` and a `step`: the first question in contract order that has no answer yet, with its `actions` (`keep`, `recommended`, `change` and, for optional questions, `skip`, each with the value it resolves to and its effect) and its `consequence`. Once every asked question has an answer, `step` is `null` and the output is the full `--answers` result plus `progress`. The `recommended` effect is derived from what that answer would actually propose: it says `No change.` when the recommendation proposes no change, command or validation candidate, for example `php` for an unconfigured `map.languages`, which `map build` already indexes. Loop decides the order and the next question; the host relays the question, may explain it, and adds the person's answer. It never picks the next question or answers for the person. The same partial answers always give the same step.
 
 ## Answers
 
@@ -59,14 +61,14 @@ For a coding host, `--next` is the same flow without a terminal. Pass the answer
 }
 ```
 
-An answer is a value (meaning change to it) or an action: `{"action": "keep"}`, `{"action": "recommended"}`, `{"action": "skip"}` or `{"action": "change", "value": …}`. `keep` needs a current value, and `skip` only works on optional questions. Version 1 answers files are still read; their `personal.language` now sets your default language.
+An answer is a value (meaning change to it) or an action: `{"action": "keep"}`, `{"action": "recommended"}`, `{"action": "skip"}` or `{"action": "change", "value": …}`. `keep` needs a current value, and `skip` only works on optional questions. Version 1 answers files are still read; their `personal.language` now sets your default language, so a version 1 file that sets it gets a `[WARN] setup wizard:` entry in `warnings`. Write version 2 to confirm the new meaning. Language tags are case-insensitive and stored lower-cased (`de-DE` becomes `de-de`), as `prompting.language` always was.
 
 The wizard validates the answers file. An unknown question ID, an answer to a skipped question, a value outside the offered options, a path that is not an existing project-relative directory, or an invalid language tag fails with `[FAIL] setup wizard: …` and exit code 1. The output then adds:
 
 - `answers`: the normalized answers, in question order (always a JSON object, `{}` when empty). `keep` and `recommended` appear as the value they resolved to; a skipped question appears as `{"action": "skip"}`;
 - `changes`: each persisted value that would differ from its current value, with `before`, `before_source`, `after`, `requires_confirmation: true` and an `apply` route. If every answer matches the current value, `changes` is empty. A route whose command is not yet runnable has `status: prerequisite_required`;
 - `validation_candidates`: selected check scripts, always `execution: not_authorized`;
-- `next_actions`: for `map.paths`, the shell-quoted `map build` command, which still needs confirmation. It uses the answered `map.languages`, else the configured value, else the proposal, and passes `--languages` whenever that differs from what `map build` would otherwise use (the configured languages, or `php`). Paths must be plain project-relative directories (`[A-Za-z0-9._/-]`) that resolve inside the project.
+- `next_actions`: for `map.paths`, the shell-quoted `map build` command, which still needs confirmation. It uses the answered `map.languages`, else what `map build` resolves today (the configured languages, or `php`), and passes `--languages` only when the answer differs from that. An unanswered language question therefore proposes no languages that a later plain `map build` would not use. Only an invalid declaration, which `map build` refuses, gets the proposal as explicit `--languages`. Paths must be plain project-relative directories (`[A-Za-z0-9._/-]`) that resolve inside the project.
 
 | Change | Apply route |
 | --- | --- |

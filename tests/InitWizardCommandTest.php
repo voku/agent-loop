@@ -290,6 +290,63 @@ final class InitWizardCommandTest extends TestCase
         self::assertStringContainsString('init.json warnings', $withLanguage['changes'][1]['apply']['prerequisite']);
     }
 
+    public function testAnUnreadableInitJsonIsReportedAsInvalidNotAsUnconfiguredOrAsItsOwnSource(): void
+    {
+        $this->writePhpProject();
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"map": {"languages": ["php"]');
+
+        $questions = array_column((new InitWizardCommand($this->root))->inspect()['questions'], null, 'id');
+
+        self::assertSame([null, 'invalid_config'], [$questions['map.languages']['current'], $questions['map.languages']['current_source']]);
+        self::assertSame('invalid_config', $questions['prompting.language']['current_source'], 'The language is the built-in default, not a value read from init.json.');
+
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"prompting": {"language": "not a tag"}}');
+        $badTag = array_column((new InitWizardCommand($this->root))->inspect()['questions'], null, 'id');
+        self::assertSame('invalid_config', $badTag['prompting.language']['current_source']);
+        self::assertSame('not_configured', $badTag['map.languages']['current_source']);
+    }
+
+    public function testAnUnansweredLanguageQuestionProposesNoLanguagesThatInitJsonWouldNotKeep(): void
+    {
+        $this->writePhpProject();
+        $this->writeJavaScriptProject();
+        file_put_contents($this->root . '/tsconfig.json', '{}');
+
+        $result = (new InitWizardCommand($this->root))->inspect(['map.paths' => ['src', 'lib']]);
+
+        self::assertSame(['php', 'typescript'], array_column($result['questions'], null, 'id')['map.languages']['default'], 'The proposal is still the recommendation.');
+        self::assertSame("vendor/bin/agent-loop map build --paths='src,lib'", $result['next_actions'][0]['command'], 'Without a map.languages answer the build indexes what a later plain map build indexes.');
+        self::assertSame([], $result['changes']);
+    }
+
+    public function testRepairingAnInvalidLanguageDeclarationShowsTheStoredValueAsBefore(): void
+    {
+        $this->writePhpProject();
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"map": {"languages": ["php", "rust"]}}');
+
+        $change = (new InitWizardCommand($this->root))->inspect(['map.languages' => ['php']])['changes'][0];
+
+        self::assertSame(['php', 'rust'], $change['before']);
+        self::assertSame('invalid_config', $change['before_source']);
+    }
+
+    public function testAVersionOneAnswersFileThatSetsAPersonalLanguageIsWarnedAbout(): void
+    {
+        $this->writePhpProject();
+        $warning = 'this version 1 answers file sets personal.language';
+
+        [$exit, $stdout] = $this->runWizard(['--answers=' . $this->answersFile(['personal.language' => 'de'], 1)]);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString($warning, implode("\n", json_decode($stdout, true, 512, JSON_THROW_ON_ERROR)['warnings']));
+
+        foreach ([[['personal.language' => 'de'], 2], [['prompting.language' => 'de'], 1]] as [$answers, $version]) {
+            [, $stdout] = $this->runWizard(['--answers=' . $this->answersFile($answers, $version)]);
+            self::assertStringNotContainsString($warning, $stdout);
+        }
+    }
+
     public function testMapPathsMustBePlainDirectoriesInsideTheProject(): void
     {
         $this->writePhpProject();
@@ -349,10 +406,10 @@ final class InitWizardCommandTest extends TestCase
     }
 
     /** @param array<string, mixed> $answers */
-    private function answersFile(array $answers): string
+    private function answersFile(array $answers, int $version = InitWizardCommand::VERSION): string
     {
         $path = $this->root . '-answers-' . bin2hex(random_bytes(4)) . '.json';
-        file_put_contents($path, json_encode(['version' => 2, 'answers' => $answers], JSON_THROW_ON_ERROR));
+        file_put_contents($path, json_encode(['version' => $version, 'answers' => $answers], JSON_THROW_ON_ERROR));
         $this->answerFiles[] = $path;
 
         return $path;

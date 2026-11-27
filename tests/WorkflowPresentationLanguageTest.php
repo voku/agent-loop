@@ -124,6 +124,21 @@ final class WorkflowPresentationLanguageTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.agent-loop/init.json');
     }
 
+    public function testADefaultLanguageStaysWithItsUserAndIsConfirmedWhenSetWithAMode(): void
+    {
+        ob_start();
+        $exit = (new WorkflowInteractionCommand())->run(['sess-a', 'collaborative', '--default-language=de']);
+        $output = (string) ob_get_clean();
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('[OK] default language de for every host session of this user', $output);
+
+        mkdir($this->root . '/other-user', 0o775, true);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->root . '/other-user');
+        putenv('AGENT_LOOP_HOST_SESSION_ID=sess-b');
+        $other = WorkflowPresentationLanguage::resolve($this->root);
+        self::assertSame(['en', WorkflowPresentationLanguage::SOURCE_PROJECT], [$other->language, $other->source], 'Another user state directory does not see this default.');
+    }
+
     /** @param list<string> $arguments */
     private function interaction(array $arguments): int
     {

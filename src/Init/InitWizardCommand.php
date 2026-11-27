@@ -73,11 +73,12 @@ final readonly class InitWizardCommand
         try {
             $usage = 'Usage: agent-loop setup wizard [--answers=<file.json>] [--next] [--format=json], or agent-loop setup wizard --interactive';
             $answers = null;
+            $answersVersion = null;
             $next = false;
             $interactive = false;
             foreach ($tokens as $token) {
                 if (str_starts_with($token, '--answers=') && $answers === null) {
-                    $answers = $this->readAnswers(substr($token, strlen('--answers=')));
+                    [$answersVersion, $answers] = $this->readAnswers(substr($token, strlen('--answers=')));
                     continue;
                 }
                 $next = $next || $token === '--next';
@@ -96,6 +97,9 @@ final readonly class InitWizardCommand
                 }))->run();
             }
             $result = $next ? $this->next($answers ?? []) : $this->inspect($answers);
+            if ($answersVersion === 1 && array_key_exists('personal.language', $answers ?? [])) {
+                $result['warnings'][] = '[WARN] setup wizard: this version 1 answers file sets personal.language, which now means your default language for every host session (version 1: this host session only). Write version 2 to confirm.';
+            }
             echo self::encode($result) . "\n";
 
             return 0;
@@ -133,7 +137,7 @@ final readonly class InitWizardCommand
                     'mode' => 'read_only',
                     'evidence_sha256' => $result['evidence_sha256'],
                     'progress' => ['position' => $position + 1, 'total' => count($asked), 'answered' => array_keys($result['answers'] instanceof stdClass ? [] : $result['answers'])],
-                    'step' => [...$question, 'actions' => $this->actions($question), 'consequence' => self::CONSEQUENCES[$question['id']]],
+                    'step' => [...$question, 'actions' => $this->actions($question, $this->recommendedProposes($answers, $question)), 'consequence' => self::CONSEQUENCES[$question['id']]],
                     'execution' => 'not_authorized',
                     'warnings' => $result['warnings'],
                 ];
@@ -167,7 +171,9 @@ final readonly class InitWizardCommand
 
         $questions = [];
         $skipped = [];
-        foreach ($this->questions($evidence, $config, $preference, $defaultLanguage) as $order => $question) {
+        // An init.json that is not valid JSON is ignored by every reader; its values are defaults, not configuration.
+        $configUnreadable = in_array('[WARN] init config: invalid JSON', $config['warnings'], true);
+        foreach ($this->questions($evidence, $config, $configUnreadable, $preference, $defaultLanguage) as $order => $question) {
             $question = ['order' => $order + 1, ...$question];
             if (isset($question['skipped_because'])) {
                 $skipped[] = ['id' => $question['id'], 'order' => $question['order'], 'reason' => $question['skipped_because']];
@@ -186,7 +192,7 @@ final readonly class InitWizardCommand
         ];
         if ($answers !== null) {
             $configWarnings = array_values(array_filter($evidence['warnings'], static fn (string $warning): bool => str_contains($warning, 'init config:')));
-            $result += $this->evaluate($this->validate($answers, $questions, $skipped), $questions, $session, $store !== null && $hasSharedDefault, $configWarnings);
+            $result += $this->evaluate($this->validate($answers, $questions, $skipped), $questions, $session, $store !== null && $hasSharedDefault, $configWarnings, $this->storedLanguages($config));
         }
 
         return $result + [
@@ -201,8 +207,9 @@ final readonly class InitWizardCommand
      * @param array<string, mixed> $config
      * @return list<array<string, mixed>>
      */
-    private function questions(array $evidence, array $config, ?InteractionPreference $preference, ?string $defaultLanguage): array
+    private function questions(array $evidence, array $config, bool $configUnreadable, ?InteractionPreference $preference, ?string $defaultLanguage): array
     {
+        $languageWarning = array_intersect(['[WARN] init config: prompting.language must be a BCP 47 language tag', '[WARN] init config: prompting must be an object'], $config['warnings']) !== [];
         $map = $evidence['map'];
         $configuredLanguages = $config['map']['languages'] ?? null;
         $mapPaths = array_values(array_unique([...$map['paths'], ...($map['typescript_paths'] ?? [])]));
@@ -215,7 +222,7 @@ final readonly class InitWizardCommand
                 'default' => $map['languages'] ?? [SourceLanguage::PHP],
                 'default_source' => $map['languages_source'] ?? 'agent-loop default',
                 'current' => $configuredLanguages,
-                'current_source' => $configuredLanguages !== null ? '.agent-loop/init.json' : ($config['map']['languages_error'] === null ? 'not_configured' : 'invalid_config'),
+                'current_source' => $configuredLanguages !== null ? '.agent-loop/init.json' : ($config['map']['languages_error'] === null && !$configUnreadable ? 'not_configured' : 'invalid_config'),
             ]),
             $this->question('map.paths', 'project', 'path_list', true, 'Which directories should agent-map index?', [
                 'default' => $mapPaths,
@@ -229,7 +236,8 @@ final readonly class InitWizardCommand
                 'default' => $evidence['prompting']['language'],
                 'default_source' => $evidence['prompting']['source'],
                 'current' => $evidence['prompting']['language'],
-                'current_source' => $evidence['prompting']['source'],
+                // The value then is the built-in default, not what init.json says.
+                'current_source' => $configUnreadable || $languageWarning ? 'invalid_config' : $evidence['prompting']['source'],
             ]),
             $this->question('personal.language', 'personal', 'bcp47_or_inherit', false, 'Which language do you personally want decision cards in, in every host session? (inherit follows the project)', [
                 'default' => 'inherit',
@@ -244,12 +252,41 @@ final readonly class InitWizardCommand
     }
 
     /**
+     * Whether taking the recommendation would propose anything: a change, a command or a
+     * validation candidate for this question. Comparing the recommendation with `current` is
+     * not enough; an unconfigured map.languages recommending php proposes nothing.
+     *
+     * @param array<string, mixed> $answers
+     * @param array<string, mixed> $question
+     */
+    private function recommendedProposes(array $answers, array $question): bool
+    {
+        if ($question['default'] === [] && $question['required']) {
+            return false;
+        }
+        try {
+            $result = $this->inspect([...$answers, $question['id'] => ['action' => 'recommended']]);
+        } catch (InvalidArgumentException) {
+            // The recommendation itself is refused (an evidence path such as `.`); choosing it
+            // fails with that reason, so the step must still be shown and must not claim "No change."
+            return true;
+        }
+        foreach (['changes', 'next_actions', 'validation_candidates'] as $key) {
+            if (in_array($question['id'], array_column($result[$key], 'id'), true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * The actions a question allows, with the value each resolves to and its effect.
      *
      * @param array<string, mixed> $question
      * @return list<array<string, mixed>>
      */
-    private function actions(array $question): array
+    private function actions(array $question, bool $recommendedProposes): array
     {
         $consequence = self::CONSEQUENCES[$question['id']];
         $actions = [];
@@ -257,7 +294,7 @@ final readonly class InitWizardCommand
             $actions[] = ['action' => 'keep', 'value' => $question['current'], 'effect' => 'No change.'];
         }
         if ($question['default'] !== [] || !$question['required']) {
-            $actions[] = ['action' => 'recommended', 'value' => $question['default'], 'effect' => $question['default'] === $question['current'] ? 'No change.' : $consequence];
+            $actions[] = ['action' => 'recommended', 'value' => $question['default'], 'effect' => $recommendedProposes ? $consequence : 'No change.'];
         }
         $actions[] = ['action' => 'change', 'effect' => $consequence];
         if (!$question['required']) {
@@ -425,9 +462,10 @@ final readonly class InitWizardCommand
      * @param array<string, mixed> $answers normalized
      * @param list<array<string, mixed>> $questions
      * @param list<string> $configWarnings
+     * @param array{value: mixed}|null $storedLanguages an invalid map.languages declaration, as stored
      * @return array{answers: array<string, mixed>|stdClass, changes: list<array<string, mixed>>, validation_candidates: list<array<string, string>>, next_actions: list<array<string, mixed>>}
      */
-    private function evaluate(array $answers, array $questions, HostSessionBinding $session, bool $hasSharedDefault, array $configWarnings): array
+    private function evaluate(array $answers, array $questions, HostSessionBinding $session, bool $hasSharedDefault, array $configWarnings, ?array $storedLanguages): array
     {
         $byId = array_column($questions, null, 'id');
         $changes = [];
@@ -438,14 +476,14 @@ final readonly class InitWizardCommand
         $answers = array_filter($answers, static fn (mixed $answer): bool => $answer !== self::SKIP);
 
         // What map build resolves without --languages: the declaration, php when none, nothing when it is invalid.
-        $invalidLanguages = $byId['map.languages']['current_source'] === 'invalid_config';
-        $resolvedLanguages = $invalidLanguages ? null : $byId['map.languages']['current'] ?? [SourceLanguage::PHP];
+        $resolvedLanguages = $storedLanguages === null ? $byId['map.languages']['current'] ?? [SourceLanguage::PHP] : null;
         if (isset($answers['map.languages']) && $answers['map.languages'] !== $resolvedLanguages) {
             $changes[] = [
                 'id' => 'map.languages',
                 'target' => '.agent-loop/init.json',
                 'pointer' => '/map/languages',
-                'before' => $byId['map.languages']['current'],
+                // An invalid declaration has no current value, but it is still what the file says.
+                'before' => $byId['map.languages']['current'] ?? $storedLanguages['value'] ?? null,
                 'before_source' => $byId['map.languages']['current_source'],
                 'after' => $answers['map.languages'],
                 // There is deliberately no generic init.json writer; the host edits this after review.
@@ -453,8 +491,10 @@ final readonly class InitWizardCommand
             ];
         }
         if (isset($answers['map.paths'])) {
-            // An unanswered language question keeps what is configured; only an unconfigured project gets the proposal.
-            $languages = $answers['map.languages'] ?? $byId['map.languages']['current'] ?? $byId['map.languages']['default'];
+            // An unanswered language question proposes nothing: the build indexes what map build resolves
+            // today, so a later plain map build agrees with it. Only an invalid declaration needs explicit
+            // languages, because map build refuses it.
+            $languages = $answers['map.languages'] ?? $resolvedLanguages ?? $byId['map.languages']['default'];
             // An invalid declaration makes map build refuse unless --languages is explicit.
             $nextActions[] = [
                 'id' => 'map.paths',
@@ -555,7 +595,26 @@ final readonly class InitWizardCommand
         return ['status' => 'supported', 'command' => $command];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * The raw map.languages value of an invalid declaration, or null when the declaration is
+     * valid or absent. map build refuses an invalid one, so the wizard must not rely on it.
+     *
+     * @param array<string, mixed> $config
+     * @return array{value: mixed}|null
+     */
+    private function storedLanguages(array $config): ?array
+    {
+        if ($config['map']['languages_error'] === null) {
+            return null;
+        }
+        $path = (new ProjectLayout($this->rootPath))->configPath();
+        $contents = is_file($path) ? file_get_contents($path) : false;
+        $decoded = is_string($contents) ? json_decode($contents, true) : null;
+
+        return ['value' => is_array($decoded) && is_array($decoded['map'] ?? null) ? $decoded['map']['languages'] ?? null : null];
+    }
+
+    /** @return array{0: int, 1: array<string, mixed>} the file's version and its answers */
     private function readAnswers(string $path): array
     {
         if ($path === '' || !is_file($path) || !is_readable($path)) {
@@ -578,6 +637,6 @@ final readonly class InitWizardCommand
             $answers[$id] = $value;
         }
 
-        return $answers;
+        return [$decoded['version'], $answers];
     }
 }
