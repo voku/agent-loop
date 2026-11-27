@@ -80,6 +80,7 @@ final class Dispatcher
             CommandId::Map => $this->dispatchMap($scriptName, $rest),
             CommandId::Memory => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             CommandId::Review => $this->dispatchReview($scriptName, $rest),
+            CommandId::Setup => (new InitCli($this->rootPath, 'setup'))->run($rest),
             CommandId::Init => (new InitCli($this->rootPath))->run($rest),
             CommandId::Githooks => (new GitHooksCli($this->rootPath))->run($rest),
             CommandId::Commands => (new CommandsCommand())->run($rest),
