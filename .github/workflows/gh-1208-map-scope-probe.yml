@@ -1,4 +1,4 @@
-name: GH-1208 isolated Map baseline and Contract preparation
+name: GH-1208 exact Contract approval and entry
 on:
   pull_request:
     branches: [main]
@@ -41,32 +41,68 @@ jobs:
           jq -e '.changes == [] and (.next_actions[0].command | contains("--languages="))' build/gh-1208/baseline.json
           test ! -e "$project/.agent-loop"
           rm -rf "$project"
-      - name: Run the real Loop front door and prepare only an unapproved Contract
+      - name: Restore exact Contract and record explicit owner approval
         shell: bash
         run: |
           set -euo pipefail
           task=GH-1208-MAP-LANGUAGE
-          php bin/agent-loop enter "$task" --request 'Prevent an unanswered Map language question from silently selecting an unpersisted language proposal in the Map paths action.' --target 'InitWizardCommand::evaluate' --format=json > build/gh-1208/enter-before.json || test "$?" = 1
-          cat build/gh-1208/enter-before.json
-          jq -e '.next_action_kind == "command_template"' build/gh-1208/enter-before.json
-          php bin/agent-loop workflow plan "$task" --by chatgpt \
-            --file src/Init/InitWizardCommand.php \
-            --file tests/InitWizardCommandTest.php \
-            --file docs/reference/setup-wizard.md \
-            --goal 'When only map.paths is answered, do not override the effective Map language with an unaccepted detected proposal. Preserve explicitly answered language choices and report an invalid declaration without silently choosing PHP.' \
-            --non-goal 'Persisting Map paths or introducing a generic configuration writer; changing approval gates or Map owner semantics.' \
-            --acceptance 'A mixed unconfigured fixture with only map.paths answered uses the existing PHP fallback and proposes no language config change.' \
-            --acceptance 'Explicit language answers still generate the correct language fragment and build command; configured languages are retained; invalid declarations require an explicit language choice.' \
-            --acceptance 'Regression tests and documentation describe the behavior; wizard remains read-only.' \
-            --validation 'composer ci' --format=json > build/gh-1208/plan.json
-          php bin/agent-loop enter "$task" --format=json > build/gh-1208/enter-after.json || test "$?" = 1
-          cat build/gh-1208/enter-after.json
-          jq -e '.next_action_kind == "decision_required"' build/gh-1208/enter-after.json
-          cp -a .agent-loop/contracts build/gh-1208/contracts
-          find build/gh-1208/contracts -type f -name '*.json' -exec sha256sum {} +
+          path=".agent-loop/contracts/$task/contract.json"
+          mkdir -p "$(dirname "$path")"
+          cat > "$path" <<'CONTRACT'
+          {
+              "acceptance_criteria": [
+                  "A mixed unconfigured fixture with only map.paths answered uses the existing PHP fallback and proposes no language config change.",
+                  "Explicit language answers still generate the correct language fragment and build command; configured languages are retained; invalid declarations require an explicit language choice.",
+                  "Regression tests and documentation describe the behavior; wizard remains read-only."
+              ],
+              "acceptance_observations": [],
+              "approved_at": null,
+              "approved_by": null,
+              "base_commit": "45b7d6ea5ea71f2df9a7a5ffe3959252137cd9ec",
+              "behavior_anchors": [],
+              "created_at": "2026-11-27T18:51:48+00:00",
+              "goal": "When only map.paths is answered, do not override the effective Map language with an unaccepted detected proposal. Preserve explicitly answered language choices and report an invalid declaration without silently choosing PHP.",
+              "kind": "task_contract",
+              "non_goals": [
+                  "Persisting Map paths or introducing a generic configuration writer; changing approval gates or Map owner semantics."
+              ],
+              "operating_prompt_manifest": null,
+              "operating_prompts": [],
+              "planned_by": "chatgpt",
+              "rejected_at": null,
+              "rejected_by": null,
+              "rejection_reason": null,
+              "revision": 1,
+              "schema_version": "1.0",
+              "scope": [
+                  "src/Init/InitWizardCommand.php",
+                  "tests/InitWizardCommandTest.php",
+                  "docs/reference/setup-wizard.md"
+              ],
+              "status": "candidate",
+              "tags": [],
+              "task_id": "GH-1208-MAP-LANGUAGE",
+              "updated_at": "2026-11-27T18:51:48+00:00",
+              "validation": [
+                  "composer ci"
+              ]
+          }
+          CONTRACT
+          echo "1caee201671e7855b8a282113e3c16581b59565ce7febbcca20db814b251da49  $path" | sha256sum -c -
+          cp "$path" build/gh-1208/original-contract.json
+          php bin/agent-loop workflow approve "$task" --revision 1 --by 'Lars Moelleken' --recorded-by chatgpt --format=json > build/gh-1208/approval.json
+          cat build/gh-1208/approval.json
+          cp "$path" build/gh-1208/approved-contract.json
+          php bin/agent-loop workflow execution-profile "$task" --profile standard --by chatgpt
+          php bin/agent-loop enter "$task" --format=json > build/gh-1208/enter-approved.json || test "$?" = 1
+          cat build/gh-1208/enter-approved.json
+          jq -e '.mutation_ready == true' build/gh-1208/enter-approved.json
+          php bin/agent-loop pipeline stage "$task" --format=json > build/gh-1208/stage.json
+          cat build/gh-1208/stage.json
+          cp -a .agent-loop build/gh-1208/workflow-state
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: gh-1208-map-baseline-and-contract
+          name: gh-1208-approved-contract-and-entry
           path: build/gh-1208/
           if-no-files-found: error
