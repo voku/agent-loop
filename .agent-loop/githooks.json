@@ -11,17 +11,24 @@
     "header_pattern": "/^(?!(?:update|fix|changes|miscellaneous|wip|fixed things|minor fixes|cleanup|update files|fix stuff)$).+$/i",
     "header_hint": "Name the actual staged change; do not invent an outcome or use a generic title.",
     "required_section": "WHY",
+    "trivial_header_pattern": "/^(?:fixup|squash|amend)! /",
     "forbidden_patterns": [
       {
         "pattern": "/\\[FILL\\]/i",
         "message": "Unresolved commit-message placeholder; establish the real reason or ask the developer."
+      },
+      {
+        "pattern": "/^WHY:[ \\t]*\\n(?:[ \\t]*\\n|[A-Za-z][A-Za-z0-9-]*:[ \\t][^\\n]*(?:\\n|\\z))*\\z/mi",
+        "message": "WHY section contains only trailers; state the actual reason before Refs:/Co-Authored-By: lines, or ask the developer."
       }
     ],
     "examples": {
       "pass": [
         "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n",
         "fix(parser): reject empty input\n\nWHY:\n- Empty input crashed the tokenizer.\n",
-        "Record interrupted task checkpoint\n\nWHY: Preserve recovery state.\n"
+        "Record interrupted task checkpoint\n\nWHY: Preserve recovery state.\n",
+        "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n\nRefs: #1184\nCo-Authored-By: Example Agent <agent@example.invalid>\n",
+        "fixup! fix(parser): reject empty input\n"
       ],
       "fail": [
         "fix(parser): reject empty input\n",
@@ -32,7 +39,10 @@
         "fix(parser): reject empty input\n\nWHY: [FILL]\n",
         "fix(parser): reject empty input\n\nWHY:\n- [FILL]\n",
         "fix(parser): reject empty input\n\nWHY:\n- Empty input crashed the tokenizer.\n- [FILL]\n",
-        "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer. [FILL]\n"
+        "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer. [FILL]\n",
+        "fix(parser): reject empty input\n\nWHY:\n\nCo-Authored-By: Example Agent <agent@example.invalid>\nClaude-Session: https://example.invalid/session\n",
+        "fix(parser): reject empty input\n\nWHY:\n\nRefs: #1184\n",
+        "fix(parser): reject empty input\n\nWHY:\nRefs: #1184\n"
       ]
     }
   }

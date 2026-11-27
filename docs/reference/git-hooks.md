@@ -170,7 +170,11 @@ name in a shared `/tmp` can belong to another user or session.
 
 The Loop development repository requires a non-empty WHY, rejects exact generic
 titles and an unresolved WHY placeholder, and declares executable pass/fail
-examples. Consumer repositories still choose their own rules.
+examples. A WHY followed only by trailers such as `Refs:` or `Co-Authored-By:`
+counts as empty; put the reason before the trailer block. `fixup!`, `squash!`
+and `amend!` commits are exempt from the WHY rule because autosquash folds them
+into a commit that carries one. Consumer repositories still choose their own
+rules.
 
 For developer-facing changes, inspect the exact commit selection, including
 partial staging, and the authorized task or decision evidence. Describe what
@@ -188,9 +192,10 @@ a fabricated but well-formed WHY can still pass deterministic validation.
 A successful examples check says nothing about the truth of a message.
 
 For manual commits, use the same message convention; there is no required
-model, task ID, or additional runtime interaction in the hook. If the project
-hook configuration changes, review the new bytes before re-trusting them with
-the existing `githooks trust` command.
+model, task ID, or additional runtime interaction in the hook. The commit-msg
+rules apply as soon as the configuration changes; only the pre-commit checks
+need a re-trust. When the project hook configuration changes, review the new
+bytes before re-trusting them with the existing `githooks trust` command.
 
 ## Limits
 

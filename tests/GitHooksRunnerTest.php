@@ -419,6 +419,48 @@ final class GitHooksRunnerTest extends TestCase
         self::assertSame(0, (new GitHooksCli($this->root))->run(['commit-msg', $message]));
     }
 
+    public function testRealGitCommitRejectsATrailerOnlyWhyAndKeepsAReasonFollowedByTrailers(): void
+    {
+        mkdir($this->root . '/.agent-loop');
+        self::assertTrue(copy(
+            dirname(__DIR__) . '/.agent-loop/githooks.json',
+            $this->root . '/.agent-loop/githooks.json',
+        ));
+        mkdir($this->root . '/.githooks');
+        file_put_contents(
+            $this->root . '/.githooks/commit-msg',
+            "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__) . '/bin/agent-loop')
+            . " githooks commit-msg \"\$1\"\n",
+        );
+        chmod($this->root . '/.githooks/commit-msg', 0o775);
+
+        $git = 'git -C ' . escapeshellarg($this->root)
+            . ' -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false ';
+        foreach (['init --quiet', 'config core.hooksPath .githooks', 'config commit.cleanup strip'] as $setup) {
+            exec($git . $setup, $output, $exitCode);
+            self::assertSame(0, $exitCode, $setup);
+        }
+
+        $commit = function (string $message) use ($git): int {
+            file_put_contents($this->root . '/tracked.txt', bin2hex(random_bytes(4)) . "\n");
+            exec($git . 'add tracked.txt', $output, $exitCode);
+            self::assertSame(0, $exitCode);
+            file_put_contents($this->root . '/message.txt', $message);
+            exec($git . 'commit --quiet -F message.txt 2>&1', $output, $exitCode);
+
+            return $exitCode;
+        };
+
+        $trailers = "Refs: #1184\nCo-Authored-By: Example Agent <agent@example.invalid>\n";
+        self::assertNotSame(0, $commit("fix(parser): reject empty input\n\nWHY:\n\n" . $trailers));
+        self::assertNotSame(0, $commit("fix(parser): reject empty input\n\nWHY:\nRefs: #1184\n"));
+        self::assertSame(0, $commit("fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n\n" . $trailers));
+        self::assertSame(0, $commit("fixup! fix(parser): reject empty input\n"));
+
+        exec($git . 'rev-list --count HEAD', $count);
+        self::assertSame(['2'], $count, 'only the two accepted messages were stored');
+    }
+
     public function testBuiltInCheckTypesRenderTheStandardToolCommands(): void
     {
         $config = GitHookConfig::fromArray(['pre_commit' => ['checks' => [
