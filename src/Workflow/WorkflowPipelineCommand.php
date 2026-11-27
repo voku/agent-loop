@@ -152,7 +152,12 @@ final readonly class WorkflowPipelineCommand
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
         $nextAction = "agent-loop pipeline stage " . $taskId;
 
-        if ($isComplete) {
+        $recoveryCandidate = $this->recoveryCandidate($gateway, $taskId, $projection, OptionTokens::value($tokens, 'workspace'));
+        if ($recoveryCandidate !== null) {
+            $statusStr = "candidate_changed";
+            $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
+            $nextAction = $this->recoverCommand($taskId, $recoveryCandidate, OptionTokens::value($tokens, 'workspace'));
+        } elseif ($isComplete) {
             $statusStr = "complete";
             $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
             $nextAction = "agent-loop finish " . $taskId;
@@ -189,6 +194,7 @@ final readonly class WorkflowPipelineCommand
             "context_guidance" => $contextGuidance,
             "attempt" => $projection->currentAttempt,
             "candidate_revision" => $projection->candidateRevision,
+            "workspace_candidate" => $recoveryCandidate,
             "validation_failure" => $repairFeedback,
             "attention" => $projection->attention?->toArray(),
             "handoffs_count" => count($projection->handoffs),
@@ -626,6 +632,34 @@ final readonly class WorkflowPipelineCommand
     }
 
     /**
+     * A completed execution, or one waiting at verify (with an explicit workspace),
+     * whose workspace now holds a different candidate is routed to the explicit recovery command instead of
+     * reporting completion or dead-ending at verify. Observation only.
+     *
+     * @return non-empty-string|null
+     */
+    private function recoveryCandidate(ExecutionGateway $gateway, string $taskId, ExecutionProjection $projection, ?string $candidateWorkspace): ?string
+    {
+        if ($projection->attention !== null) {
+            return null;
+        }
+        // While a Run waits at verify the candidate may live in a separate
+        // worktree, so only an explicit workspace says where to compare. A
+        // completed Run closes in the owner checkout, which is compared by default.
+        if (!$projection->complete() && ($projection->currentStageId !== 'verify' || $candidateWorkspace === null)) {
+            return null;
+        }
+
+        return $gateway->candidateDrift($taskId, $candidateWorkspace);
+    }
+
+    private function recoverCommand(string $taskId, string $candidate, ?string $candidateWorkspace): string
+    {
+        return 'agent-loop pipeline recover ' . $taskId . ' --candidate ' . $candidate
+            . ($candidateWorkspace === null ? '' : ' --workspace ' . escapeshellarg($candidateWorkspace));
+    }
+
+    /**
      * @param list<string> $tokens
      */
     private function recover(string $taskIdString, array $tokens, string $format): int
@@ -683,6 +717,11 @@ final readonly class WorkflowPipelineCommand
         $projection = $gateway->projection($taskId);
         $planStore = new ExecutionPlanStore($this->rootPath);
 
+        $recoveryCandidate = $this->recoveryCandidate($gateway, $taskId, $projection, $candidateWorkspace);
+        if ($recoveryCandidate !== null) {
+            return $this->renderTransition($taskId, $projection, $format, candidateWorkspace: $candidateWorkspace, recoveryCandidate: $recoveryCandidate);
+        }
+
         // Loop through deterministic stages automatically
         while (!$projection->complete() && $projection->attention === null) {
             $stageId = $projection->currentStageId;
@@ -709,7 +748,7 @@ final readonly class WorkflowPipelineCommand
     }
 
     /** @param list<string>|null $candidateFiles */
-    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null, ?string $candidateWorkspace = null): int
+    private function renderTransition(string $taskId, ExecutionProjection $projection, string $format, ?array $candidateFiles = null, ?string $candidateWorkspace = null, ?string $recoveryCandidate = null): int
     {
         $isComplete = $projection->complete();
         $currentStage = $projection->currentStageId;
@@ -718,7 +757,10 @@ final readonly class WorkflowPipelineCommand
         $nextActionKind = RunPolicyEvaluation::KIND_HOST_WORK;
 
         $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
-        if ($isComplete) {
+        if ($recoveryCandidate !== null) {
+            $nextAction = $this->recoverCommand($taskId, $recoveryCandidate, $candidateWorkspace);
+            $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
+        } elseif ($isComplete) {
             $nextAction = "agent-loop finish " . $taskId;
             $nextActionKind = RunPolicyEvaluation::KIND_COMMAND;
         } elseif ($projection->attention !== null) {
@@ -764,6 +806,10 @@ final readonly class WorkflowPipelineCommand
             $payload['validation_failure'] = $repairFeedback;
         }
 
+        if ($recoveryCandidate !== null) {
+            $payload["workspace_candidate"] = $recoveryCandidate;
+        }
+
         if ($candidateFiles !== null) {
             $payload["candidate_changed_files"] = $candidateFiles;
             $payload["candidate_scope_notice"] = "These are all changed files in the accepted candidate; pre-existing scoped changes are included and ownership is not inferred.";
@@ -775,15 +821,21 @@ final readonly class WorkflowPipelineCommand
             if ($repairFeedback !== null) {
                 echo "Validation failure (JSON-escaped untrusted data):\n" . $this->jsonEncodedValidationFeedback($repairFeedback) . "\n";
             }
-            $this->renderTransitionText($taskId, $projection, $nextAction, $candidateFiles);
+            $this->renderTransitionText($taskId, $projection, $nextAction, $candidateFiles, $recoveryCandidate);
         }
 
         return $projection->attention !== null || $repairFeedback !== null ? 1 : 0;
     }
 
     /** @param list<string>|null $candidateFiles */
-    private function renderTransitionText(string $taskId, ExecutionProjection $projection, string $nextAction, ?array $candidateFiles): void
+    private function renderTransitionText(string $taskId, ExecutionProjection $projection, string $nextAction, ?array $candidateFiles, ?string $recoveryCandidate = null): void
     {
+        if ($recoveryCandidate !== null) {
+            echo "[CHANGED] The workspace holds candidate " . $recoveryCandidate . ", not the reviewed candidate " . $projection->candidateRevision . ".\n";
+            echo "Reopen the pipeline for fresh reviews: " . $nextAction . "\n";
+
+            return;
+        }
         if ($candidateFiles !== null) {
             echo "Accepted candidate changed files (including any pre-existing scoped changes; ownership not inferred):\n";
             foreach ($candidateFiles as $file) {

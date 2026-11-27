@@ -170,6 +170,42 @@ final readonly class ExecutionGateway
         return (new CompletedPipelineRecovery($this->rootPath))->recover($plan, $contract, $observedCandidateRevision, $candidateWorkspace);
     }
 
+    /**
+     * Observation only: the candidate the workspace holds now when it differs from
+     * the execution's accepted candidate, compared the way verify compares it (the
+     * approved scope in the owner checkout, the whole tree in a candidate worktree).
+     * Null means the workspace still holds the accepted candidate. It never
+     * changes execution state; recovery stays the explicit `pipeline recover` step.
+     *
+     * @return non-empty-string|null
+     */
+    public function candidateDrift(string $taskId, ?string $candidateWorkspace = null): ?string
+    {
+        [$contract, , $plan] = $this->current($taskId);
+        $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
+        if (!$state instanceof ExecutionState || $plan->baseCommit === null) {
+            return null;
+        }
+        $workspace = $this->verifyWorkspace($candidateWorkspace);
+        $identity = new CandidateWorkspaceIdentity();
+        $identity->assertSameRepository($this->rootPath, $workspace);
+        $statePath = $this->relativeStateRoot();
+        $root = realpath($this->rootPath);
+        $scope = $root !== false && realpath($workspace) === $root ? CandidateWorkspaceIdentity::normalizeScope($contract->scope) : [];
+        try {
+            $identity->assertHolds($workspace, $plan->baseCommit, $state->candidateRevision, $statePath, $scope);
+
+            return null;
+        } catch (RuntimeException $exception) {
+            if (!str_starts_with($exception->getMessage(), 'CANDIDATE_MISMATCH:')) {
+                throw $exception;
+            }
+        }
+        $observed = $identity->observe($workspace, $plan->baseCommit, $statePath);
+
+        return $observed === '' || hash_equals($observed, $state->candidateRevision) ? null : $observed;
+    }
+
     public function prepareStage(string $taskId, string $stageId): StageExecutionBundle
     {
         return $this->prepareStageBundle($taskId, $stageId, null);

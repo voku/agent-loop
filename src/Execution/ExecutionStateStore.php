@@ -229,8 +229,14 @@ final readonly class ExecutionStateStore
                 return $this->projectionFromState($plan, $state);
             }
 
-            if ($state->currentStageId !== null || $state->attention !== null) {
-                throw new RuntimeException('RECOVERY_BLOCKED: only a completed execution can recover a changed candidate.');
+            // A run waiting at the deterministic verify stage has passed every
+            // agent stage, so its candidate can change the same way a completed
+            // one can; recovery invalidates those passes in both cases.
+            $verifyPending = $state->currentStageId === 'verify'
+                && $state->attention === null
+                && $plan->stage('verify')->kind === ExecutionStageKind::DETERMINISTIC;
+            if (($state->currentStageId !== null && !$verifyPending) || $state->attention !== null) {
+                throw new RuntimeException('RECOVERY_BLOCKED: only a completed execution, or one waiting at verify after its reviews passed, can recover a changed candidate.');
             }
             if (!hash_equals($state->candidateRevision, $previousCandidateRevision)) {
                 throw new RuntimeException('STALE_CANDIDATE: completed execution candidate changed while recovery was being evaluated.');
@@ -240,7 +246,14 @@ final readonly class ExecutionStateStore
             }
 
             $lastAccepted = $state->history[array_key_last($state->history)] ?? null;
-            if (!$lastAccepted instanceof AcceptedStageResult
+            if ($verifyPending) {
+                if (!$lastAccepted instanceof AcceptedStageResult
+                    || $lastAccepted->result->outcome !== StageOutcome::PASS
+                    || $plan->stage($lastAccepted->result->stageId)->kind !== ExecutionStageKind::AGENT
+                    || !hash_equals($lastAccepted->result->candidateRevision, $state->candidateRevision)) {
+                    throw new RuntimeException('RECOVERY_BLOCKED: execution waiting at verify has no final agent-stage PASS bound to its accepted candidate.');
+                }
+            } elseif (!$lastAccepted instanceof AcceptedStageResult
                 || $lastAccepted->result->stageId !== 'verify'
                 || $lastAccepted->result->outcome !== StageOutcome::PASS
                 || !hash_equals($lastAccepted->result->candidateRevision, $state->candidateRevision)

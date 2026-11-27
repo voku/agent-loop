@@ -8,6 +8,7 @@ use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionContextPolicy;
 use voku\AgentLoop\Execution\ExecutionEvidenceKind;
 use voku\AgentLoop\Execution\ExecutionEvidenceStore;
+use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionStageKind;
@@ -141,7 +142,9 @@ final readonly class WorkflowCloseReadinessInspector
     public function pendingRecoveredExecutionFailure(TaskContract $contract, GovernedRun $run): ?string
     {
         if (!$this->recoveredExecutionPending($contract, $run)) {
-            return null;
+            // A completed pipeline whose workspace candidate changed afterwards
+            // has no fresh reviews of the content that would be closed.
+            return $this->completedCandidateDriftFailure($contract, $run);
         }
         $failure = $this->independentReviewPipelineFailure($contract, $run);
 
@@ -167,6 +170,53 @@ final readonly class WorkflowCloseReadinessInspector
             && hash_equals($state->executionPlanDigest, $plan->digest())
             && $state->recoveryHistory !== []
             && ($state->currentStageId !== null || $state->attention !== null);
+    }
+
+    private function completedCandidateDriftFailure(TaskContract $contract, GovernedRun $run): ?string
+    {
+        $plan = (new ExecutionPlanStore($this->rootPath))->find($contract->taskId);
+        if ($plan === null
+            || $plan->profile === ExecutionProfileName::MANUAL
+            || $plan->runId !== $run->runId
+            || $plan->contractRevision !== $contract->revision
+            || $plan->contractSource !== $run->contractSource) {
+            return null;
+        }
+        $state = (new ExecutionStateStore($this->rootPath))->find($contract->taskId);
+        if ($state === null
+            || $state->runId !== $run->runId
+            || $state->contractRevision !== $contract->revision
+            || !hash_equals($state->executionPlanDigest, $plan->digest())
+            || $state->currentStageId !== null
+            || $state->attention !== null) {
+            return null;
+        }
+
+        return $this->candidateDriftFailure($contract->taskId, $state->candidateRevision);
+    }
+
+    /**
+     * The accepted reviews describe the execution's candidate; close must not
+     * carry them over to different workspace content.
+     */
+    private function candidateDriftFailure(string $taskId, string $reviewedCandidate): ?string
+    {
+        try {
+            $observed = (new ExecutionGateway($this->rootPath))->candidateDrift($taskId);
+        } catch (RuntimeException $exception) {
+            return 'the current workspace candidate cannot be compared with the reviewed candidate ' . $reviewedCandidate . ': ' . $exception->getMessage();
+        }
+        if ($observed === null) {
+            return null;
+        }
+
+        return sprintf(
+            'the workspace holds candidate %s, not the reviewed candidate %s; reopen the pipeline for fresh reviews with agent-loop pipeline recover %s --candidate %s',
+            $observed,
+            $reviewedCandidate,
+            $taskId,
+            $observed,
+        );
     }
 
     private function independentReviewPipelineFailure(TaskContract $contract, GovernedRun $run): ?string
@@ -205,6 +255,10 @@ final readonly class WorkflowCloseReadinessInspector
         }
         if ($state->currentStageId !== null) {
             return 'independent review pipeline is incomplete at stage ' . $state->currentStageId;
+        }
+        $drift = $this->candidateDriftFailure($contract->taskId, $state->candidateRevision);
+        if ($drift !== null) {
+            return $drift;
         }
 
         $lastMutatingStageIndex = -1;

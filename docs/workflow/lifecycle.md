@@ -149,10 +149,18 @@ rules. Constructing that project-specific L1 from approved intent/evidence is a
 `command_template` unless the lifecycle explicitly reports a human authority
 boundary.
 
-## Recovering a Completed Execution
+## Recovering a Changed Candidate
 
-If implementation changes after an execution pipeline completes, recovery keeps
-the same Run, approved Contract revision and execution plan. The owner supplies a
+If implementation changes after the fresh-context reviews passed, either after
+the execution pipeline completed or while it waits at the deterministic `verify`
+stage, recovery keeps the same Run, approved Contract revision and execution
+plan. Loop never carries the earlier reviews over to the changed content:
+`pipeline status` and `pipeline run` report `candidate_changed` with the observed
+`workspace_candidate` (for a Run waiting at `verify`, only when `--workspace`
+names where the candidate lives; a completed Run is compared in the owner
+checkout, where it closes), and the close gate (`finish`, `workflow status`) blocks at
+the execution review gate with a reason naming both candidates and the exact
+recovery command. Loop does not recover on its own; the owner supplies the
 content-addressed candidate to:
 
 ```bash
