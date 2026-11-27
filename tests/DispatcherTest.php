@@ -10,6 +10,7 @@ use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Workflow\WorkflowTaskId;
 use PHPUnit\Framework\Attributes\Group;
+use voku\AgentMap\Index\IndexReader;
 
 #[Group('slow')]
 final class DispatcherTest extends TestCase
@@ -256,6 +257,37 @@ final class DispatcherTest extends TestCase
             $this->assertRun(['agent-loop', 'map', 'refresh'], 0, ['Refreshed 1 changed'], $root);
             $this->assertRun(['agent-loop', 'map', 'stale'], 0, ['OK'], $root);
             $this->assertRun(['agent-loop', 'map', 'query', 'LoopMapSecond'], 0, ['src/LoopMapSecond.php'], $root);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testMapBuildUsesPersistedPathsUnlessTheCommandSuppliesAnOverride(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-map-configured-paths-' . bin2hex(random_bytes(6));
+        mkdir($root . '/src', 0o775, true);
+        mkdir($root . '/tests', 0o775, true);
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/src/Source.php', $this->mapFixture('Source'));
+        file_put_contents($root . '/tests/SourceTest.php', $this->mapFixture('SourceTest'));
+        file_put_contents($root . '/.agent-loop/init.json', '{"map":{"paths":["tests"]}}');
+
+        try {
+            ob_start();
+            $defaultExit = (new Dispatcher($root))->run(['agent-loop', 'map', 'build']);
+            $defaultOutput = (string) ob_get_clean();
+            self::assertSame(0, $defaultExit, $defaultOutput);
+            $defaultMap = (new IndexReader())->read($root . '/.agent-loop/map/php-symbols.json');
+            self::assertNotNull($defaultMap->file('tests/SourceTest.php'));
+            self::assertNull($defaultMap->file('src/Source.php'));
+
+            ob_start();
+            $overrideExit = (new Dispatcher($root))->run(['agent-loop', 'map', 'build', '--paths=src']);
+            $overrideOutput = (string) ob_get_clean();
+            self::assertSame(0, $overrideExit, $overrideOutput);
+            $overrideMap = (new IndexReader())->read($root . '/.agent-loop/map/php-symbols.json');
+            self::assertNotNull($overrideMap->file('src/Source.php'));
+            self::assertNull($overrideMap->file('tests/SourceTest.php'));
         } finally {
             $this->removeDirectory($root);
         }

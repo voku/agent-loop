@@ -45,6 +45,8 @@ final class InitRecommendCommandTest extends TestCase
         self::assertSame(1, $report['schema_version']);
         self::assertSame([], $report['map']['paths']);
         self::assertNull($report['map']['command']);
+        self::assertNull($report['map']['current_paths']);
+        self::assertSame('not_configured', $report['map']['current_paths_source']);
         self::assertSame('en', $report['prompting']['language']);
         self::assertSame('default', $report['prompting']['source']);
         self::assertSame(3, $report['review']['human_attention_every_changes_required']);
@@ -94,6 +96,7 @@ PHP,
         $report = (new InitRecommendCommand($this->root))->inspect();
 
         self::assertSame(['src', 'tests'], $report['map']['paths']);
+        self::assertSame(['map' => ['paths' => ['src', 'tests']]], $report['map']['init_config'] ?? null);
         self::assertSame('phpstan.neon.dist', $report['map']['source']);
         self::assertSame('vendor/bin/agent-loop map build --paths=src,tests', $report['map']['command']);
         self::assertSame(['tests/fixtures/*'], $report['exclusions']['phpstan']);
@@ -117,6 +120,23 @@ PHP,
         self::assertSame(['src'], $report['map']['paths']);
         self::assertSame('directory-presence', $report['map']['source']);
         self::assertSame([], $report['warnings']);
+    }
+
+    public function testCurrentMapScopeIsReportedSeparatelyFromTheEvidenceRecommendation(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/app', 0o775, true);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\n");
+        file_put_contents($this->root . '/composer.json', '{"autoload":{"psr-4":{"App\\\\":"src/"}}}');
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"map":{"paths":["app"]}}');
+
+        $report = (new InitRecommendCommand($this->root))->inspect();
+
+        self::assertSame(['src'], $report['map']['paths']);
+        self::assertSame(['app'], $report['map']['current_paths']);
+        self::assertSame('.agent-loop/init.json', $report['map']['current_paths_source']);
+        self::assertSame(['map' => ['paths' => ['src']]], $report['map']['init_config'] ?? null);
     }
 
     public function testSlopPolicyEvidenceReportsScopeRulesAndExceptionsWithoutWrites(): void
@@ -668,7 +688,7 @@ NEON);
         self::assertSame(['src', 'test'], $report['map']['typescript_paths'] ?? null);
         self::assertSame('directory-presence', $report['map']['typescript_paths_source'] ?? null);
         self::assertSame('directory-presence', $report['map']['source']);
-        self::assertSame(['map' => ['languages' => ['typescript']]], $report['map']['init_config'] ?? null);
+        self::assertSame(['map' => ['paths' => ['src', 'test'], 'languages' => ['typescript']]], $report['map']['init_config'] ?? null);
         self::assertSame(['php'], $report['map']['current_languages'] ?? null);
         self::assertSame('vendor/bin/agent-loop map build --paths=src,test --languages=typescript', $report['map']['command']);
         self::assertContains($report['map']['command'], $report['next_actions']);
@@ -722,7 +742,7 @@ NEON);
         $report = (new InitRecommendCommand($this->root))->inspect();
 
         self::assertArrayNotHasKey('languages', $report['map']);
-        self::assertArrayNotHasKey('init_config', $report['map']);
+        self::assertSame(['map' => ['paths' => ['src']]], $report['map']['init_config'] ?? null);
         self::assertSame('vendor/bin/agent-loop map build --paths=src', $report['map']['command']);
         self::assertSame(['build'], $report['quality']['package_scripts'] ?? null);
     }
@@ -736,7 +756,15 @@ NEON);
         $report = (new InitRecommendCommand($this->root))->inspect();
 
         self::assertSame(['phpstan', 'php_cs_fixer', 'composer', 'slop', 'agent_loop'], array_keys($report['sources']));
-        self::assertSame(['paths', 'source', 'command', 'requires_confirmation'], array_keys($report['map']));
+        self::assertSame([
+            'paths',
+            'source',
+            'command',
+            'requires_confirmation',
+            'current_paths',
+            'current_paths_source',
+            'init_config',
+        ], array_keys($report['map']));
         self::assertSame(['source', 'composer_scripts', 'requires_confirmation', 'note'], array_keys($report['quality']));
         self::assertSame('vendor/bin/agent-loop map build --paths=src', $report['map']['command']);
     }

@@ -88,7 +88,7 @@ final class InitWizardInteractiveTest extends TestCase
             self::assertSame(InitWizardCommand::encode([$key => $answers[$key]]), InitWizardCommand::encode([$key => $interactive[$key]]), $key);
         }
         self::assertNull($interactive['step']);
-        self::assertSame(['map.languages', 'prompting.language'], array_column($interactive['changes'], 'id'));
+        self::assertSame(['map.languages', 'map.paths', 'prompting.language'], array_column($interactive['changes'], 'id'));
 
         [$replayExit, $replayStdout] = $this->wizard(['--interactive'], self::SCRIPT);
         self::assertSame([0, $stdout], [$replayExit, $replayStdout], 'The same input gives byte-identical output.');
@@ -224,7 +224,7 @@ final class InitWizardInteractiveTest extends TestCase
             'prompting.language' => 'en',
             'personal.language' => ['action' => 'skip'],
         ], $result['answers']);
-        self::assertSame(['map.languages'], array_column($result['changes'], 'id'), 'keep and skip propose nothing.');
+        self::assertSame(['map.languages', 'map.paths'], array_column($result['changes'], 'id'), 'keep and skip propose nothing.');
 
         foreach ([
             ['map.languages' => ['action' => 'keep']],

@@ -137,6 +137,41 @@ final class ProjectLayoutOwnershipTest extends TestCase
         self::assertSame('.agent-loop/map', (new ProjectLayout($this->root))->display((new ProjectLayout($this->root))->mapRoot()));
     }
 
+    public function testMapPathsAcceptOnlyExistingProjectDirectoriesAndRejectEscapingLinks(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'map' => ['paths' => ['src']],
+        ], JSON_THROW_ON_ERROR));
+        self::assertSame(['src'], (new ProjectLayout($this->root))->mapPaths());
+
+        $outside = $this->root . '-outside';
+        mkdir($outside, 0o775, true);
+        if (!@symlink($outside, $this->root . '/outside-link')) {
+            rmdir($outside);
+            self::markTestSkipped('symlink() is not available.');
+        }
+
+        try {
+            foreach ([[], ['../outside'], ['/tmp'], ['missing'], ['outside-link']] as $paths) {
+                file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+                    'map' => ['paths' => $paths],
+                ], JSON_THROW_ON_ERROR));
+
+                try {
+                    (new ProjectLayout($this->root))->mapPaths();
+                    self::fail('Invalid map.paths must not fall back to a broader map scope.');
+                } catch (RuntimeException $exception) {
+                    self::assertStringContainsString('Invalid map configuration', $exception->getMessage());
+                    self::assertStringContainsString('map.paths', $exception->getMessage());
+                }
+            }
+        } finally {
+            unlink($this->root . '/outside-link');
+            rmdir($outside);
+        }
+    }
+
     public function testMapRootRejectsSymlinkedArtifacts(): void
     {
         $outside = $this->root . '-outside-map.sqlite';

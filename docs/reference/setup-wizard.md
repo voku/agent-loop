@@ -11,7 +11,7 @@ vendor/bin/agent-loop setup wizard --format=json                                
 
 The wizard turns the existing [project-aware setup evidence](project-aware-init.md) into a versioned question contract. All four forms use the same questions, the same validation and the same result. It never writes a file, never runs a project script and never calls a model, so it is safe to run again at any time. The same evidence, answers, project config and user preferences give byte-identical output.
 
-## Question contract (`agent-loop.setup-wizard`, version 2)
+## Question contract (`agent-loop.setup-wizard`, version 3)
 
 Every run asks the core questions in this order. The two check questions are asked only when their evidence exists; otherwise they appear under `skipped` with a reason and keep their position number.
 
@@ -26,7 +26,7 @@ Every run asks the core questions in this order. The two check questions are ask
 
 Each question has `default` and `default_source` (the evidence the default comes from), plus `current` and `current_source` (what is in effect now and where it comes from). Check questions offer only script names that are actually declared, and default to none. A declared script name is not proof that the script is safe to run. `evidence_sha256` is the `init plan` evidence digest.
 
-Adding, removing or reordering a question, or changing what one means, requires a new schema version. Version 2 changed `personal.language` from the current host session's language to your default language for every session. Conditional questions depend only on recorded evidence.
+Adding, removing or reordering a question, or changing what one means, requires a new schema version. Version 2 changed `personal.language` from the current host session's language to your default language for every session. Version 3 adds a reviewed `map.paths` fragment for `.agent-loop/init.json` when the selected scope differs from the current setting. Conditional questions depend only on recorded evidence.
 
 ## One question at a time
 
@@ -50,7 +50,7 @@ For a coding host, `--next` is the same flow without a terminal. Pass the answer
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "answers": {
     "map.languages": ["php", "typescript"],
     "map.paths": {"action": "recommended"},
@@ -61,19 +61,19 @@ For a coding host, `--next` is the same flow without a terminal. Pass the answer
 }
 ```
 
-An answer is a value (meaning change to it) or an action: `{"action": "keep"}`, `{"action": "recommended"}`, `{"action": "skip"}` or `{"action": "change", "value": …}`. `keep` needs a current value, and `skip` only works on optional questions. Version 1 answers files are still read; their `personal.language` now sets your default language, so a version 1 file that sets it gets a `[WARN] setup wizard:` entry in `warnings`. Write version 2 to confirm the new meaning. Language tags are case-insensitive and stored lower-cased (`de-DE` becomes `de-de`), as `prompting.language` always was.
+An answer is a value (meaning change to it) or an action: `{"action": "keep"}`, `{"action": "recommended"}`, `{"action": "skip"}` or `{"action": "change", "value": …}`. `keep` needs a current value, and `skip` only works on optional questions. Version 1, 2 and 3 answer files are still read; their `personal.language` now sets your default language, so a version 1 file that sets it gets a `[WARN] setup wizard:` entry in `warnings`. Write version 2 or later to confirm the new meaning. Language tags are case-insensitive and stored lower-cased (`de-DE` becomes `de-de`), as `prompting.language` always was.
 
 The wizard validates the answers file. An unknown question ID, an answer to a skipped question, a value outside the offered options, a path that is not an existing project-relative directory, or an invalid language tag fails with `[FAIL] setup wizard: …` and exit code 1. The output then adds:
 
 - `answers`: the normalized answers, in question order (always a JSON object, `{}` when empty). `keep` and `recommended` appear as the value they resolved to; a skipped question appears as `{"action": "skip"}`;
-- `changes`: each persisted value that would differ from its current value, with `before`, `before_source`, `after`, `requires_confirmation: true` and an `apply` route. If every answer matches the current value, `changes` is empty. A route whose command is not yet runnable has `status: prerequisite_required`;
+- `changes`: each persisted value that would differ from its current value, with `before`, `before_source`, `after`, `requires_confirmation: true` and an `apply` route. `map.paths` and `map.languages` use `manual_review` and include the exact `map` fragment; the wizard never writes init config. If every answer matches the current value, `changes` is empty. A route whose command is not yet runnable has `status: prerequisite_required`;
 - `validation_candidates`: selected check scripts, always `execution: not_authorized`;
 - `next_actions`: for `map.paths`, the shell-quoted `map build` command, which still needs confirmation. It uses the answered `map.languages`, else what `map build` resolves today (the configured languages, or `php`), and passes `--languages` only when the answer differs from that. An unanswered language question therefore proposes no languages that a later plain `map build` would not use. Only an invalid declaration, which `map build` refuses, gets the proposal as explicit `--languages`. Paths must be plain project-relative directories (`[A-Za-z0-9._/-]`) that resolve inside the project.
 
 | Change | Apply route |
 | --- | --- |
 | `prompting.language` | `supported`: the existing evidence-guarded `setup apply --language=… --evidence-sha256=… --accept=prompting.language` (with a `--dry-run` preview). The digest is bound to the requested language. Without `.agent-loop/`, the route is `prerequisite_required`: run `setup scaffold`, then rerun the wizard, because scaffolding changes the evidence the digest covers. The route is also `prerequisite_required` while `init.json` has validation warnings, which `setup apply` refuses. |
-| `map.languages` | `manual_review`: the exact `.agent-loop/init.json` fragment to add. There is deliberately no generic config writer. |
+| `map.paths` and `map.languages` | `manual_review`: the exact `.agent-loop/init.json` fragment to add. There is deliberately no generic config writer. |
 | `personal.language` | `supported`: `workflow interaction --default-language=…`, stored with the shared default in your own user state directory ([interaction preference](../workflow/interaction-preference.md)). Without a shared default mode, the route is `prerequisite_required`: it names the mode command, and the language command is under `then`. Without a known user state directory, the route is also `prerequisite_required`. |
 
 ## Project defaults and personal languages

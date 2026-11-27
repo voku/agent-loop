@@ -11,7 +11,7 @@ vendor/bin/agent-loop init recommend --format=json
 The JSON document reports:
 
 - **sources**: detected PHPStan, PHP-CS-Fixer, Composer, slop-scan and agent-loop configuration files;
-- **map**: a proposed `--paths` scope, source and copyable command, always marked `requires_confirmation`;
+- **map**: a proposed `--paths` scope, source and copyable command, current configured scope, and (when paths are detected) the exact `init.json` fragment to review; map commands always require confirmation;
 - **quality**: names of declared Composer check/test/analyse scripts only; script bodies, side effects and dependencies remain unverified and require approval before execution;
 - **exclusions**: literal PHPStan `excludePaths` and existing slop-scan `ignores`, **not** automatically merged;
 - **slop_policy**: read-only Slop Scan `scan.pathFilters`, configured rule IDs,
@@ -24,16 +24,16 @@ The JSON document reports:
 
 ## Node projects (`package.json`)
 
-When a `package.json` exists, the same document also reports Node evidence. A project without `package.json` gets no additional key.
+When a `package.json` exists, the same document also reports Node evidence. The current map scope is reported even for projects without `package.json`.
 
 - **sources**: `package_json` and `tsconfig` (the path, or `null`);
 - **map.languages**: the proposed [`map.languages`](non-php-projects.md) value. `typescript` (agent-map's language for TypeScript and JavaScript) is proposed when a `tsconfig.json` exists or when `src`, `lib`, `app`, `test` or `tests` holds a file agent-map indexes as that language. `php` stays in the proposal only with PHP evidence: a PHPStan or Composer autoload scope, or PHP files in those directories. `map.languages_source` names the evidence (`tsconfig.json` or `directory-presence`);
 - **map.typescript_paths**: the existing directories among `src`, `lib`, `app`, `test` and `tests` that hold such files, with `typescript_paths_source: directory-presence`. They are added to `map.paths`. Without PHP evidence they replace the guessed PHP directory scope;
 - **map.command**: carries `--languages=...` next to `--paths=...`;
-- **map.init_config**: the exact `.agent-loop/init.json` fragment to add after review, and `map.current_languages` with what the project declares today;
+- **map.init_config**: the exact `.agent-loop/init.json` fragment to add after review (`map.paths` from detected scope, and `map.languages` when a non-default language proposal exists); `map.current_paths` and `map.current_languages` show the settings already declared;
 - **quality.package_scripts**: names of declared `package.json` scripts that look like validation: `typecheck`, `build`, `test`, `lint` and `verify`, also with a suffix such as `test:unit`. Like Composer script names they are declarations only. `init plan` lists each as a `package_script` candidate with `execution: not_authorized`.
 
-The map keys other than `sources` and `quality` appear only when the proposal differs from the PHP default. `tsconfig.json` is detected, not parsed. `package.json` scripts are never run, and no package manager is invoked. The directory scan follows no symlinks, skips `node_modules`, `vendor`, `.git`, `dist` and `build`, and stops after 20,000 entries.
+Node-specific language and script keys appear only when the proposal differs from the PHP default. `map.current_paths` and `map.current_paths_source` are always present so a host can compare the detected recommendation with persisted scope. `tsconfig.json` is detected, not parsed. `package.json` scripts are never run, and no package manager is invoked. The directory scan follows no symlinks, skips `node_modules`, `vendor`, `.git`, `dist` and `build`, and stops after 20,000 entries.
 
 The exact-head Actions dogfood also runs the CLI against a Finder-only
 project and an empty repository. Both must yield bounded read-only evidence

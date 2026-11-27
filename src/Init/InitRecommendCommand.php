@@ -50,7 +50,7 @@ final readonly class InitRecommendCommand
      * @return array{
      *   schema_version: int,
      *   sources: array{phpstan: string|null, php_cs_fixer: string|null, composer: string|null, slop: string|null, agent_loop: string|null, package_json?: string, tsconfig?: string|null},
-     *   map: array{paths: list<string>, source: string|null, command: string|null, requires_confirmation: true, languages?: list<string>, languages_source?: string|null, typescript_paths?: list<string>, typescript_paths_source?: string|null, init_config?: array{map: array{languages: list<string>}}, current_languages?: list<string>},
+     *   map: array{paths: list<string>, source: string|null, command: string|null, requires_confirmation: true, current_paths: list<string>|null, current_paths_source: string, languages?: list<string>, languages_source?: string|null, typescript_paths?: list<string>, typescript_paths_source?: string|null, init_config?: array{map: array{paths?: list<string>, languages?: list<string>}}, current_languages?: list<string>},
      *   quality: array{source: string|null, composer_scripts: list<string>, requires_confirmation: true, note: string, package_source?: string, package_scripts?: list<string>, package_note?: string},
      *   exclusions: array{phpstan: list<string>, slop: list<string>, note: string},
      *   slop_policy: array{source: string|null, path_filters: list<string>, rule_ids: list<string>, override_count: int|null, ignore_error_count: int|null, requires_confirmation: true, note: string},
@@ -117,6 +117,10 @@ final readonly class InitRecommendCommand
                 'source' => $source,
                 'command' => $mapCommand,
                 'requires_confirmation' => true,
+                'current_paths' => $config['map']['paths'],
+                'current_paths_source' => $config['map']['paths'] !== null
+                    ? ($initPath ?? 'not_configured')
+                    : ($config['map']['paths_error'] === null ? 'not_configured' : 'invalid_config'),
             ],
             'quality' => [
                 'source' => $composerPath,
@@ -156,6 +160,11 @@ final readonly class InitRecommendCommand
             'warnings' => $warnings,
         ];
 
+        $mapFragment = $paths === [] ? [] : ['paths' => $paths];
+        if ($mapFragment !== []) {
+            $report['map']['init_config'] = ['map' => $mapFragment];
+        }
+
         if ($node === null) {
             return $report;
         }
@@ -170,9 +179,12 @@ final readonly class InitRecommendCommand
             $report['map']['languages_source'] = $node['languages_source'];
             $report['map']['typescript_paths'] = $node['typescript_paths'];
             $report['map']['typescript_paths_source'] = $node['typescript_paths'] === [] ? null : 'directory-presence';
-            $report['map']['init_config'] = ['map' => ['languages' => $node['languages']]];
+            $mapFragment['languages'] = $node['languages'];
             $report['map']['current_languages'] = $config['map']['languages'] ?? [SourceLanguage::PHP];
             $report['questions'][] = 'Confirm `map.languages` for .agent-loop/init.json: the TypeScript/JavaScript map needs Node.js and the `typescript` npm package, and loading the project\'s own copy executes it (set AGENT_MAP_TYPESCRIPT_PATH to a trusted compiler otherwise).';
+        }
+        if ($mapFragment !== []) {
+            $report['map']['init_config'] = ['map' => $mapFragment];
         }
 
         return $report;
