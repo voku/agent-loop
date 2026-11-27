@@ -27,6 +27,7 @@ enum CommandId: string
     case Memory = 'memory';
     case Workflow = 'workflow';
     case Review = 'review';
+    case Setup = 'setup';
     case Init = 'init';
     case Githooks = 'githooks';
     case Commands = 'commands';
