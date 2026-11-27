@@ -104,7 +104,8 @@ final readonly class InitMapSettings
         $paths = [];
         foreach ($value as $path) {
             if (!is_string($path)
-                || ($path !== '.' && preg_match('#\A[A-Za-z0-9_][A-Za-z0-9._/-]*\z#', $path) !== 1)
+                || ($path !== '.' && preg_match('#\A[A-Za-z0-9_.][A-Za-z0-9._/-]*\z#', $path) !== 1)
+                || ($path !== '.' && in_array('.', explode('/', rtrim($path, '/')), true))
                 || in_array('..', explode('/', $path), true)) {
                 return [null, 'map.paths entries must be plain project-relative directories'];
             }

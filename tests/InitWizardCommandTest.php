@@ -401,12 +401,17 @@ final class InitWizardCommandTest extends TestCase
     {
         $this->writePhpProject();
         mkdir($this->root . '/my src', 0o775, true);
+        mkdir($this->root . '/.source', 0o775, true);
         symlink(sys_get_temp_dir(), $this->root . '/outside-link');
         foreach (['my src', 'outside-link', 'src;id', '-src'] as $path) {
             [$exit, , $stderr] = $this->runWizard(['--answers=' . $this->answersFile(['map.paths' => [$path]])]);
             self::assertSame(1, $exit, $path);
             self::assertStringContainsString('is not an existing project-relative directory', $stderr);
         }
+
+        [$exit, $stdout, $stderr] = $this->runWizard(['--answers=' . $this->answersFile(['map.paths' => ['.source']])]);
+        self::assertSame(0, $exit, $stderr);
+        self::assertSame(['.source'], json_decode($stdout, true, 512, JSON_THROW_ON_ERROR)['answers']['map.paths']);
     }
 
     public function testSetupAndInitRouteToTheSameWizard(): void

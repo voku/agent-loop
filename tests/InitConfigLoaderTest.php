@@ -42,15 +42,16 @@ final class InitConfigLoaderTest extends TestCase
         mkdir($root . '/.agent-loop', 0o775, true);
         mkdir($root . '/src', 0o775, true);
         mkdir($root . '/tests', 0o775, true);
+        mkdir($root . '/.source', 0o775, true);
         $path = '.agent-loop/init.json';
-        file_put_contents($root . '/' . $path, json_encode(['map' => ['paths' => ['src', 'tests']]], JSON_THROW_ON_ERROR));
+        file_put_contents($root . '/' . $path, json_encode(['map' => ['paths' => ['src', 'tests', '.source']]], JSON_THROW_ON_ERROR));
 
         $config = (new InitConfigLoader($root))->load($path);
 
         self::assertSame([
             'languages' => null,
             'languages_error' => null,
-            'paths' => ['src', 'tests'],
+            'paths' => ['src', 'tests', '.source'],
             'paths_error' => null,
         ], $config['map']);
         self::assertSame([], $config['warnings']);
