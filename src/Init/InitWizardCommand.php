@@ -31,16 +31,16 @@ use voku\AgentMap\IO\SourceLanguage;
 final readonly class InitWizardCommand
 {
     public const string SCHEMA = 'agent-loop.setup-wizard';
-    /** Version 2: personal.language is the user's default language (version 1: the host session's). */
-    public const int VERSION = 2;
+    /** Version 3 adds the reviewed, persistent map.paths proposal to the question result. */
+    public const int VERSION = 3;
 
     /** Answers files of both versions share one shape. */
-    private const array ANSWERS_VERSIONS = [1, 2];
+    private const array ANSWERS_VERSIONS = [1, 2, 3];
 
     /** What answering a question touches; nothing runs without confirmation. */
     private const array CONSEQUENCES = [
         'map.languages' => 'Proposes the map.languages fragment for .agent-loop/init.json (manual review) and the languages map build indexes.',
-        'map.paths' => 'Proposes a map build command for these directories; it runs only after confirmation.',
+        'map.paths' => 'Proposes the map.paths fragment for .agent-loop/init.json (manual review) and a map build command; it runs only after confirmation.',
         'checks.composer_scripts' => 'Lists the scripts as Contract validation candidates; nothing is executed.',
         'checks.package_scripts' => 'Lists the scripts as Contract validation candidates; nothing is executed.',
         'prompting.language' => 'Changes prompting.language in .agent-loop/init.json through setup apply after confirmation; it applies to everyone working on this project.',
@@ -212,6 +212,7 @@ final readonly class InitWizardCommand
         $languageWarning = array_intersect(['[WARN] init config: prompting.language must be a BCP 47 language tag', '[WARN] init config: prompting must be an object'], $config['warnings']) !== [];
         $map = $evidence['map'];
         $configuredLanguages = $config['map']['languages'] ?? null;
+        $configuredPaths = $config['map']['paths'] ?? null;
         $mapPaths = array_values(array_unique([...$map['paths'], ...($map['typescript_paths'] ?? [])]));
         $composerScripts = $evidence['quality']['composer_scripts'];
         $packageScripts = $evidence['quality']['package_scripts'] ?? [];
@@ -227,8 +228,10 @@ final readonly class InitWizardCommand
             $this->question('map.paths', 'project', 'path_list', true, 'Which directories should agent-map index?', [
                 'default' => $mapPaths,
                 'default_source' => $map['source'] ?? ($mapPaths === [] ? 'no_evidence' : 'directory-presence'),
-                'current' => null,
-                'current_source' => 'not_recorded',
+                'current' => $configuredPaths,
+                'current_source' => $configuredPaths !== null
+                    ? '.agent-loop/init.json'
+                    : ($config['map']['paths_error'] === null ? 'not_configured' : 'invalid_config'),
             ]),
             $this->scriptQuestion('checks.composer_scripts', $composerScripts, $evidence['quality']['source'], 'composer.json'),
             $this->scriptQuestion('checks.package_scripts', $packageScripts, $evidence['quality']['package_source'] ?? null, 'package.json'),
@@ -438,7 +441,8 @@ final readonly class InitWizardCommand
         }
         $paths = [];
         foreach ($value as $path) {
-            if (!is_string($path) || preg_match('#\A[A-Za-z0-9_][A-Za-z0-9._/-]*\z#', $path) !== 1
+            if (!is_string($path) || ($path !== '.' && preg_match('#\A[A-Za-z0-9_.][A-Za-z0-9._/-]*\z#', $path) !== 1)
+                || ($path !== '.' && in_array('.', explode('/', rtrim($path, '/')), true))
                 || in_array('..', explode('/', $path), true) || !$this->isProjectDirectory($path)) {
                 throw new InvalidArgumentException(sprintf('%s entry %s is not an existing project-relative directory.', $id, json_encode($path)));
             }
@@ -491,6 +495,18 @@ final readonly class InitWizardCommand
             ];
         }
         if (isset($answers['map.paths'])) {
+            if ($answers['map.paths'] !== $byId['map.paths']['current']) {
+                $changes[] = [
+                    'id' => 'map.paths',
+                    'target' => '.agent-loop/init.json',
+                    'pointer' => '/map/paths',
+                    'before' => $byId['map.paths']['current'],
+                    'before_source' => $byId['map.paths']['current_source'],
+                    'after' => $answers['map.paths'],
+                    // Project map scope remains an explicit proposal; setup never writes init.json.
+                    'apply' => ['status' => 'manual_review', 'fragment' => ['map' => ['paths' => $answers['map.paths']]]],
+                ];
+            }
             // An unanswered language question proposes nothing: the build indexes what map build resolves
             // today, so a later plain map build agrees with it. Only an invalid declaration needs explicit
             // languages, because map build refuses it.
@@ -625,7 +641,7 @@ final readonly class InitWizardCommand
         }
         $contents = file_get_contents($path);
         $decoded = is_string($contents) ? json_decode($contents, true, 16, JSON_THROW_ON_ERROR) : null;
-        $shape = 'Answers file must be {"version": 2, "answers": {"<question-id>": <value>}} (version 1 is also read).';
+        $shape = 'Answers file must be {"version": ' . self::VERSION . ', "answers": {"<question-id>": <value>}} (versions 1 and 2 are also read).';
         if (!is_array($decoded) || !in_array($decoded['version'] ?? null, self::ANSWERS_VERSIONS, true) || !is_array($decoded['answers'] ?? null)) {
             throw new InvalidArgumentException($shape);
         }

@@ -26,7 +26,7 @@ final readonly class InitConfigLoader
      *     package_subagents: bool,
      *     extra_skills_roots: list<string>,
      *     recall: array{document_manifests: list<string>},
-     *     map: array{languages: list<string>|null, languages_error: string|null},
+     *     map: array{languages: list<string>|null, languages_error: string|null, paths: list<string>|null, paths_error: string|null},
      *     prompting: array{language: string, blindspots: array{tone: 'measured'|'direct'|'unflinching'}},
      *     interaction: array{
      *         human_explanations: 'ask'|'always'|'never',
@@ -60,7 +60,7 @@ final readonly class InitConfigLoader
             'package_subagents' => true,
             'extra_skills_roots' => [],
             'recall' => ['document_manifests' => []],
-            'map' => ['languages' => null, 'languages_error' => null],
+            'map' => ['languages' => null, 'languages_error' => null, 'paths' => null, 'paths_error' => null],
             'prompting' => [
                 'language' => 'en',
                 'blindspots' => ['tone' => 'measured'],
@@ -234,7 +234,7 @@ final readonly class InitConfigLoader
 
         $decodedShape = json_decode($content);
         if ($decodedShape instanceof stdClass && property_exists($decodedShape, 'map')) {
-            $result['map'] = (new InitMapSettings())->read($decodedShape->map, $result['warnings']);
+            $result['map'] = (new InitMapSettings($this->rootPath))->read($decodedShape->map, $result['warnings']);
         }
 
         $promptingShape = $decodedShape instanceof stdClass ? ($decodedShape->prompting ?? null) : null;

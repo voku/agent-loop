@@ -432,6 +432,29 @@ final readonly class ProjectLayout
         return $languages;
     }
 
+    /**
+     * The configured project-relative directories for map builds (`map.paths` in init config).
+     *
+     * Configured scope is validated when read: every entry must be an existing directory inside
+     * the project, and a symlink that resolves outside the checkout is refused. An absent setting
+     * returns an empty list so the Map owner's existing defaults remain in force.
+     *
+     * @return list<string>
+     */
+    public function mapPaths(): array
+    {
+        $map = $this->config()['map'];
+        $error = $map['paths_error'];
+        if ($error !== null) {
+            throw new RuntimeException(
+                'Invalid map configuration in ' . self::CONFIG_RELATIVE . ': ' . $error
+                . ' Fix map.paths before building or using the map.',
+            );
+        }
+
+        return $map['paths'] ?? [];
+    }
+
     public function mapIndex(): string
     {
         return $this->mapArtifacts()->indexJson();
@@ -935,7 +958,7 @@ final readonly class ProjectLayout
      *     paths: array<string, string>,
      *     agents: array<string, array<string, string>>,
      *     recall: array{document_manifests: list<string>},
-     *     map: array{languages: list<string>|null, languages_error: string|null}
+     *     map: array{languages: list<string>|null, languages_error: string|null, paths: list<string>|null, paths_error: string|null}
      * }
      */
     private function config(): array

@@ -36,6 +36,42 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testMapPathsAreReadAsValidatedProjectRelativeDirectories(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        mkdir($root . '/src', 0o775, true);
+        mkdir($root . '/tests', 0o775, true);
+        mkdir($root . '/.source', 0o775, true);
+        $path = '.agent-loop/init.json';
+        file_put_contents($root . '/' . $path, json_encode(['map' => ['paths' => ['src', 'tests', '.source']]], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load($path);
+
+        self::assertSame([
+            'languages' => null,
+            'languages_error' => null,
+            'paths' => ['src', 'tests', '.source'],
+            'paths_error' => null,
+        ], $config['map']);
+        self::assertSame([], $config['warnings']);
+
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            $outside = $root . '-outside';
+            mkdir($outside, 0o775, true);
+            symlink($outside, $root . '/outside-link');
+            $this->tempDirs[] = $outside;
+        }
+
+        foreach ([[], 'src', [1], ['/tmp'], ['../outside'], ['missing'], ['outside-link']] as $invalid) {
+            file_put_contents($root . '/' . $path, json_encode(['map' => ['paths' => $invalid]], JSON_THROW_ON_ERROR));
+            $invalidConfig = (new InitConfigLoader($root))->load($path);
+            self::assertNull($invalidConfig['map']['paths'], json_encode($invalid, JSON_THROW_ON_ERROR));
+            self::assertNotNull($invalidConfig['map']['paths_error'], json_encode($invalid, JSON_THROW_ON_ERROR));
+            self::assertCount(1, $invalidConfig['warnings'], json_encode($invalid, JSON_THROW_ON_ERROR));
+        }
+    }
+
     public function testAbsoluteConfigPathsWorkForWindowsAndUnixProjectRoots(): void
     {
         // Verify the path passed to is_file(), without depending on a Windows
@@ -578,7 +614,7 @@ final class InitConfigLoaderTest extends TestCase
                 continue;
             }
             $path = $directory . '/' . $entry;
-            is_dir($path) ? $this->removeDirectory($path) : unlink($path);
+            is_link($path) ? unlink($path) : (is_dir($path) ? $this->removeDirectory($path) : unlink($path));
         }
         rmdir($directory);
     }

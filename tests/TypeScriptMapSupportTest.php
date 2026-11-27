@@ -313,6 +313,41 @@ final class TypeScriptMapSupportTest extends TestCase
         self::assertNull($map->file('src/matcher.ts'));
     }
 
+    public function testMapBuildUsesPersistedPathsAndAnExplicitPathOverrideWins(): void
+    {
+        $this->requireTypeScript();
+        mkdir($this->root . '/lib', 0o775, true);
+        file_put_contents($this->root . '/lib/only.ts', "export const LIB = 1;\n");
+        $this->declareMapSettings(['typescript'], ['lib']);
+
+        [$exit, $output] = $this->dispatch(['map', 'build']);
+        self::assertSame(0, $exit, $output);
+        $configured = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull($configured->file('lib/only.ts'));
+        self::assertNull($configured->file('src/matcher.ts'));
+
+        [$exit, $output] = $this->dispatch(['map', 'build', '--paths=src']);
+        self::assertSame(0, $exit, $output);
+        $overridden = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull($overridden->file('src/matcher.ts'));
+        self::assertNull($overridden->file('lib/only.ts'));
+    }
+
+    public function testInvalidPersistedPathsFailClosedButAnExplicitPathCanOverrideThem(): void
+    {
+        $this->declareMapSettings(['typescript'], ['../outside']);
+
+        [$exit, $output] = $this->dispatch(['map', 'build']);
+        self::assertSame(1, $exit);
+        self::assertFileDoesNotExist($this->mapIndex());
+
+        $this->requireTypeScript();
+        [$exit, $output] = $this->dispatch(['map', 'build', '--paths=src']);
+        self::assertSame(0, $exit, $output);
+        $map = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull($map->file('src/matcher.ts'));
+    }
+
     public function testDeterministicEditRefusesATypeScriptTarget(): void
     {
         $this->expectException(RuntimeException::class);
@@ -367,6 +402,18 @@ final class TypeScriptMapSupportTest extends TestCase
         file_put_contents(
             $this->root . '/.agent-loop/init.json',
             json_encode(['version' => 1, 'map' => ['languages' => $languages]], JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * @param list<string> $languages
+     * @param list<string> $paths
+     */
+    private function declareMapSettings(array $languages, array $paths): void
+    {
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode(['version' => 1, 'map' => ['languages' => $languages, 'paths' => $paths]], JSON_THROW_ON_ERROR),
         );
     }
 

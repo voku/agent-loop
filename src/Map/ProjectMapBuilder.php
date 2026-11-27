@@ -17,7 +17,7 @@ use voku\AgentMap\IO\SourceLanguage;
 use voku\AgentMap\MapArtifactPaths;
 
 /**
- * Loop's map preparation for a project that declared more than PHP in `map.languages`.
+ * Loop's map preparation using a project's declared languages and `map.paths` scope.
  *
  * agent-map owns what a language is, which files belong to it, how they are parsed and when a
  * map is stale. Its incremental `prepare`/`refresh` cover PHP-only maps and refuse every other
@@ -26,20 +26,31 @@ use voku\AgentMap\MapArtifactPaths;
  */
 final readonly class ProjectMapBuilder
 {
-    /** @param list<string> $languages agent-map `SourceLanguage` names */
-    public function __construct(private string $rootPath, private array $languages)
+    /**
+     * @param list<string> $languages agent-map `SourceLanguage` names
+     * @param list<string> $paths project-relative paths declared in init config
+     */
+    public function __construct(private string $rootPath, private array $languages, private array $paths = [])
     {
     }
 
     public static function forProject(string $rootPath): self
     {
-        return new self($rootPath, (new ProjectLayout($rootPath))->mapLanguages());
+        $layout = new ProjectLayout($rootPath);
+
+        return new self($rootPath, $layout->mapLanguages(), $layout->mapPaths());
     }
 
     /** @return list<string> */
     public function languages(): array
     {
         return $this->languages;
+    }
+
+    /** @return list<string> */
+    public function paths(): array
+    {
+        return $this->paths;
     }
 
     /** Whether the declared languages need the owner's full build instead of its PHP-only refresh. */
@@ -99,6 +110,7 @@ final readonly class ProjectMapBuilder
             );
         }
 
+        $scope = array_values(array_unique([...$this->paths, ...$scope]));
         $paths = $this->rebuildPaths($existing, $scope);
         $recorded = $existing?->fingerprint?->semanticScope;
         // PHPStan is the semantic backend of PHP files only (the owner's own CLI rule); a missing
@@ -149,6 +161,8 @@ final readonly class ProjectMapBuilder
         } catch (Throwable) {
             $existing = null;
         }
+
+        $scope = array_values(array_unique([...$this->paths, ...$scope]));
 
         return $this->buildCommand($this->rebuildPaths($existing, $scope));
     }

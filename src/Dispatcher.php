@@ -15,7 +15,6 @@ use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\Decision\DecisionRouteCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
-use voku\AgentLoop\Map\ProjectMapBuilder;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContract;
@@ -27,6 +26,7 @@ use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentSession\AmbiguousActiveSession;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
+use voku\AgentMap\IO\SourceLanguage;
 
 /**
  * Unified entrypoint for the governed agentic-coding loop.
@@ -196,7 +196,7 @@ final class Dispatcher
     private function dispatchMap(string $scriptName, array $rest): int
     {
         try {
-            $rest = $this->withDeclaredMapLanguages($rest);
+            $rest = $this->withDeclaredMapOptions($rest);
         } catch (\RuntimeException $exception) {
             fwrite(STDERR, '[FAIL] map build: ' . $exception->getMessage() . "\n");
 
@@ -210,29 +210,38 @@ final class Dispatcher
     }
 
     /**
-     * `map build` indexes the languages the project declared in `map.languages` unless the
-     * caller passes `--languages` itself. A PHP-only project hands agent-map its arguments
-     * unchanged; an invalid declaration stops the build instead of indexing the default.
+     * `map build` uses the project's declared languages and paths unless the caller supplies
+     * either option itself. Explicit CLI scope stays authoritative; invalid persisted settings
+     * stop a build that needs them instead of silently falling back to defaults.
      *
      * @param list<string> $rest
      *
      * @return list<string>
      */
-    private function withDeclaredMapLanguages(array $rest): array
+    private function withDeclaredMapOptions(array $rest): array
     {
         if (($rest[0] ?? null) !== 'build'
-            || $this->hasOption($rest, 'languages')
             || $this->hasOption($rest, 'help')
             || in_array('-h', $rest, true)) {
             return $rest;
         }
 
-        $maps = ProjectMapBuilder::forProject($this->rootPath);
-        if (!$maps->indexesBeyondPhp()) {
-            return $rest;
+        $layout = new ProjectLayout($this->rootPath);
+        if (!$this->hasOption($rest, 'languages')) {
+            $languages = $layout->mapLanguages();
+            if ($languages !== [SourceLanguage::PHP]) {
+                $rest[] = '--languages=' . implode(',', $languages);
+            }
         }
 
-        return [...$rest, '--languages=' . $maps->languagesOption()];
+        if (!$this->hasOption($rest, 'paths')) {
+            $paths = $layout->mapPaths();
+            if ($paths !== []) {
+                $rest[] = '--paths=' . implode(',', $paths);
+            }
+        }
+
+        return $rest;
     }
 
     /** @param list<string> $tokens */

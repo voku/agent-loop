@@ -22,6 +22,22 @@ Add `map.languages` to `.agent-loop/init.json`:
 
 `agent-loop init recommend --format=json` proposes the setting (`map.init_config`), the map paths and the `package.json` validation scripts for a Node project; see [Project-aware init recommendations](project-aware-init.md). It never writes the setting. Add it by hand after review.
 
+## Persist the map scope
+
+Add the project-relative directories that should be indexed to the same `map` object:
+
+```json
+{
+  "version": 1,
+  "map": {
+    "languages": ["typescript"],
+    "paths": ["src", "test"]
+  }
+}
+```
+
+`map.paths` must be a non-empty list of existing directories inside the checkout. Absolute paths, traversal, missing directories and symlinks that resolve outside the project are refused. With no setting, map commands keep agent-map's existing default. A regular `agent-loop map build` uses the configured paths unless that invocation supplies `--paths` explicitly. The setup wizard and `init recommend` expose a reviewable fragment; neither writes `.agent-loop/init.json`.
+
 ## Requirements
 
 The `typescript` map language needs Node.js on `PATH` and the `typescript` npm package. agent-map takes the compiler from `AGENT_MAP_TYPESCRIPT_PATH` when that is set, and otherwise from the project's own `node_modules/typescript` (run `npm ci` first). **Loading the project's copy executes code from the project.** Set `AGENT_MAP_TYPESCRIPT_PATH` to a compiler you trust when you do not trust the project's dependencies.
@@ -39,8 +55,8 @@ When TypeScript is declared and Node.js or the compiler is missing, the map cann
 
 agent-map's incremental `refresh`, `prepare` and `watch` cover PHP-only maps and refuse a map that indexes another language. Where Loop would refresh, it therefore asks agent-map for a full build with the declared languages:
 
-- A missing map is built from the Contract scope only.
-- An existing map is rebuilt from the paths and excludes it recorded, plus the Contract scope, so a map built with `map build --paths=src,test` keeps that coverage.
+- A missing map is built from the configured `map.paths` plus the existing Contract scope.
+- An existing map is rebuilt from the paths and excludes it recorded, plus the configured map scope and Contract scope, so existing coverage is kept.
 
 `agent-loop map refresh` on such a map is refused by agent-map, which names the `build --languages=...` command to run instead. The package Git hook that refreshes the map after `git pull` or a checkout only reacts to PHP changes and only refreshes; it leaves a TypeScript map as it is, and the next `enter` rebuilds it when it is stale.
 

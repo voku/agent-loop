@@ -52,6 +52,25 @@ final class WorkflowRunPreparerMapPreservationTest extends TestCase
         self::assertSame('simple-php-code-parser+structural-only', $map->backend);
     }
 
+    public function testConfiguredProjectScopeIsAddedEvenWhenTheContractIsAlreadyCovered(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"map":{"paths":["src"]}}');
+        $artifacts = MapArtifactPaths::forProject($this->root, $this->root . '/.agent-loop/map');
+        (new IndexWriter())->write(
+            (new AgentMapBuilder(semanticAnalyzer: new StructuralOnlySemanticAnalyzer(), artifacts: $artifacts))
+                ->build($this->root, ['scripts'], []),
+            $this->governedIndex(),
+        );
+
+        $readiness = (new WorkflowRunPreparer($this->root))->reconcileDiscovery($this->contract());
+
+        self::assertSame('ready', $readiness->mapState);
+        $map = (new IndexReader())->read($this->governedIndex());
+        self::assertNotNull($map->file('scripts/Scoped.php'), 'existing map coverage and approved scope stay present');
+        self::assertNotNull($map->file('src/Indexed.php'), 'configured project scope is added to the current map');
+    }
+
     public function testReconcileDiscoveryAutomaticallyRepairsStaleEntries(): void
     {
         $this->buildStructuralIndexOfSrc();
