@@ -10,7 +10,7 @@ For durable tasks, run `bin/agent-loop enter <task-id> --format=json` before edi
 Commit messages:
 
 - Before a developer-facing commit, inspect the staged change and the task or decision evidence.
-- Write an accurate title and a grounded `WHY:` section (the reason for the change). Do not invent intent, benefits or proof.
+- Write an accurate title and a grounded reason for the change, in the format the repository's commit convention requires. Do not invent intent, benefits or proof.
 - If the reason stays unclear after bounded investigation, stop that commit and ask the developer one targeted question, even in autonomous mode.
 - Reuse an earlier answer while it still applies. Do not answer for the developer or bypass a rejected hook; if the hook rule itself looks wrong, tell the developer instead.
 

@@ -113,7 +113,7 @@ checkpoint must describe its real purpose, not claim completed product work.
 
 Use the repository's commit language, not a transient interaction-language
 override. Keep private session details and sensitive evidence out of Git history.
-The hook checks message structure, not semantic truth.
+Where a commit-msg hook is configured, it checks message structure, not semantic truth.
 
 ## Decision & Review Presentation
 
