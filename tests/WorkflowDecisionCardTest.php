@@ -98,6 +98,8 @@ final class WorkflowDecisionCardTest extends TestCase
         self::assertStringContainsString('Current behavior: no independently recorded baseline observation', implode("\n", $card['unknown']));
         $expected = "Proposed outcomes (not verified):\nDeclared behavior anchors:\n  - $anchor\nAcceptance criteria:\n  - $criterion\nMay change:";
         self::assertStringContainsString($expected, $text);
+        self::assertSame(1, substr_count($text, $anchor));
+        self::assertSame(1, substr_count($text, $criterion));
 
         putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->root . '/interaction');
         putenv('AGENT_LOOP_HOST_SESSION_ID=sess-de');
@@ -114,6 +116,9 @@ final class WorkflowDecisionCardTest extends TestCase
         (new HostFrontDoorCommand($this->root))->run('enter', ['DEMO-1']);
         $german = (string) ob_get_clean();
         self::assertStringContainsString("Vorgeschlagene Ergebnisse (nicht nachgewiesen):\nDeklarierte Verhaltensanker:\n  - $anchor\nAbnahmekriterien:\n  - $criterion\nDarf ändern:", $german);
+        $decisionText = explode("\nContext:\n", $german, 2)[0];
+        self::assertSame(1, substr_count($decisionText, $anchor));
+        self::assertSame(1, substr_count($decisionText, $criterion));
     }
 
     public function testSupersededRevisionCardNamesTheMechanicalChange(): void

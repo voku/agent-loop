@@ -35,9 +35,7 @@ final readonly class WorkflowHumanDecisionTextRenderer
         $lines[] = $german ? 'Contract-Details:' : 'Contract details:';
         $this->appendList($lines, 'Scope', $contract->scope, $german);
         $this->appendList($lines, $german ? 'Ausgeschlossen' : 'Non-goals', $contract->nonGoals, $german);
-        $this->appendList($lines, $german ? 'Abnahmekriterien' : 'Acceptance criteria', $contract->acceptanceCriteria, $german);
         $this->appendList($lines, $german ? 'Validierung' : 'Validation', $contract->validation, $german);
-        $this->appendList($lines, $german ? 'Verhaltensanker' : 'Behavior anchors', $contract->behaviorAnchors, $german);
         $this->appendList(
             $lines,
             $german ? 'Operating-Prompt-Manifest' : 'Operating prompt manifest',
