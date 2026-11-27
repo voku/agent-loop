@@ -1,0 +1,72 @@
+name: GH-1208 isolated Map baseline and Contract preparation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/gh-1208-map-scope-probe.yml'
+permissions:
+  contents: read
+jobs:
+  baseline-and-plan:
+    if: github.head_ref == 'work/gh-1208-map-scope-contract'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 45b7d6ea5ea71f2df9a7a5ffe3959252137cd9ec
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Reproduce unpersisted language proposal on the exact baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '45b7d6ea5ea71f2df9a7a5ffe3959252137cd9ec'
+          mkdir -p build/gh-1208
+          project="$(mktemp -d)"
+          mkdir -p "$project/src"
+          printf '%s\n' '{"name":"fixture/mixed","scripts":{"test":"node --test"}}' > "$project/package.json"
+          printf '%s\n' '{}' > "$project/tsconfig.json"
+          printf '%s\n' 'export const a = 1;' > "$project/src/index.ts"
+          printf '%s\n' '<?php function test(): int { return 1; }' > "$project/src/example.php"
+          printf '%s\n' '{"version":2,"answers":{"map.paths":["src"]}}' > "$project/answers.json"
+          (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" setup wizard --answers=answers.json --format=json) > build/gh-1208/baseline.json
+          cat build/gh-1208/baseline.json
+          jq -e '.changes == [] and (.next_actions[0].command | contains("--languages="))' build/gh-1208/baseline.json
+          test ! -e "$project/.agent-loop"
+          rm -rf "$project"
+      - name: Run the real Loop front door and prepare only an unapproved Contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          task=GH-1208-MAP-LANGUAGE
+          php bin/agent-loop enter "$task" --request 'Prevent an unanswered Map language question from silently selecting an unpersisted language proposal in the Map paths action.' --target 'InitWizardCommand::evaluate' --format=json > build/gh-1208/enter-before.json || test "$?" = 1
+          cat build/gh-1208/enter-before.json
+          jq -e '.next_action_kind == "command_template"' build/gh-1208/enter-before.json
+          php bin/agent-loop workflow plan "$task" --by chatgpt \
+            --file src/Init/InitWizardCommand.php \
+            --file tests/InitWizardCommandTest.php \
+            --file docs/reference/setup-wizard.md \
+            --goal 'When only map.paths is answered, do not override the effective Map language with an unaccepted detected proposal. Preserve explicitly answered language choices and report an invalid declaration without silently choosing PHP.' \
+            --non-goal 'Persisting Map paths or introducing a generic configuration writer; changing approval gates or Map owner semantics.' \
+            --acceptance 'A mixed unconfigured fixture with only map.paths answered uses the existing PHP fallback and proposes no language config change.' \
+            --acceptance 'Explicit language answers still generate the correct language fragment and build command; configured languages are retained; invalid declarations require an explicit language choice.' \
+            --acceptance 'Regression tests and documentation describe the behavior; wizard remains read-only.' \
+            --validation 'composer ci' --format=json > build/gh-1208/plan.json
+          php bin/agent-loop enter "$task" --format=json > build/gh-1208/enter-after.json || test "$?" = 1
+          cat build/gh-1208/enter-after.json
+          jq -e '.next_action_kind == "decision_required"' build/gh-1208/enter-after.json
+          cp -a .agent-loop/contracts build/gh-1208/contracts
+          find build/gh-1208/contracts -type f -name '*.json' -exec sha256sum {} +
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: gh-1208-map-baseline-and-contract
+          path: build/gh-1208/
+          if-no-files-found: error
