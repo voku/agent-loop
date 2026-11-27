@@ -155,9 +155,10 @@ final readonly class HostFrontDoorCommand
     private function enter(array $args, bool $showDecisionPresentation): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop enter <task-id> [--request TEXT] [--format text|json] [--max-lines N] [--max-bytes N]\n";
+            echo "Usage: agent-loop enter <task-id> [--request TEXT] [--target SYMBOL ...] [--format text|json] [--max-lines N] [--max-bytes N]\n";
             echo "Prepare deterministic post-approval workflow state and project bounded context before host mutation.\n";
             echo "On the initial PLAN path, --request may project existing current Map/Search evidence; it never builds indexes or chooses scope.\n";
+            echo "--target (Class, Class::method, Class::\$property or function; repeatable) lists files that structurally reference it in the current Map; evidence only, never scope.\n";
 
             return 0;
         }
@@ -201,6 +202,10 @@ final readonly class HostFrontDoorCommand
         $discovery = $request !== null && $this->isPlanTemplate($policy)
             ? (new WorkflowPrePlanDiscoveryProjector($this->rootPath))->project($request)
             : null;
+        $targets = OptionTokens::values($tokens, 'target');
+        $targetEvidence = $targets === []
+            ? null
+            : (new WorkflowTargetEvidenceProjector($this->rootPath))->project($targets, (new TaskContractStore($this->rootPath))->find($taskId->value));
         $warnings = [];
         if ($preparationResult?->searchWarning !== null) {
             $warnings[] = [
@@ -247,7 +252,10 @@ final readonly class HostFrontDoorCommand
             $payload['session_question'] = $context['interaction']['question'];
         }
         if ($discovery !== null) {
-            $payload['references'] = ['discovery' => $discovery];
+            $payload['references']['discovery'] = $discovery;
+        }
+        if ($targetEvidence !== null) {
+            $payload['references']['target_evidence'] = $targetEvidence;
         }
         $learningPrecedents = (new WorkflowLearningPrecedentProjector($this->rootPath))->project($taskId->value);
         if ($learningPrecedents !== null) {
@@ -304,6 +312,9 @@ final readonly class HostFrontDoorCommand
                 } else {
                     echo '  Abstained: ' . (is_string($discovery['reason'] ?? null) ? $discovery['reason'] : 'unavailable') . "\n";
                 }
+            }
+            if ($targetEvidence !== null) {
+                echo WorkflowTargetEvidenceProjector::renderText($targetEvidence);
             }
             foreach ($warnings as $warning) {
                 echo '[WARN] ' . $warning['message'] . "\n";
@@ -1244,7 +1255,7 @@ final readonly class HostFrontDoorCommand
     /** @param list<string> $tokens */
     private function validateEnterTokens(array $tokens): void
     {
-        $this->validateTokens($tokens, ['format', 'max-lines', 'max-bytes', 'request'], ['json']);
+        $this->validateTokens($tokens, ['format', 'max-lines', 'max-bytes', 'request', 'target'], ['json']);
     }
 
     /** @param list<string> $tokens */
