@@ -183,7 +183,9 @@ final readonly class ExecutionGateway
     {
         [$contract, , $plan] = $this->current($taskId);
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
-        if (!$state instanceof ExecutionState || $plan->baseCommit === null) {
+        if (!$state instanceof ExecutionState || $plan->baseCommit === null || !$this->hasMutatingAgentStage($plan)) {
+            // A plan without a mutating agent stage (the manual profile) never
+            // accepts a candidate, so its workspace has nothing to drift from.
             return null;
         }
         $workspace = $this->verifyWorkspace($candidateWorkspace);
@@ -204,6 +206,17 @@ final readonly class ExecutionGateway
         $observed = $identity->observe($workspace, $plan->baseCommit, $statePath);
 
         return $observed === '' || hash_equals($observed, $state->candidateRevision) ? null : $observed;
+    }
+
+    private function hasMutatingAgentStage(ExecutionPlan $plan): bool
+    {
+        foreach ($plan->stages as $stage) {
+            if ($stage->kind === ExecutionStageKind::AGENT && $stage->mayMutate) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function prepareStage(string $taskId, string $stageId): StageExecutionBundle

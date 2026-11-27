@@ -56,6 +56,16 @@ final class VerifyStageRunFixture
     }
 
     /**
+     * Enter the Run with the given profile without submitting any stage.
+     *
+     * @param list<string> $validation
+     */
+    public function enterWith(ExecutionProfileName $profile, array $validation = ['php -l src/Foo.php']): void
+    {
+        $this->enter($validation, [], $profile);
+    }
+
+    /**
      * @param list<string> $validation
      * @param list<string> $additionalScope
      */

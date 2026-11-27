@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionState;
 use voku\AgentLoop\Execution\ExecutionStateStore;
@@ -142,6 +143,33 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertSame('in_progress', $status['status']);
         self::assertNull($status['workspace_candidate']);
         self::assertStringStartsWith('agent-loop pipeline run VER-1', $status['next_action']);
+    }
+
+    public function testAManualRunIsNeverRoutedToRecovery(): void
+    {
+        $manual = new VerifyStageRunFixture();
+        try {
+            $manual->enterWith(ExecutionProfileName::MANUAL);
+            file_put_contents($manual->root . '/src/Foo.php', "<?php\nfinal class Foo { public const int VALUE = 5; }\n");
+
+            self::assertNull((new ExecutionGateway($manual->root))->candidateDrift('VER-1'));
+            foreach (['status', 'run'] as $command) {
+                $level = ob_get_level();
+                ob_start();
+                try {
+                    (new WorkflowPipelineCommand($manual->root))->run([$command, 'VER-1', '--format=json']);
+                    $payload = json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+                } finally {
+                    while (ob_get_level() > $level) {
+                        ob_end_clean();
+                    }
+                }
+                self::assertTrue($payload['complete'], $command);
+                self::assertSame('agent-loop finish VER-1', $payload['next_action'], $command);
+            }
+        } finally {
+            $manual->remove();
+        }
     }
 
     /** @return array{gate: string, detail: string} */
