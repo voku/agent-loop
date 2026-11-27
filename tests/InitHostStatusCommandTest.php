@@ -10,6 +10,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Dogfood\ProcessRunner;
+use voku\AgentLoop\Init\HostPolicyProjector;
 use voku\AgentLoop\Init\HostRuntimeProbe;
 use voku\AgentLoop\Init\InitHostStatusCommand;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
@@ -77,6 +78,42 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertNull($ready['next_action']);
         self::assertIsString($ready['runtime_boundary']);
         self::assertStringContainsString('--auto', $ready['runtime_boundary']);
+    }
+
+    public function testPublicationWaiverBaselineStillRequestsPolicySync(): void
+    {
+        $configRoot = $this->root . '/.agent-loop';
+        if (!mkdir($configRoot, 0o775, true) && !is_dir($configRoot)) {
+            throw new RuntimeException('Unable to create publication policy fixture directory.');
+        }
+
+        $config = json_encode([
+            'version' => 1,
+            'host_policy' => [
+                'publication' => 'host_managed',
+                'reason' => 'Publication is governed by the host and exact-head CI.',
+            ],
+        ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        if (file_put_contents($configRoot . '/init.json', $config) === false) {
+            throw new RuntimeException('Unable to write publication policy fixture.');
+        }
+
+        $this->installAssets('opencode');
+        $status = $this->hostStatus(['--agent=opencode', '--format=json']);
+
+        // Evidence-only baseline: these assertions describe the defect, not the
+        // desired behavior. Do not merge this probe as a product regression test.
+        self::assertSame('missing', $status['integration']['policy'] ?? null);
+        self::assertSame('command', $status['next_action_kind']);
+        self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $status['next_action']);
+
+        $projector = new HostPolicyProjector($this->root);
+        foreach (HostPolicyProjector::supportedAgents() as $agent) {
+            self::assertSame('missing', $projector->inspect($agent)['status'], $agent);
+            self::assertTrue($projector->sync($agent, true)['changed'], $agent);
+        }
+
+        self::assertSame($config, file_get_contents($configRoot . '/init.json'));
     }
 
     public function testRepositoryDeclaredGitActivationMustConvergeBeforeHostStatusReportsNone(): void
