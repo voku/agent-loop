@@ -1,4 +1,4 @@
-name: GH-1208 exact Contract approval and entry
+name: GH-1208 governed implementation and pre-review validation
 on:
   pull_request:
     branches: [main]
@@ -6,11 +6,12 @@ on:
       - '.github/workflows/gh-1208-map-scope-probe.yml'
 permissions:
   contents: read
+  actions: read
 jobs:
-  baseline-and-plan:
+  build:
     if: github.head_ref == 'work/gh-1208-map-scope-contract'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -22,87 +23,152 @@ jobs:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Reproduce unpersisted language proposal on the exact baseline
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: 15225922591
+          run-id: 46054491150
+          github-token: ${{ github.token }}
+          path: build/gh-1208/restored
+      - name: Resume the exact approved Run and complete investigation
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = '45b7d6ea5ea71f2df9a7a5ffe3959252137cd9ec'
-          mkdir -p build/gh-1208
-          project="$(mktemp -d)"
-          mkdir -p "$project/src"
-          printf '%s\n' '{"name":"fixture/mixed","scripts":{"test":"node --test"}}' > "$project/package.json"
-          printf '%s\n' '{}' > "$project/tsconfig.json"
-          printf '%s\n' 'export const a = 1;' > "$project/src/index.ts"
-          printf '%s\n' '<?php function test(): int { return 1; }' > "$project/src/example.php"
-          printf '%s\n' '{"version":2,"answers":{"map.paths":["src"]}}' > "$project/answers.json"
-          (cd "$project" && php "$GITHUB_WORKSPACE/bin/agent-loop" setup wizard --answers=answers.json --format=json) > build/gh-1208/baseline.json
-          cat build/gh-1208/baseline.json
-          jq -e '.changes == [] and (.next_actions[0].command | contains("--languages="))' build/gh-1208/baseline.json
-          test ! -e "$project/.agent-loop"
-          rm -rf "$project"
-      - name: Restore exact Contract and record explicit owner approval
+          root=build/gh-1208
+          echo "1caee201671e7855b8a282113e3c16581b59565ce7febbcca20db814b251da49  $root/restored/original-contract.json" | sha256sum -c -
+          cp -a "$root/restored/workflow-state/." .agent-loop/
+          cmp "$root/restored/approved-contract.json" .agent-loop/contracts/GH-1208-MAP-LANGUAGE/contract.json
+          task=GH-1208-MAP-LANGUAGE
+          php bin/agent-loop pipeline stage "$task" --format=json > "$root/investigate.json"
+          jq -e '.stage_id == "investigate" and .may_mutate == false' "$root/investigate.json"
+          php bin/agent-loop pipeline submit "$task" --outcome completed --summary 'Baseline CLI reproduced an unaccepted php,typescript override. Source evaluate resolves effective languages but uses the detected proposal for unanswered map.paths; existing tests cover configured and invalid declarations. Change only the path action resolution, tests and docs.' --format=json > "$root/investigation-result.json"
+          cat "$root/investigation-result.json"
+          php bin/agent-loop pipeline stage "$task" --format=json > "$root/build-stage.json"
+          jq -e '.stage_id == "build" and .may_mutate == true' "$root/build-stage.json"
+      - name: Write regression tests before changing production code
         shell: bash
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/InitWizardCommandTest.php')
+          s = p.read_text()
+          anchor = '    public function testMapBuildCommandKeepsConfiguredLanguagesAndQuotesItsValues(): void'
+          addition = """    public function testPathsOnlyKeepsEffectiveFallbackUntilLanguagesAreAccepted(): void
+              {
+                  $this->writePhpProject();
+                  $this->writeJavaScriptProject();
+
+                  $wizard = new InitWizardCommand($this->root);
+                  $paths = $wizard->inspect(['map.paths' => ['src', 'lib']]);
+                  self::assertSame([], $paths['changes']);
+                  self::assertSame("vendor/bin/agent-loop map build --paths='src,lib'", $paths['next_actions'][0]['command']);
+                  self::assertSame(['php', 'typescript'], array_column($paths['questions'], null, 'id')['map.languages']['default']);
+
+                  $accepted = $wizard->inspect(['map.paths' => ['src', 'lib'], 'map.languages' => ['action' => 'recommended']]);
+                  self::assertSame(['map' => ['languages' => ['php', 'typescript']]], $accepted['changes'][0]['apply']['fragment']);
+                  self::assertSame("vendor/bin/agent-loop map build --paths='src,lib' --languages='php,typescript'", $accepted['next_actions'][0]['command']);
+                  self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+              }
+
+          """
+          assert s.count(anchor) == 1
+          s = s.replace(anchor, addition + anchor)
+          old = """        self::assertSame("vendor/bin/agent-loop map build --paths='src' --languages='php'", $unanswered['next_actions'][0]['command']);"""
+          new = """        self::assertSame('prerequisite_required', $unanswered['next_actions'][0]['status']);
+                  self::assertStringContainsString('map.languages', $unanswered['next_actions'][0]['prerequisite']);
+                  self::assertArrayNotHasKey('command', $unanswered['next_actions'][0]);
+                  self::assertSame('map.languages', (new InitWizardCommand($this->root))->next(['map.paths' => ['src']])['step']['id']);"""
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new))
+          PY
+          set +e
+          vendor/bin/phpunit tests/InitWizardCommandTest.php --filter 'testPathsOnlyKeepsEffectiveFallbackUntilLanguagesAreAccepted|testAnInvalidLanguageDeclarationIsRepairedAndNotTreatedAsPhp' > build/gh-1208/red.txt 2>&1
+          result=$?
+          set -e
+          cat build/gh-1208/red.txt
+          test "$result" = 1
+          grep -F 'testPathsOnlyKeepsEffectiveFallbackUntilLanguagesAreAccepted' build/gh-1208/red.txt
+      - name: Implement the approved fix and update documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/Init/InitWizardCommand.php')
+          s = p.read_text()
+          start = s.index("        if (isset($answers['map.paths'])) {", s.index('private function evaluate('))
+          end = s.index("        foreach (['checks.composer_scripts'", start)
+          s = s[:start] + """        if (isset($answers['map.paths'])) {
+                      // Only an explicit answer may override the effective configuration.
+                      $languages = $answers['map.languages'] ?? $resolvedLanguages;
+                      if ($languages === null) {
+                          $nextActions[] = [
+                              'id' => 'map.paths',
+                              'status' => 'prerequisite_required',
+                              'prerequisite' => 'Answer map.languages explicitly before building a map with an invalid language declaration.',
+                              'requires_confirmation' => true,
+                          ];
+                      } else {
+                          $nextActions[] = [
+                              'id' => 'map.paths',
+                              'command' => 'vendor/bin/agent-loop map build --paths=' . escapeshellarg(implode(',', $answers['map.paths']))
+                                  . ($languages === $resolvedLanguages ? '' : ' --languages=' . escapeshellarg(implode(',', $languages))),
+                              'requires_confirmation' => true,
+                          ];
+                      }
+                  }
+          """ + s[end:]
+          p.write_text(s)
+          p = Path('docs/reference/setup-wizard.md')
+          s = p.read_text()
+          old = 'It uses the answered `map.languages`, else the configured value, else the proposal, and passes `--languages` whenever that differs from what `map build` would otherwise use (the configured languages, or `php`).'
+          new = 'It uses the explicitly answered `map.languages`, otherwise the effective configured languages (or the existing `php` fallback). The detected recommendation is not applied unless answered. If the declaration is invalid and no language is answered, the action reports `prerequisite_required` without a command. It passes `--languages` when an explicit answer differs from the effective setting or repairs an invalid declaration.'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new))
+          PY
+          git diff --check
+          vendor/bin/phpunit tests/InitWizardCommandTest.php tests/InitWizardInteractiveTest.php | tee build/gh-1208/green.txt
+          git diff -- src/Init/InitWizardCommand.php tests/InitWizardCommandTest.php docs/reference/setup-wizard.md > build/gh-1208/candidate.patch
+          cp --parents src/Init/InitWizardCommand.php tests/InitWizardCommandTest.php docs/reference/setup-wizard.md build/gh-1208/
+          git diff --name-only
+      - name: Submit build and run deterministic pre-review validation
+        shell: bash
+        env:
+          AGENT_MAP_REQUIRE_TYPESCRIPT: '1'
+        run: |
+          set -euo pipefail
           task=GH-1208-MAP-LANGUAGE
-          path=".agent-loop/contracts/$task/contract.json"
-          mkdir -p "$(dirname "$path")"
-          cat > "$path" <<'CONTRACT'
-          {
-              "acceptance_criteria": [
-                  "A mixed unconfigured fixture with only map.paths answered uses the existing PHP fallback and proposes no language config change.",
-                  "Explicit language answers still generate the correct language fragment and build command; configured languages are retained; invalid declarations require an explicit language choice.",
-                  "Regression tests and documentation describe the behavior; wizard remains read-only."
-              ],
-              "acceptance_observations": [],
-              "approved_at": null,
-              "approved_by": null,
-              "base_commit": "45b7d6ea5ea71f2df9a7a5ffe3959252137cd9ec",
-              "behavior_anchors": [],
-              "created_at": "2026-11-27T18:51:48+00:00",
-              "goal": "When only map.paths is answered, do not override the effective Map language with an unaccepted detected proposal. Preserve explicitly answered language choices and report an invalid declaration without silently choosing PHP.",
-              "kind": "task_contract",
-              "non_goals": [
-                  "Persisting Map paths or introducing a generic configuration writer; changing approval gates or Map owner semantics."
-              ],
-              "operating_prompt_manifest": null,
-              "operating_prompts": [],
-              "planned_by": "chatgpt",
-              "rejected_at": null,
-              "rejected_by": null,
-              "rejection_reason": null,
-              "revision": 1,
-              "schema_version": "1.0",
-              "scope": [
-                  "src/Init/InitWizardCommand.php",
-                  "tests/InitWizardCommandTest.php",
-                  "docs/reference/setup-wizard.md"
-              ],
-              "status": "candidate",
-              "tags": [],
-              "task_id": "GH-1208-MAP-LANGUAGE",
-              "updated_at": "2026-11-27T18:51:48+00:00",
-              "validation": [
-                  "composer ci"
-              ]
-          }
-          CONTRACT
-          echo "1caee201671e7855b8a282113e3c16581b59565ce7febbcca20db814b251da49  $path" | sha256sum -c -
-          cp "$path" build/gh-1208/original-contract.json
-          php bin/agent-loop workflow approve "$task" --revision 1 --by 'Lars Moelleken' --recorded-by chatgpt --format=json > build/gh-1208/approval.json
-          cat build/gh-1208/approval.json
-          cp "$path" build/gh-1208/approved-contract.json
-          php bin/agent-loop workflow execution-profile "$task" --profile standard --by chatgpt
-          php bin/agent-loop enter "$task" --format=json > build/gh-1208/enter-approved.json || test "$?" = 1
-          cat build/gh-1208/enter-approved.json
-          jq -e '.mutation_ready == true' build/gh-1208/enter-approved.json
-          php bin/agent-loop pipeline stage "$task" --format=json > build/gh-1208/stage.json
-          cat build/gh-1208/stage.json
+          php bin/agent-loop pipeline submit "$task" --outcome completed --summary 'Reproduced regression with failing tests, fixed fallback and invalid-language action, then passed focused wizard tests; docs updated.' --context-id chatgpt-builder-gh1208 --workspace "$PWD" --format=json > build/gh-1208/build-result.json
+          cat build/gh-1208/build-result.json
+          php bin/agent-loop pipeline stage "$task" --format=json > build/gh-1208/pre-review-stage.json
+          jq -e '.stage_id == "pre-review-validation"' build/gh-1208/pre-review-stage.json
+          php bin/agent-loop pipeline run "$task" --workspace "$PWD" --format=json > build/gh-1208/pre-review-result.json
+          cat build/gh-1208/pre-review-result.json
+          php bin/agent-loop pipeline stage "$task" --format=json > build/gh-1208/next-stage.json
+          jq -e '.stage_id == "correctness-review"' build/gh-1208/next-stage.json
+      - name: Preserve task state and exact candidate evidence
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p build/gh-1208
           cp -a .agent-loop build/gh-1208/workflow-state
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: gh-1208-approved-contract-and-entry
-          path: build/gh-1208/
+          name: gh-1208-build-and-validation
+          path: |
+            build/gh-1208/*.json
+            build/gh-1208/*.txt
+            build/gh-1208/*.patch
+            build/gh-1208/src/
+            build/gh-1208/tests/
+            build/gh-1208/docs/
+            build/gh-1208/workflow-state/
           if-no-files-found: error
