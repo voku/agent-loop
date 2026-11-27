@@ -211,7 +211,11 @@ final readonly class WorkflowContextCommand
         $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
         $presentationLanguage = WorkflowPresentationLanguage::resolve($this->rootPath);
         $budget->add('policy', 'Response language: ' . $presentationLanguage->language
-            . ($presentationLanguage->source === WorkflowPresentationLanguage::SOURCE_HOST_SESSION ? ' (host session; project: ' . $prompting['language'] . ')' : '')
+            . match ($presentationLanguage->source) {
+                WorkflowPresentationLanguage::SOURCE_HOST_SESSION => ' (host session; project: ' . $prompting['language'] . ')',
+                WorkflowPresentationLanguage::SOURCE_USER_DEFAULT => ' (user default; project: ' . $prompting['language'] . ')',
+                default => '',
+            }
             . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
         $budget->add('policy', 'Blind-spot presentation: ' . $prompting['blindspots']['tone'] . ' tone. Focus on the task or concern supplied by the user; do not invent personal motives or evidence.');
 

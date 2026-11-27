@@ -38,11 +38,16 @@ agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" collaborative TASK
 agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" inherit TASK-1
 # Present decision cards in this session's language (after a mode is set):
 agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" --language=de-DE
-# Go back to the project's prompting.language:
+# Go back to your default language, else the project's prompting.language:
 agent-loop workflow interaction "$AGENT_LOOP_HOST_SESSION_ID" --language=inherit
+# Your default language for every host session, new ones included (after a shared default mode is set):
+agent-loop workflow interaction --default-language=de-DE
+agent-loop workflow interaction --default-language=inherit
 ```
 
-The session language is presentation only. In a bound session, `enter`, `finish`, `workflow plan` and `workflow context` render `human_decision.card` and the response-language line in it; the project's `prompting.language` in `.agent-loop/init.json` is never written. A language needs an existing session preference (set a mode first), and an invalid tag such as `DE_de` is refused. Card text exists in English and German; for other languages the card stays English, `requested_language` names the asked-for tag, and `unknown` tells the host to translate the prose.
+A session language applies to that session only. The default language is stored with the shared default in the same user-owned directory, so every session of that user uses it, including new ones and processes without a session identity, until a session sets its own language. The order is: session language, then default language, then the project's `prompting.language`. Changing the shared default mode keeps the default language. A default language needs a shared default mode, because a language is not a mode and must not bind new sessions to one.
+
+The session language and the default language are presentation only. In a bound session, `enter`, `finish`, `workflow plan` and `workflow context` render `human_decision.card` and the response-language line in it; the project's `prompting.language` in `.agent-loop/init.json` is never written. A language needs an existing session preference (set a mode first), and an invalid tag such as `DE_de` is refused. Card text exists in English and German; for other languages the card stays English, `requested_language` names the asked-for tag, and `unknown` tells the host to translate the prose.
 
 SessionStart exposes the host hook's `session_id` when it is a safe identifier. For task context, a host without
 a recognized session variable must set `AGENT_LOOP_HOST_SESSION_ID` to that same identity. SessionStart binds a new session to the last default stored in that host-owned directory; task overrides remain session-specific. With no preference (and no answer to the question) the

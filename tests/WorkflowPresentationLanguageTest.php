@@ -98,6 +98,32 @@ final class WorkflowPresentationLanguageTest extends TestCase
         self::assertNull((new InteractionPreferenceStore($this->root . '/interaction'))->find('sess-a')?->language);
     }
 
+    public function testDefaultLanguageFollowsTheUserIntoNewSessionsAndASessionLanguageStillWins(): void
+    {
+        self::assertSame(1, $this->interaction(['--default-language=de']), 'A default language needs a shared default mode first.');
+        self::assertSame(1, $this->interaction(['sess-x', 'collaborative', 'TASK-1', '--default-language=de']));
+        self::assertNull((new InteractionPreferenceStore($this->root . '/interaction'))->find('sess-x'), 'A refused default language leaves no half-saved task override.');
+        self::assertSame(0, $this->interaction(['sess-a', 'collaborative']));
+        self::assertSame(0, $this->interaction(['--default-language=de-DE']));
+
+        putenv('AGENT_LOOP_HOST_SESSION_ID=sess-new');
+        $fresh = WorkflowPresentationLanguage::resolve($this->root);
+        self::assertSame(['de-de', WorkflowPresentationLanguage::SOURCE_USER_DEFAULT], [$fresh->language, $fresh->source], 'A session never seen before uses the default language.');
+
+        self::assertSame(0, $this->interaction(['sess-new', '--language=fr']));
+        $override = WorkflowPresentationLanguage::resolve($this->root);
+        self::assertSame(['fr', WorkflowPresentationLanguage::SOURCE_HOST_SESSION], [$override->language, $override->source]);
+
+        self::assertSame(0, $this->interaction(['sess-a', 'autonomous']));
+        self::assertSame('de-de', (new InteractionPreferenceStore($this->root . '/interaction'))->defaultLanguage(), 'Changing the shared default mode keeps the default language.');
+
+        self::assertSame(0, $this->interaction(['--default-language=inherit']));
+        putenv('AGENT_LOOP_HOST_SESSION_ID=sess-other');
+        $project = WorkflowPresentationLanguage::resolve($this->root);
+        self::assertSame(WorkflowPresentationLanguage::SOURCE_PROJECT, $project->source);
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/init.json');
+    }
+
     /** @param list<string> $arguments */
     private function interaction(array $arguments): int
     {

@@ -153,4 +153,34 @@ final class InteractionPreferenceTest extends TestCase
             rmdir($directory);
         }
     }
+
+    public function testDefaultLanguageNeedsASharedDefaultAndSurvivesModeChanges(): void
+    {
+        $directory = sys_get_temp_dir() . '/interaction-default-language-' . bin2hex(random_bytes(8));
+        $store = new InteractionPreferenceStore($directory);
+        try {
+            try {
+                $store->setDefaultLanguage('de');
+                self::fail('A default language without a shared default mode must be refused.');
+            } catch (\RuntimeException $exception) {
+                self::assertStringContainsString('shared default mode', $exception->getMessage());
+            }
+            self::assertNull($store->defaultLanguage());
+            $store->setDefault('session-a', 'collaborative');
+            $store->setDefaultLanguage('de');
+            $store->setDefault('session-b', 'autonomous');
+            self::assertSame('de', $store->defaultLanguage());
+            self::assertSame('autonomous', $store->bindSession('session-c')?->defaultMode);
+            self::assertNull($store->find('session-c')?->language, 'A new session has no language of its own; the default applies through presentation.');
+            $store->setDefaultLanguage(null);
+            self::assertNull($store->defaultLanguage());
+        } finally {
+            foreach (glob($directory . '/{,.}*', GLOB_BRACE) ?: [] as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+            rmdir($directory);
+        }
+    }
 }

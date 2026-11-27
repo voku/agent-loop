@@ -11,6 +11,7 @@ use stdClass;
 use Throwable;
 use voku\AgentLoop\AgentGuidance\HostSessionBinding;
 use voku\AgentLoop\AgentGuidance\InteractionPreference;
+use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\WorkflowPresentationLanguage;
 use voku\AgentMap\IO\SourceLanguage;
@@ -22,13 +23,29 @@ use voku\AgentMap\IO\SourceLanguage;
  * whether a conditional question is asked and what its default is. Answers are
  * validated and turned into changes with provenance, each routed to the writer that
  * already owns it (the evidence-guarded `init apply` for the project language, the
- * host-session preference for a personal language). The wizard itself never writes
- * a file and never runs a project script, so rerunning it is always safe.
+ * user's default-language preference for a personal language). The step protocol
+ * (`--next`) and the terminal flow (`--interactive`) walk the same questions one at a
+ * time; Loop owns their order and progression. The wizard itself never writes a file
+ * and never runs a project script, so rerunning it is always safe.
  */
 final readonly class InitWizardCommand
 {
     public const string SCHEMA = 'agent-loop.setup-wizard';
-    public const int VERSION = 1;
+    /** Version 2: personal.language is the user's default language (version 1: the host session's). */
+    public const int VERSION = 2;
+
+    /** Answers files of both versions share one shape. */
+    private const array ANSWERS_VERSIONS = [1, 2];
+
+    /** What answering a question touches; nothing runs without confirmation. */
+    private const array CONSEQUENCES = [
+        'map.languages' => 'Proposes the map.languages fragment for .agent-loop/init.json (manual review) and the languages map build indexes.',
+        'map.paths' => 'Proposes a map build command for these directories; it runs only after confirmation.',
+        'checks.composer_scripts' => 'Lists the scripts as Contract validation candidates; nothing is executed.',
+        'checks.package_scripts' => 'Lists the scripts as Contract validation candidates; nothing is executed.',
+        'prompting.language' => 'Changes prompting.language in .agent-loop/init.json through setup apply after confirmation; it applies to everyone working on this project.',
+        'personal.language' => 'Changes only your own default language in your user state directory through workflow interaction --default-language after confirmation; never tracked project config.',
+    ];
 
     /** Stable IDs in their fixed order. A new question gets a new ID and a new schema version. */
     public const array QUESTION_IDS = [
@@ -39,6 +56,9 @@ final readonly class InitWizardCommand
         'prompting.language',
         'personal.language',
     ];
+
+    /** How a skipped optional question is recorded in the normalized answers. */
+    public const array SKIP = ['action' => 'skip'];
 
     private const array MAP_LANGUAGES = [SourceLanguage::PHP, SourceLanguage::TYPESCRIPT];
     private const int MAX_ANSWERS_BYTES = 65536;
@@ -51,17 +71,32 @@ final readonly class InitWizardCommand
     public function run(array $tokens): int
     {
         try {
+            $usage = 'Usage: agent-loop setup wizard [--answers=<file.json>] [--next] [--format=json], or agent-loop setup wizard --interactive';
             $answers = null;
+            $next = false;
+            $interactive = false;
             foreach ($tokens as $token) {
-                if (str_starts_with($token, '--answers=')) {
+                if (str_starts_with($token, '--answers=') && $answers === null) {
                     $answers = $this->readAnswers(substr($token, strlen('--answers=')));
                     continue;
                 }
-                if ($token !== '--format=json') {
-                    throw new InvalidArgumentException('Usage: agent-loop setup wizard [--answers=<file.json>] [--format=json]');
+                $next = $next || $token === '--next';
+                $interactive = $interactive || $token === '--interactive';
+                if (!in_array($token, ['--format=json', '--next', '--interactive'], true)) {
+                    throw new InvalidArgumentException($usage);
                 }
             }
-            echo json_encode($this->inspect($answers), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+            if ($interactive) {
+                if ($answers !== null || $next) {
+                    throw new InvalidArgumentException($usage);
+                }
+
+                return (new InitWizardInteractive($this, InitWizardInteractive::lines(\STDIN), static function (string $text): void {
+                    fwrite(\STDERR, $text);
+                }))->run();
+            }
+            $result = $next ? $this->next($answers ?? []) : $this->inspect($answers);
+            echo self::encode($result) . "\n";
 
             return 0;
         } catch (InvalidArgumentException | JsonException | RuntimeException $exception) {
@@ -69,6 +104,43 @@ final readonly class InitWizardCommand
 
             return 1;
         }
+    }
+
+    /** @param array<string, mixed> $result */
+    public static function encode(array $result): string
+    {
+        return json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * The step protocol: the first question in contract order without an answer, with the
+     * actions it allows and what each touches; once every question is answered or skipped,
+     * the same result as a full `--answers` run. The caller relays questions; it never picks
+     * the next one, so the same partial answers always give the same step.
+     *
+     * @param array<string, mixed> $answers question ID => answer, possibly partial
+     * @return array<string, mixed>
+     */
+    public function next(array $answers): array
+    {
+        $result = $this->inspect($answers);
+        $asked = $result['questions'];
+        foreach ($asked as $position => $question) {
+            if (!array_key_exists($question['id'], $answers)) {
+                return [
+                    'schema' => self::SCHEMA,
+                    'version' => self::VERSION,
+                    'mode' => 'read_only',
+                    'evidence_sha256' => $result['evidence_sha256'],
+                    'progress' => ['position' => $position + 1, 'total' => count($asked), 'answered' => array_keys($result['answers'] instanceof stdClass ? [] : $result['answers'])],
+                    'step' => [...$question, 'actions' => $this->actions($question), 'consequence' => self::CONSEQUENCES[$question['id']]],
+                    'execution' => 'not_authorized',
+                    'warnings' => $result['warnings'],
+                ];
+            }
+        }
+
+        return ['progress' => ['position' => count($asked), 'total' => count($asked), 'answered' => array_column($asked, 'id')], 'step' => null, ...$result];
     }
 
     /**
@@ -81,16 +153,21 @@ final readonly class InitWizardCommand
         $plan = (new InitPlanCommand($this->rootPath))->inspect();
         $config = (new InitConfigLoader($this->rootPath))->load((new ProjectLayout($this->rootPath))->configPath());
         $session = HostSessionBinding::fromEnvironment();
+        $store = $session->directory === null ? null : new InteractionPreferenceStore($session->directory);
         try {
             $preference = $session->preference();
+            $defaultLanguage = $store?->defaultLanguage();
+            $hasSharedDefault = $store?->hasSharedDefault() ?? false;
         } catch (Throwable) {
             // Like WorkflowPresentationLanguage: an unreadable host preference counts as none.
             $preference = null;
+            $defaultLanguage = null;
+            $hasSharedDefault = false;
         }
 
         $questions = [];
         $skipped = [];
-        foreach ($this->questions($evidence, $config, $preference) as $order => $question) {
+        foreach ($this->questions($evidence, $config, $preference, $defaultLanguage) as $order => $question) {
             $question = ['order' => $order + 1, ...$question];
             if (isset($question['skipped_because'])) {
                 $skipped[] = ['id' => $question['id'], 'order' => $question['order'], 'reason' => $question['skipped_because']];
@@ -109,7 +186,7 @@ final readonly class InitWizardCommand
         ];
         if ($answers !== null) {
             $configWarnings = array_values(array_filter($evidence['warnings'], static fn (string $warning): bool => str_contains($warning, 'init config:')));
-            $result += $this->evaluate($this->validate($answers, $questions, $skipped), $questions, $session, $preference !== null, $configWarnings);
+            $result += $this->evaluate($this->validate($answers, $questions, $skipped), $questions, $session, $store !== null && $hasSharedDefault, $configWarnings);
         }
 
         return $result + [
@@ -124,14 +201,13 @@ final readonly class InitWizardCommand
      * @param array<string, mixed> $config
      * @return list<array<string, mixed>>
      */
-    private function questions(array $evidence, array $config, ?InteractionPreference $preference): array
+    private function questions(array $evidence, array $config, ?InteractionPreference $preference, ?string $defaultLanguage): array
     {
         $map = $evidence['map'];
         $configuredLanguages = $config['map']['languages'] ?? null;
         $mapPaths = array_values(array_unique([...$map['paths'], ...($map['typescript_paths'] ?? [])]));
         $composerScripts = $evidence['quality']['composer_scripts'];
         $packageScripts = $evidence['quality']['package_scripts'] ?? [];
-        $personal = $preference?->language;
 
         return [
             $this->question('map.languages', 'project', 'multi_choice', true, 'Which languages should agent-map index?', [
@@ -155,14 +231,40 @@ final readonly class InitWizardCommand
                 'current' => $evidence['prompting']['language'],
                 'current_source' => $evidence['prompting']['source'],
             ]),
-            $this->question('personal.language', 'personal', 'bcp47_or_inherit', false, 'Which language do you personally want decision cards in? (inherit follows the project)', [
+            $this->question('personal.language', 'personal', 'bcp47_or_inherit', false, 'Which language do you personally want decision cards in, in every host session? (inherit follows the project)', [
                 'default' => 'inherit',
                 'default_source' => 'project_language',
-                'current' => $personal ?? 'inherit',
-                'current_source' => $personal === null ? 'project_language' : 'host_session',
-                'storage' => 'host-session preference in the user state directory; never tracked project config',
+                'current' => $defaultLanguage ?? 'inherit',
+                'current_source' => $defaultLanguage === null ? 'project_language' : 'user_default',
+                // A language set for this session only still wins over the default while it lasts.
+                'session_override' => $preference?->language,
+                'storage' => 'your default language in the user state directory; never tracked project config',
             ]),
         ];
+    }
+
+    /**
+     * The actions a question allows, with the value each resolves to and its effect.
+     *
+     * @param array<string, mixed> $question
+     * @return list<array<string, mixed>>
+     */
+    private function actions(array $question): array
+    {
+        $consequence = self::CONSEQUENCES[$question['id']];
+        $actions = [];
+        if ($question['current'] !== null) {
+            $actions[] = ['action' => 'keep', 'value' => $question['current'], 'effect' => 'No change.'];
+        }
+        if ($question['default'] !== [] || !$question['required']) {
+            $actions[] = ['action' => 'recommended', 'value' => $question['default'], 'effect' => $question['default'] === $question['current'] ? 'No change.' : $consequence];
+        }
+        $actions[] = ['action' => 'change', 'effect' => $consequence];
+        if (!$question['required']) {
+            $actions[] = ['action' => 'skip', 'effect' => 'Not answered; nothing is proposed for this question.'];
+        }
+
+        return $actions;
     }
 
     /**
@@ -225,10 +327,38 @@ final readonly class InitWizardCommand
         return $normalized;
     }
 
-    /** @param array<string, mixed> $question */
+    /**
+     * Resolves an answer action: keep the current value, take the recommendation, skip an
+     * optional question, or change to a value (a bare value means change).
+     *
+     * @param array<string, mixed> $question
+     */
     private function normalizeAnswer(array $question, mixed $value): mixed
     {
         $id = $question['id'];
+        if (is_array($value) && !array_is_list($value)) {
+            $action = $value['action'] ?? null;
+            $extra = array_diff(array_keys($value), $action === 'change' ? ['action', 'value'] : ['action']);
+            if (!is_string($action) || $extra !== [] || !in_array($action, ['keep', 'recommended', 'skip', 'change'], true)) {
+                throw new InvalidArgumentException($id . ' accepts a value or {"action": "keep|recommended|skip"} or {"action": "change", "value": ...}.');
+            }
+            if ($action === 'skip') {
+                if ($question['required']) {
+                    throw new InvalidArgumentException($id . ' is required and cannot be skipped.');
+                }
+
+                return self::SKIP;
+            }
+            if ($action === 'keep' && $question['current'] === null) {
+                throw new InvalidArgumentException($id . ' has no current value to keep (' . $question['current_source'] . ').');
+            }
+            $value = match ($action) {
+                'keep' => $question['current'],
+                'recommended' => $question['default'],
+                default => $value['value'] ?? null,
+            };
+        }
+
         $isLanguage = in_array($question['kind'], ['bcp47', 'bcp47_or_inherit'], true);
         if ($isLanguage ? !is_string($value) : !is_array($value) || !array_is_list($value)) {
             throw new InvalidArgumentException($id . ($isLanguage ? ' must be a BCP 47 language tag such as de-DE or en.' : ' must be a list.'));
@@ -297,12 +427,15 @@ final readonly class InitWizardCommand
      * @param list<string> $configWarnings
      * @return array{answers: array<string, mixed>|stdClass, changes: list<array<string, mixed>>, validation_candidates: list<array<string, string>>, next_actions: list<array<string, mixed>>}
      */
-    private function evaluate(array $answers, array $questions, HostSessionBinding $session, bool $hasPreference, array $configWarnings): array
+    private function evaluate(array $answers, array $questions, HostSessionBinding $session, bool $hasSharedDefault, array $configWarnings): array
     {
         $byId = array_column($questions, null, 'id');
         $changes = [];
         $candidates = [];
         $nextActions = [];
+        $record = $answers;
+        // A skipped question stays recorded as skipped but proposes nothing.
+        $answers = array_filter($answers, static fn (mixed $answer): bool => $answer !== self::SKIP);
 
         // What map build resolves without --languages: the declaration, php when none, nothing when it is invalid.
         $invalidLanguages = $byId['map.languages']['current_source'] === 'invalid_config';
@@ -350,12 +483,12 @@ final readonly class InitWizardCommand
         if (isset($answers['personal.language']) && $answers['personal.language'] !== $byId['personal.language']['current']) {
             $changes[] = [
                 'id' => 'personal.language',
-                'target' => 'host_session_preference',
+                'target' => 'user_default_language',
                 'pointer' => null,
                 'before' => $byId['personal.language']['current'],
                 'before_source' => $byId['personal.language']['current_source'],
                 'after' => $answers['personal.language'],
-                'apply' => $this->personalLanguageApply($session, $hasPreference, $answers['personal.language']),
+                'apply' => $this->personalLanguageApply($session, $hasSharedDefault, $answers['personal.language']),
             ];
         }
 
@@ -365,7 +498,7 @@ final readonly class InitWizardCommand
         }
 
         // Always a JSON object, so the versioned contract keeps one type for an empty answer set.
-        return ['answers' => $answers === [] ? new stdClass() : $answers, 'changes' => $changes, 'validation_candidates' => $candidates, 'next_actions' => $nextActions];
+        return ['answers' => $record === [] ? new stdClass() : $record, 'changes' => $changes, 'validation_candidates' => $candidates, 'next_actions' => $nextActions];
     }
 
     /**
@@ -398,20 +531,23 @@ final readonly class InitWizardCommand
     }
 
     /** @return array<string, mixed> */
-    private function personalLanguageApply(HostSessionBinding $session, bool $hasPreference, string $language): array
+    private function personalLanguageApply(HostSessionBinding $session, bool $hasSharedDefault, string $language): array
     {
-        if ($session->state !== HostSessionBinding::BOUND || $session->sessionId === null) {
-            return [
-                'status' => 'host_session_required',
-                'prerequisite' => 'Export ' . HostSessionBinding::EXPLICIT_VARIABLE . ' (or run inside a host that sets its session variable), then rerun the wizard.',
-            ];
-        }
-        $command = sprintf('vendor/bin/agent-loop workflow interaction %s --language=%s', escapeshellarg($session->sessionId), $language);
-        if (!$hasPreference) {
-            // The command is valid only after the mode exists, so the route is not ready yet.
+        if ($session->directory === null) {
             return [
                 'status' => 'prerequisite_required',
-                'prerequisite' => sprintf('A session language needs a saved mode: run vendor/bin/agent-loop workflow interaction %s <collaborative|autonomous> first.', escapeshellarg($session->sessionId)),
+                'prerequisite' => 'No user state directory is known: set ' . HostSessionBinding::DIRECTORY_VARIABLE . ' (or HOME), then rerun the wizard.',
+            ];
+        }
+        $command = 'vendor/bin/agent-loop workflow interaction --default-language=' . $language;
+        if (!$hasSharedDefault) {
+            // The default language is stored with the shared default mode, which must exist first.
+            return [
+                'status' => 'prerequisite_required',
+                'prerequisite' => sprintf(
+                    'A default language needs a shared default mode: run vendor/bin/agent-loop workflow interaction %s <collaborative|autonomous> first.',
+                    $session->sessionId === null ? '<host-session-id>' : escapeshellarg($session->sessionId),
+                ),
                 'then' => $command,
             ];
         }
@@ -430,8 +566,8 @@ final readonly class InitWizardCommand
         }
         $contents = file_get_contents($path);
         $decoded = is_string($contents) ? json_decode($contents, true, 16, JSON_THROW_ON_ERROR) : null;
-        $shape = 'Answers file must be {"version": 1, "answers": {"<question-id>": <value>}}.';
-        if (!is_array($decoded) || ($decoded['version'] ?? null) !== self::VERSION || !is_array($decoded['answers'] ?? null)) {
+        $shape = 'Answers file must be {"version": 2, "answers": {"<question-id>": <value>}} (version 1 is also read).';
+        if (!is_array($decoded) || !in_array($decoded['version'] ?? null, self::ANSWERS_VERSIONS, true) || !is_array($decoded['answers'] ?? null)) {
             throw new InvalidArgumentException($shape);
         }
         $answers = [];
