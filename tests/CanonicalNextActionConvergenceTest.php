@@ -115,6 +115,44 @@ final class CanonicalNextActionConvergenceTest extends TestCase
         self::assertStringContainsString('--reviewed-report-sha256', $action);
     }
 
+    public function testStandardPipelineFinishesBeforeRequestingReportAcknowledgement(): void
+    {
+        exec('git -C ' . escapeshellarg($this->root) . ' init --quiet', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.name fixture', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.email fixture@example.invalid', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' add src/Greeter.php', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' commit --quiet -m fixture', $output, $exit);
+        self::assertSame(0, $exit);
+
+        self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']), 'map build');
+        self::assertSame(0, $this->dispatch([
+            'agent-loop',
+            'workflow',
+            'approve',
+            'CONV-001',
+            '--revision',
+            '1',
+            '--by',
+            'lars',
+        ]), 'approve');
+        self::assertSame(0, $this->frontDoor('enter'), 'enter succeeds while exposing the pending pipeline as next action');
+        self::assertSame('agent-loop pipeline status CONV-001 --format=json', $this->nextStep()[0]);
+        $this->repairDeclaredValidation();
+
+        ob_start();
+        $exit = (new HostFrontDoorCommand($this->root))->run('finish', ['CONV-001', '--format=json']);
+        $finish = json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertNotSame(0, $exit);
+        self::assertSame('execution_review', $finish['manifest']['references']['verification']['gate'] ?? null);
+        self::assertSame('unacknowledged', $finish['manifest']['references']['review']['state'] ?? null);
+        self::assertSame('agent-loop pipeline status CONV-001 --format=json', $finish['next_action'] ?? null);
+        self::assertSame(['agent-loop pipeline status CONV-001 --format=json', 'command'], $this->nextStep());
+    }
+
     private function frontDoor(string $command): int
     {
         if ($command === 'enter') {
