@@ -153,7 +153,8 @@ final readonly class GitHooksCli
         foreach ($violations as $violation) {
             echo '  - ' . $violation . "\n";
         }
-        echo "Use --no-verify only when the message is genuinely self-explanatory.\n";
+        echo "Describe the actual staged change and its grounded reason.\n";
+        echo "If the reason or intended outcome is unclear after investigation, stop and ask the developer; do not invent it.\n";
 
         return 1;
     }

@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\GitHooks\CheckCommandFactory;
+use voku\AgentLoop\GitHooks\CommitMessageExamples;
 use voku\AgentLoop\GitHooks\CommitMessageValidator;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\GitHooks\GitHookConfig;
@@ -370,6 +371,110 @@ final class GitHooksRunnerTest extends TestCase
         self::assertStringContainsString('vague', $vague[0]);
 
         self::assertSame([], $validator->validate("[+]: \"scope\" -> subject\n\nWHY:\n- TICKET-42 blocked the nightly sync\n"));
+    }
+
+    public function testRepositoryCommitPolicyDeclaresWorkingExamples(): void
+    {
+        $config = GitHookConfig::load(dirname(__DIR__));
+        $examples = new CommitMessageExamples($config);
+
+        self::assertSame('WHY', $config->requiredSection);
+        self::assertTrue($examples->declared());
+        self::assertGreaterThan(0, $examples->passCount());
+        self::assertGreaterThan(0, $examples->failCount());
+        self::assertSame([], $examples->problems());
+
+        // A structurally valid claim is not evidence that the claimed motivation is true.
+        $validator = new CommitMessageValidator($config);
+        self::assertSame([], $validator->validate("fix(parser): prevent a security vulnerability\n\nWHY: An attacker could trigger a crash.\n"));
+    }
+
+    public function testRejectedCommitMessageRequestsClarificationInsteadOfHookBypass(): void
+    {
+        mkdir($this->root . '/.agent-loop');
+        self::assertTrue(copy(
+            dirname(__DIR__) . '/.agent-loop/githooks.json',
+            $this->root . '/.agent-loop/githooks.json',
+        ));
+        exec('git -C ' . escapeshellarg($this->root) . ' init --quiet', $output, $exitCode);
+        self::assertSame(0, $exitCode);
+        exec('git -C ' . escapeshellarg($this->root) . ' config commit.cleanup strip', $output, $exitCode);
+        self::assertSame(0, $exitCode);
+
+        $message = $this->root . '/message.txt';
+        file_put_contents($message, "fix(parser): reject empty input\n");
+
+        ob_start();
+        try {
+            $exit = (new GitHooksCli($this->root))->run(['commit-msg', $message]);
+        } finally {
+            $result = (string) ob_get_clean();
+        }
+
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('stop and ask the developer', $result);
+        self::assertStringNotContainsString('--no-verify', $result);
+
+        file_put_contents($message, "fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n");
+        self::assertSame(0, (new GitHooksCli($this->root))->run(['commit-msg', $message]));
+    }
+
+    public function testRealGitCommitRejectsATrailerOnlyWhyAndKeepsAReasonFollowedByTrailers(): void
+    {
+        mkdir($this->root . '/.agent-loop');
+        self::assertTrue(copy(
+            dirname(__DIR__) . '/.agent-loop/githooks.json',
+            $this->root . '/.agent-loop/githooks.json',
+        ));
+        mkdir($this->root . '/.githooks');
+        file_put_contents(
+            $this->root . '/.githooks/commit-msg',
+            "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__) . '/bin/agent-loop')
+            . " githooks commit-msg \"\$1\"\n",
+        );
+        chmod($this->root . '/.githooks/commit-msg', 0o775);
+
+        $git = 'git -C ' . escapeshellarg($this->root)
+            . ' -c user.name=Test -c user.email=test@example.invalid -c commit.gpgsign=false ';
+        foreach (['init --quiet', 'config core.hooksPath .githooks', 'config commit.cleanup strip'] as $setup) {
+            exec($git . $setup, $output, $exitCode);
+            self::assertSame(0, $exitCode, $setup);
+        }
+
+        $commit = function (string $message) use ($git): int {
+            file_put_contents($this->root . '/tracked.txt', bin2hex(random_bytes(4)) . "\n");
+            exec($git . 'add tracked.txt', $output, $exitCode);
+            self::assertSame(0, $exitCode);
+            file_put_contents($this->root . '/message.txt', $message);
+            exec($git . 'commit --quiet -F message.txt 2>&1', $output, $exitCode);
+
+            return $exitCode;
+        };
+
+        $trailers = "Refs: #1184\nCo-Authored-By: Example Agent <agent@example.invalid>\n";
+        self::assertNotSame(0, $commit("fix(parser): reject empty input\n\nWHY:\n\n" . $trailers));
+        self::assertNotSame(0, $commit("fix(parser): reject empty input\n\nWHY:\nRefs: #1184\n"));
+        self::assertSame(0, $commit("fix(parser): reject empty input\n\nWHY: Empty input crashed the tokenizer.\n\n" . $trailers));
+        self::assertSame(0, $commit("fixup! fix(parser): reject empty input\n"));
+        // A reason that merely looks like "Key: value" is a reason, not a trailer.
+        self::assertSame(0, $commit("fix(parser): reject empty input\n\nWHY:\nPHPStan: reported an undefined method on main.\n"));
+        // Trailers followed by another section still leave WHY empty.
+        self::assertNotSame(0, $commit("fix(parser): reject empty input\n\nWHY:\nRefs: #1184\n\nEVIDENCE:\n- tests ran\n"));
+
+        exec($git . 'rev-list --count HEAD', $count);
+        self::assertSame(['3'], $count, 'only the three accepted messages were stored');
+
+        // A conflicted revert finishes with Git's own "Revert ..." message, which has no WHY.
+        $target = trim((string) shell_exec($git . 'rev-parse HEAD~1'));
+        file_put_contents($this->root . '/tracked.txt', "diverged\n");
+        exec($git . 'commit --quiet -am ' . escapeshellarg("Diverge tracked file\n\nWHY: Force a revert conflict.") . ' 2>&1', $output, $exitCode);
+        self::assertSame(0, $exitCode);
+        exec($git . 'revert --no-edit ' . escapeshellarg($target) . ' 2>&1', $output, $exitCode);
+        self::assertNotSame(0, $exitCode, 'the revert must conflict for this check to mean anything');
+        file_put_contents($this->root . '/tracked.txt', "resolved\n");
+        exec($git . 'add tracked.txt', $output, $exitCode);
+        exec('GIT_EDITOR=true ' . $git . 'revert --continue 2>&1', $output, $exitCode);
+        self::assertSame(0, $exitCode, implode("\n", $output));
     }
 
     public function testBuiltInCheckTypesRenderTheStandardToolCommands(): void

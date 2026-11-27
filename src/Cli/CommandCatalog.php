@@ -152,10 +152,17 @@ final class CommandCatalog
                 usage: 'agent-loop review <blindspots|code> [options]',
             ),
             new CommandDescriptor(
+                id: CommandId::Setup,
+                group: CommandGroup::SetupOps,
+                owner: CommandOwner::Loop,
+                summary: 'Rerunnable repository setup: the setup wizard, diagnostics, install plans, and repo-managed agent asset validation.',
+                usage: 'agent-loop setup <command> [options]',
+            ),
+            new CommandDescriptor(
                 id: CommandId::Init,
                 group: CommandGroup::SetupOps,
                 owner: CommandOwner::Loop,
-                summary: 'Repository setup, diagnostics, install plans, and repo-managed agent asset validation.',
+                summary: 'Compatible alias of setup with identical subcommands and behavior.',
                 usage: 'agent-loop init <command> [options]',
             ),
             new CommandDescriptor(

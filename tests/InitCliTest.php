@@ -53,6 +53,27 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop init status', $status['output']);
     }
 
+    public function testSetupIsTheCanonicalNameAndInitAnIdenticalAlias(): void
+    {
+        $setup = $this->dispatch(['agent-loop', 'setup', 'help']);
+        $init = $this->dispatch(['agent-loop', 'init', 'help']);
+
+        self::assertSame([0, 0], [$setup['exit'], $init['exit']]);
+        self::assertStringContainsString('agent-loop setup wizard [--answers=<file.json>]', $setup['output']);
+        self::assertStringContainsString('agent-loop setup apply --language=<BCP47>', $setup['output']);
+        self::assertStringNotContainsString('agent-loop init ', $setup['output']);
+        self::assertStringContainsString('`agent-loop setup` is the canonical, rerunnable name for these commands; `agent-loop init` remains a compatible alias', $init['output']);
+        self::assertSame($init['output'], str_replace('agent-loop setup ', 'agent-loop init ', $setup['output']));
+
+        $wizardHelp = $this->dispatch(['agent-loop', 'setup', 'wizard', '--help']);
+        self::assertSame(0, $wizardHelp['exit']);
+        self::assertStringContainsString('agent-loop setup wizard [--answers=<file.json>] [--format=json] [--help|-h]', $wizardHelp['output']);
+        self::assertSame(
+            $this->dispatch(['agent-loop', 'init', 'paths', '--format=json'])['output'],
+            $this->dispatch(['agent-loop', 'setup', 'paths', '--format=json'])['output'],
+        );
+    }
+
     public function testEveryInitSubcommandHasSideEffectFreeHelpAliases(): void
     {
         $commands = [
