@@ -32,6 +32,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           artifact-ids: 15225922591
+          merge-multiple: true
           run-id: 46054491150
           github-token: ${{ github.token }}
           path: build/gh-1208/restored
