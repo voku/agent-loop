@@ -7,10 +7,10 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Init\InitPlanCommand;
 use voku\AgentLoop\Init\InitWizardCommand;
+use voku\AgentLoop\Workflow\WorkflowPresentationLanguage;
 
 /** @internal */
 final class InitWizardCommandTest extends TestCase
@@ -59,7 +59,7 @@ final class InitWizardCommandTest extends TestCase
         self::assertSame($first, $second);
         $payload = json_decode($first, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(InitWizardCommand::SCHEMA, $payload['schema']);
-        self::assertSame(1, $payload['version']);
+        self::assertSame(2, $payload['version']);
         $order = array_merge(array_column($payload['questions'], 'order', 'id'), array_column($payload['skipped'], 'order', 'id'));
         asort($order);
         self::assertSame(InitWizardCommand::QUESTION_IDS, array_keys($order), 'Asked and skipped questions keep their fixed positions.');
@@ -178,45 +178,46 @@ final class InitWizardCommandTest extends TestCase
         self::assertSame([], (new InitWizardCommand($this->root))->inspect(['prompting.language' => 'de-de'])['changes'], 'A rerun after applying reports nothing left to change.');
     }
 
-    public function testTwoUsersKeepDifferentPersonalLanguagesWithoutTouchingProjectConfig(): void
+    public function testTwoUsersKeepDifferentPersonalLanguagesAcrossSessionsWithoutTouchingProjectConfig(): void
     {
         $this->writePhpProject();
         mkdir($this->root . '/.agent-loop', 0o775, true);
         file_put_contents($this->root . '/.agent-loop/init.json', "{\n  \"prompting\": {\"language\": \"en\"}\n}\n");
         $configBefore = file_get_contents($this->root . '/.agent-loop/init.json');
-        $store = new InteractionPreferenceStore($this->preferences);
-        $store->update('session-anna', 'collaborative', null);
-        $store->setLanguage('session-anna', 'de');
-        $store->update('session-ben', 'autonomous', null);
+        // Each user has their own state directory; the default language lives there.
+        $anna = $this->preferences . '/anna';
+        $ben = $this->preferences . '/ben';
+        foreach (['anna' => $anna, 'ben' => $ben] as $user => $directory) {
+            putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+            self::assertSame(0, $this->dispatch(['workflow', 'interaction', 'session-' . $user . '-1', 'collaborative']));
+        }
 
-        putenv('AGENT_LOOP_HOST_SESSION_ID=session-anna');
-        $anna = array_column((new InitWizardCommand($this->root))->inspect()['questions'], null, 'id')['personal.language'];
-        putenv('AGENT_LOOP_HOST_SESSION_ID=session-ben');
-        $ben = (new InitWizardCommand($this->root))->inspect(['personal.language' => 'fr']);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $anna);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=session-anna-1');
+        $change = (new InitWizardCommand($this->root))->inspect(['personal.language' => 'de'])['changes'][0];
+        self::assertSame('user_default_language', $change['target']);
+        self::assertSame(['inherit', 'de'], [$change['before'], $change['after']]);
+        self::assertSame('vendor/bin/agent-loop workflow interaction --default-language=de', $change['apply']['command']);
+        self::assertSame(0, $this->dispatch(['workflow', 'interaction', '--default-language=de']), 'The reported command is accepted by the preference owner.');
 
-        self::assertSame(['de', 'host_session'], [$anna['current'], $anna['current_source']]);
-        $benChange = $ben['changes'][0];
-        self::assertSame('host_session_preference', $benChange['target']);
-        self::assertSame(['inherit', 'fr'], [$benChange['before'], $benChange['after']]);
-        self::assertSame("vendor/bin/agent-loop workflow interaction 'session-ben' --language=fr", $benChange['apply']['command']);
-        ob_start();
-        $followed = (new Dispatcher($this->root))->run(['agent-loop', 'workflow', 'interaction', 'session-ben', '--language=fr']);
-        ob_end_clean();
-        self::assertSame(0, $followed, 'The reported command is accepted by the existing preference owner.');
-        self::assertSame([], (new InitWizardCommand($this->root))->inspect(['personal.language' => 'fr'])['changes']);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=session-anna-2');
+        $fresh = array_column((new InitWizardCommand($this->root))->inspect()['questions'], null, 'id')['personal.language'];
+        self::assertSame(['de', 'user_default'], [$fresh['current'], $fresh['current_source']], 'A fresh session of the same user keeps the default language.');
+        self::assertSame('de', WorkflowPresentationLanguage::resolve($this->root)->language);
+        self::assertSame([], (new InitWizardCommand($this->root))->inspect(['personal.language' => 'de'])['changes'], 'A rerun after applying reports nothing left to change.');
+
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $ben);
+        putenv('AGENT_LOOP_HOST_SESSION_ID=session-ben-2');
+        $other = array_column((new InitWizardCommand($this->root))->inspect()['questions'], null, 'id')['personal.language'];
+        self::assertSame(['inherit', 'project_language'], [$other['current'], $other['current_source']], "Another user's preference is unaffected.");
         self::assertSame($configBefore, file_get_contents($this->root . '/.agent-loop/init.json'));
-        putenv('AGENT_LOOP_HOST_SESSION_ID=session-anna');
-        self::assertSame('de', array_column((new InitWizardCommand($this->root))->inspect()['questions'], null, 'id')['personal.language']['current'], "Another user's language is unaffected.");
 
-        putenv('AGENT_LOOP_HOST_SESSION_ID=session-carl');
-        $withoutMode = (new InitWizardCommand($this->root))->inspect(['personal.language' => 'fr'])['changes'][0]['apply'];
-        self::assertSame('prerequisite_required', $withoutMode['status'], 'The language command fails until a session mode exists.');
-        self::assertSame("vendor/bin/agent-loop workflow interaction 'session-carl' --language=fr", $withoutMode['then']);
-        self::assertArrayNotHasKey('command', $withoutMode);
-
-        putenv('AGENT_LOOP_HOST_SESSION_ID');
-        $unbound = (new InitWizardCommand($this->root))->inspect(['personal.language' => 'fr'])['changes'][0]['apply'];
-        self::assertSame('host_session_required', $unbound['status']);
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->preferences . '/carl');
+        $withoutDefault = (new InitWizardCommand($this->root))->inspect(['personal.language' => 'fr'])['changes'][0]['apply'];
+        self::assertSame('prerequisite_required', $withoutDefault['status'], 'The default language needs a shared default mode first.');
+        self::assertStringContainsString("vendor/bin/agent-loop workflow interaction 'session-ben-2' <collaborative|autonomous> first", $withoutDefault['prerequisite']);
+        self::assertSame('vendor/bin/agent-loop workflow interaction --default-language=fr', $withoutDefault['then']);
+        self::assertArrayNotHasKey('command', $withoutDefault);
     }
 
     public function testUnknownSkippedOrInvalidAnswersFailExplicitly(): void
@@ -317,6 +318,17 @@ final class InitWizardCommandTest extends TestCase
         self::assertSame($setup, $init);
     }
 
+    /** @param list<string> $arguments */
+    private function dispatch(array $arguments): int
+    {
+        ob_start();
+        try {
+            return (new Dispatcher($this->root))->run(['agent-loop', ...$arguments]);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
     private function writePhpProject(): void
     {
         mkdir($this->root . '/src', 0o775, true);
@@ -340,7 +352,7 @@ final class InitWizardCommandTest extends TestCase
     private function answersFile(array $answers): string
     {
         $path = $this->root . '-answers-' . bin2hex(random_bytes(4)) . '.json';
-        file_put_contents($path, json_encode(['version' => 1, 'answers' => $answers], JSON_THROW_ON_ERROR));
+        file_put_contents($path, json_encode(['version' => 2, 'answers' => $answers], JSON_THROW_ON_ERROR));
         $this->answerFiles[] = $path;
 
         return $path;

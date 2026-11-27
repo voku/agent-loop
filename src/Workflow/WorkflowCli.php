@@ -53,7 +53,8 @@ Usage:
   agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] [--acceptance-observation <json> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>] [--supersede]
   agent-loop workflow plan <task-id> --by <actor> --supersede --add-scope <path> [--add-scope <path> ...] [--format=json]
   agent-loop workflow approve <task-id> --revision <current-revision> --by <actor> [--head <reviewed-commit>] [--recorded-by <actor>]
-  agent-loop workflow interaction <host-session-id> [<collaborative|autonomous> [task-id]] [--language=<BCP47>|--language=inherit]
+  agent-loop workflow interaction <host-session-id> [<collaborative|autonomous> [task-id]] [--language=<BCP47>|--language=inherit] [--default-language=<BCP47>|--default-language=inherit]
+  agent-loop workflow interaction --default-language=<BCP47>|--default-language=inherit
   agent-loop workflow reject <task-id> --revision <current-revision> --by <actor> --reason <text> [--head <reviewed-commit>] [--recorded-by <actor>]
   agent-loop workflow request-changes <task-id> --revision <current-revision> --by <actor> --reason <text> [--head <reviewed-commit>] [--recorded-by <actor>]
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]

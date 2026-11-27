@@ -111,7 +111,10 @@ final readonly class InitCli
         'wizard' => [
             'usage' => 'agent-loop init wizard [--answers=<file.json>] [--format=json]',
             'description' => 'Emit the versioned setup question contract from current project evidence; with --answers, report the resulting changes and the command that owns each.',
-            'notes' => ['Read-only and safe to rerun: the same evidence and answers give the same output, and nothing is written or executed.'],
+            'notes' => [
+                'Read-only and safe to rerun: the same evidence and answers give the same output, and nothing is written or executed.',
+                'One question at a time: --interactive asks in the terminal; --next [--answers=<partial.json>] returns the next question for a coding host.',
+            ],
         ],
         'scaffold' => [
             'usage' => 'agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]',
@@ -193,7 +196,8 @@ final readonly class InitCli
           agent-loop init recommend [--format=json]
           agent-loop init plan [--format=json] [--language=<BCP47>]
           agent-loop init apply --language=<BCP47> --evidence-sha256=<SHA256> --accept=prompting.language [--dry-run|--yes]
-          agent-loop init wizard [--answers=<file.json>] [--format=json]
+          agent-loop init wizard [--answers=<file.json>] [--next] [--format=json]
+          agent-loop init wizard --interactive
 
         `agent-loop setup` is the canonical, rerunnable name for these commands; `agent-loop init` remains a compatible alias with identical behavior.
 
@@ -219,7 +223,7 @@ final readonly class InitCli
           recommend         Discover project tooling and emit read-only, source-backed JSON for setup review.
           plan              Produce typed, source-backed read-only setup candidates with zero file edits or executions.
           apply             Update only an accepted prompt-language field after current-evidence validation; no other writes.
-          wizard            Emit the deterministic, versioned setup questions from current evidence; with --answers, report each change and the command that owns it. Read-only.
+          wizard            Emit the deterministic, versioned setup questions from current evidence; with --answers, report each change and the command that owns it. --next returns one question at a time for a coding host; --interactive asks them in the terminal. Read-only.
           scaffold          Create minimum local workflow infrastructure. Use --prefix for a real empty board or --demo for tutorial board/task state; neither is invented by default.
         TXT;
 
