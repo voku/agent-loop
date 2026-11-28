@@ -204,6 +204,14 @@ final readonly class ExecutionGateway
             }
         }
         $observed = $identity->observe($workspace, $plan->baseCommit, $statePath);
+        // An implicit owner checkout that still holds the unchanged base has not
+        // changed the candidate: the reviewed candidate lives in another worktree
+        // until it is adopted (the same guard as observeStageCandidate). Routing it
+        // to recovery would reopen build on reverted content.
+        if ($candidateWorkspace === null
+            && hash_equals($identity->normalize($workspace, $plan->baseCommit, $plan->baseCommit), $observed)) {
+            return null;
+        }
 
         return $observed === '' || hash_equals($observed, $state->candidateRevision) ? null : $observed;
     }

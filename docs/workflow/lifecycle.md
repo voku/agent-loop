@@ -158,7 +158,9 @@ plan. Loop never carries the earlier reviews over to the changed content:
 `pipeline status` and `pipeline run` report `candidate_changed` with the observed
 `workspace_candidate` (for a Run waiting at `verify`, only when `--workspace`
 names where the candidate lives; a completed Run is compared in the owner
-checkout, where it closes), and the close gate (`finish`, `workflow status`) blocks at
+checkout, where it closes, and an owner checkout that still holds the unchanged
+base is not drift: the reviewed candidate is then still waiting to be adopted
+from its worktree), and the close gate (`finish`, `workflow status`) blocks at
 the execution review gate with a reason naming both candidates and the exact
 recovery command. Loop does not recover on its own; the owner supplies the
 content-addressed candidate to:

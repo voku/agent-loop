@@ -107,6 +107,25 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertStringContainsString('incomplete at stage build', $this->closeFailure()['detail']);
     }
 
+    public function testACompletedWorktreeRunBeforeAdoptionStaysCompleteInTheUntouchedOwnerCheckout(): void
+    {
+        $gateway = new ExecutionGateway($this->run->root);
+        self::assertTrue($gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+        $state = file_get_contents((new ExecutionStateStore($this->run->root))->path('VER-1'));
+
+        self::assertNull($gateway->candidateDrift('VER-1'), 'An owner checkout holding the base has not changed the candidate.');
+        self::assertNull($this->pendingFailure());
+        foreach (['status', 'run'] as $command) {
+            [, $payload] = $this->pipeline([$command, 'VER-1']);
+            self::assertTrue($payload['complete'], $command);
+            self::assertSame('agent-loop finish VER-1', $payload['next_action'], $command);
+        }
+        self::assertSame($state, file_get_contents((new ExecutionStateStore($this->run->root))->path('VER-1')));
+
+        [, $explicit] = $this->pipeline(['status', 'VER-1', '--workspace=' . $this->run->workspace]);
+        self::assertSame('complete', $explicit['status'], 'The worktree still holds the reviewed candidate.');
+    }
+
     public function testRecoveryAtVerifyStaysFailClosedForOutOfScopeChanges(): void
     {
         file_put_contents($this->run->workspace . '/README.md', "Unrelated change.\n");
