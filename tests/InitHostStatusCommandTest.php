@@ -156,6 +156,19 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertNotEmpty(array_filter($warnings, static fn (string $warning): bool => str_contains($warning, 'host_policy')), implode("\n", $warnings));
     }
 
+    public function testAnUnrelatedWarningThatMentionsHostPolicyIsNotReportedAsAnIgnoredWaiver(): void
+    {
+        $this->writeInitConfig([
+            'host_policy' => ['publication' => 'host_managed', 'reason' => 'CI-gated cloud sessions publish.'],
+            'recall' => ['document_manifests' => ['../host_policy']],
+        ]);
+        $this->installAssets('opencode');
+
+        $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode', '--dry-run']));
+        self::assertStringNotContainsString('publication deny rules are projected as usual', $sync['output']);
+        self::assertStringContainsString('waived by project configuration', $sync['output']);
+    }
+
     /** @param array<string, mixed> $data */
     private function writeInitConfig(array $data): void
     {
