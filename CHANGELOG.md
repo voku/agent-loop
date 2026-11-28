@@ -4,6 +4,19 @@
 
 - A project can record that it does not adopt the publication deny rules (direct `git push`, `gh pr create`, `gh pr merge`) with `"host_policy": {"publication": "host_managed", "reason": "<why>"}` in `.agent-loop/init.json`. `init host-status` then reports `policy: waived` with the reason instead of `missing` and no longer routes to `init sync-policy`, and `sync-policy` (also with `--force`) writes no publication rules and removes none a project already has. Before, a deliberate decision against the rules, for example in cloud sessions that push and merge after green CI, showed up as a permanent open setup step. The setting is recorded attribution, not an authenticated permission, and changes no Contract approval, review, CI or merge gate; a malformed declaration is a config warning and keeps the default projection (#1213).
 
+### Fixed
+
+- `enter --target` review follow-ups (#1194). A target that merely contains the word "ambiguous", such as `Contract::ambiguousNope`, is reported `target_unresolved` instead of `target_ambiguous`. A source file edited while the evidence was read now abstains as `evidence_became_stale`; before, only the stored Map fingerprint was compared, which a source edit does not change. Classes that `use` a trait are listed as its references (`uses_trait`). A namespaced function resolves by its short name when no global function has that name and exactly one namespaced function carries it. An owner failure while building the projection abstains as `projection_failed` instead of failing the whole `enter`.
+- Setup wizard review follow-ups (#1197, #1205):
+  - An `init.json` that is not valid JSON is reported as `invalid_config` for `map.languages` and `prompting.language`. Before, it showed as `not_configured`, or as `.agent-loop/init.json` for a language that was really the built-in default. An invalid `prompting.language` tag is `invalid_config` too.
+  - Answering only `map.paths` on an unconfigured polyglot project no longer adds `--languages=<proposal>` with no matching config change. The build indexes what a later plain `map build` indexes. Only an invalid declaration, which `map build` refuses, still gets explicit languages.
+  - Repairing an invalid `map.languages` declaration shows the stored value as `before` instead of `null`.
+  - `--next` derives the `recommended` effect from what the answer would actually propose. Unconfigured `map.languages` recommending `php` now says `No change.`.
+  - A version 1 answers file that sets `personal.language` gets a warning, because that answer now sets the default language for every session.
+  - `workflow interaction <session> <mode> --default-language=…` confirms the default language, as the plain `--default-language` form does.
+  - `setup help` no longer says "Every init subcommand" or "Show init help".
+  - The docs now say that the final `--interactive` / `--next` output is the `--answers` result plus `progress` and `step: null` (and `answers_document` for `--interactive`), that `k`/`r`/`s`/`keep`/`recommended`/`skip` are reserved interactive inputs (a directory of that name takes a trailing slash), and that language tags are stored lower-cased.
+
 ## [0.20.108] - 2026-11-27
 
 ### Fixed

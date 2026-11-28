@@ -217,6 +217,89 @@ PHP;
         self::assertSame('too_many_targets', $tooMany['reason']);
     }
 
+    public function testAnUnresolvedTargetWhoseNameContainsAmbiguousIsNotReportedAmbiguous(): void
+    {
+        $this->writeFixture();
+        $this->buildMap();
+
+        $rows = $this->enter('TARGET-NAME', [
+            '--target', 'Contract::ambiguousNope',
+            '--target', 'Fixture\Ambiguous',
+        ])['payload']['references']['target_evidence']['targets'];
+
+        self::assertSame(['target_unresolved', 'target_unresolved'], array_column($rows, 'reason'));
+    }
+
+    public function testEvidenceIsNotCurrentOnceASourceChangesEvenWithTheSameFingerprint(): void
+    {
+        $this->writeFixture();
+        $this->buildMap();
+        $projector = new WorkflowTargetEvidenceProjector($this->root);
+        $snapshot = $projector->project(['Fixture\Store::create'], null)['map_snapshot'];
+        self::assertIsString($snapshot);
+        self::assertTrue($projector->stillCurrent($snapshot));
+
+        file_put_contents($this->root . '/src/Store.php', self::STORE_SOURCE . "\n// edited while the evidence was projected\n");
+
+        self::assertFalse($projector->stillCurrent($snapshot), 'A source edit leaves the stored fingerprint unchanged; the Map state must still count.');
+    }
+
+    public function testATraitTargetListsTheClassesThatUseIt(): void
+    {
+        $this->writeFixture();
+        $this->writeFile('src/Stamps.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Fixture;\n\ntrait Stamps\n{\n    public function stamp(): string\n    {\n        return 'x';\n    }\n}\n");
+        $this->writeFile('src/Stamped.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Fixture;\n\nfinal class Stamped\n{\n    use Stamps;\n}\n");
+        $this->buildMap();
+
+        $target = $this->enter('TARGET-TRAIT', ['--target', 'Fixture\Stamps'])['payload']['references']['target_evidence']['targets'][0];
+
+        self::assertSame('resolved', $target['status']);
+        self::assertSame([['path' => 'src/Stamped.php', 'relation_counts' => ['uses_trait' => 1]]], $target['source_references']);
+    }
+
+    public function testANamespacedFunctionResolvesByItsUniqueShortName(): void
+    {
+        $this->writeFixture();
+        $this->writeFile('src/functions.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Fixture;\n\nfunction normalize(string \$value): string\n{\n    return trim(\$value);\n}\n");
+        $this->writeFile('src/Normalizer.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Fixture;\n\nfinal class Normalizer\n{\n    public function run(string \$value): string\n    {\n        return normalize(\$value);\n    }\n}\n");
+        $this->buildMap();
+
+        $rows = $this->enter('TARGET-FUNCTION', ['--target', 'normalize', '--target', 'Fixture\normalize'])['payload']['references']['target_evidence']['targets'];
+
+        self::assertSame(['resolved', 'resolved'], array_column($rows, 'status'));
+        self::assertSame($rows[1]['symbol_id'], $rows[0]['symbol_id']);
+        self::assertSame('src/functions.php', $rows[0]['declaration']['path']);
+    }
+
+    public function testAGlobalFunctionStaysReachableNextToANamespacedOneWithTheSameName(): void
+    {
+        $this->writeFixture();
+        $this->writeFile('src/global.php', "<?php\n\ndeclare(strict_types=1);\n\nfunction helper(): int\n{\n    return 1;\n}\n");
+        $this->writeFile('src/ns.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Other;\n\nfunction helper(): int\n{\n    return 2;\n}\n");
+        $this->writeFile('src/second.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Third;\n\nfunction tool(): int\n{\n    return 3;\n}\n");
+        $this->writeFile('src/third.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Fourth;\n\nfunction tool(): int\n{\n    return 4;\n}\n");
+        $this->buildMap();
+
+        $rows = $this->enter('TARGET-GLOBAL', ['--target', 'helper', '--target', 'Other\\helper', '--target', 'tool'])['payload']['references']['target_evidence']['targets'];
+
+        self::assertSame('src/global.php', $rows[0]['declaration']['path']);
+        self::assertSame('src/ns.php', $rows[1]['declaration']['path']);
+        self::assertSame('target_ambiguous', $rows[2]['reason']);
+    }
+
+    public function testAProjectionFailureAbstainsInsteadOfReplacingTheEnterResult(): void
+    {
+        $evidence = WorkflowTargetEvidenceProjector::abstainOnFailure(static fn (): array => throw new RuntimeException("owner exploded\nstack"));
+
+        self::assertSame([
+            'owner' => 'agent-map',
+            'status' => 'abstained',
+            'reason' => 'projection_failed',
+            'authority' => 'none',
+            'detail' => 'owner exploded',
+        ], $evidence);
+    }
+
     public function testReferencesAreBoundedPerRoleAndReportWhatWasOmitted(): void
     {
         $this->writeFixture();

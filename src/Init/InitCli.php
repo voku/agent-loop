@@ -202,8 +202,8 @@ final readonly class InitCli
         `agent-loop setup` is the canonical, rerunnable name for these commands; `agent-loop init` remains a compatible alias with identical behavior.
 
         Commands:
-          Every init subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
-          help              Show init help.
+          Every subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
+          help              Show this help.
           doctor            Diagnose local setup and repo-managed agent asset hints.
           paths             Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
           status            Show what is activated here: resolved CLI path, host projection, local Git integration, sources, aliases, target manifests, and the next activation command (read-only).

@@ -42,7 +42,7 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo]', $help['output']);
         self::assertStringContainsString('init status', $help['output']);
         self::assertStringNotContainsString('rtk', strtolower($help['output']));
-        self::assertStringContainsString('Every init subcommand accepts help, --help, and -h.', $help['output']);
+        self::assertStringContainsString('Every subcommand accepts help, --help, and -h.', $help['output']);
 
         $doctor = $this->dispatch(['agent-loop', 'init', 'doctor']);
         self::assertSame(0, $doctor['exit']);
@@ -62,6 +62,8 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop setup wizard [--answers=<file.json>]', $setup['output']);
         self::assertStringContainsString('agent-loop setup apply --language=<BCP47>', $setup['output']);
         self::assertStringNotContainsString('agent-loop init ', $setup['output']);
+        self::assertStringNotContainsString('init subcommand', $setup['output']);
+        self::assertStringNotContainsString('init help', $setup['output']);
         self::assertStringContainsString('`agent-loop setup` is the canonical, rerunnable name for these commands; `agent-loop init` remains a compatible alias', $init['output']);
         self::assertSame($init['output'], str_replace('agent-loop setup ', 'agent-loop init ', $setup['output']));
 

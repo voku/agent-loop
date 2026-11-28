@@ -60,14 +60,18 @@ agent-loop enter <task-id> --target '<Class>::$property' --target '<Class>::meth
 already-current Map through its typed relation API and adds
 `references.target_evidence`: the declaring file, then test and source files
 whose relations (calls, property access, instantiation, type references,
-inheritance) point at the symbol, with per-kind counts, most references first,
+inheritance, trait use) point at the symbol, with per-kind counts, most references first,
 eight files per role and an `omitted` count. For a class, references to its
 methods and properties count too. A short class name resolves only when exactly
-one class, interface, trait or enum carries it; otherwise the row abstains as
+one class, interface, trait or enum carries it. A function name resolves to the
+global function of that name; without one it resolves only when exactly one
+namespaced function carries it. Otherwise the row abstains as
 `target_ambiguous`. When the Contract is approved each path carries
 `in_contract_scope`; the Contract is not changed. An unresolved or ambiguous
 target abstains on its own row; a missing or stale Map abstains for the whole
-projection. A file with no recorded references is missing evidence, not proof
+projection, as does a source edit while the evidence was being read
+(`evidence_became_stale`) or an owner failure (`projection_failed`), and
+neither changes the `enter` result. A file with no recorded references is missing evidence, not proof
 that nothing depends on the symbol. The projection has authority `none`: it is
 a list of files to read, and choosing scope or requesting a Contract revision
 stays with the host and the human approval boundary.
