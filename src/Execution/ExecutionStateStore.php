@@ -247,6 +247,18 @@ final readonly class ExecutionStateStore
 
             $lastAccepted = $state->history[array_key_last($state->history)] ?? null;
             if ($verifyPending) {
+                // A verify that already failed on this candidate, and whose Attention
+                // was resolved back to verify, does not change what the reviews passed.
+                $lastAccepted = null;
+                foreach (array_reverse($state->history) as $accepted) {
+                    if ($accepted->result->stageId === 'verify'
+                        && $accepted->result->outcome !== StageOutcome::PASS
+                        && hash_equals($accepted->result->candidateRevision, $state->candidateRevision)) {
+                        continue;
+                    }
+                    $lastAccepted = $accepted;
+                    break;
+                }
                 if (!$lastAccepted instanceof AcceptedStageResult
                     || $lastAccepted->result->outcome !== StageOutcome::PASS
                     || $plan->stage($lastAccepted->result->stageId)->kind !== ExecutionStageKind::AGENT

@@ -15,6 +15,7 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Tests\Support\VerifyStageRunFixture;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionService;
 use voku\AgentLoop\Workflow\WorkflowCloseReadinessInspector;
 use voku\AgentLoop\Workflow\WorkflowPipelineCommand;
 use voku\AgentSession\SessionStore;
@@ -173,6 +174,38 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertSame('execution_review', $failure['gate']);
         self::assertStringContainsString('also holds unrelated changes outside the scope; set those aside', $failure['detail']);
         self::assertStringNotContainsString('--candidate git-tree-v1:', $failure['detail']);
+    }
+
+    public function testARunThatResumedVerifyAfterAResolvedFailureCanStillRecoverItsRepairedCandidate(): void
+    {
+        $broken = new VerifyStageRunFixture();
+        try {
+            $broken->reachVerifyWith("<?php\nfinal class Foo { this is not php }\n");
+            $gateway = new ExecutionGateway($broken->root);
+            $failure = $gateway->runDeterministicStage('VER-1', 'verify', $broken->workspace);
+            self::assertNotNull($failure->attention);
+            $resumed = (new WorkflowHumanDecisionService($broken->root))->resolveAttention('VER-1', $failure->attention->id, 'reviewer', 'Repair the candidate.');
+            self::assertSame('verify', $resumed->currentStageId);
+
+            file_put_contents($broken->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public const int VALUE = 8; }\n");
+            $repaired = $gateway->candidateDrift('VER-1', $broken->workspace);
+            self::assertNotNull($repaired);
+
+            $level = ob_get_level();
+            ob_start();
+            try {
+                $exit = (new WorkflowPipelineCommand($broken->root))->run(['recover', 'VER-1', '--candidate', $repaired, '--workspace=' . $broken->workspace, '--format=json']);
+                $payload = json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+            } finally {
+                while (ob_get_level() > $level) {
+                    ob_end_clean();
+                }
+            }
+            self::assertSame(0, $exit, json_encode($payload, JSON_THROW_ON_ERROR));
+            self::assertSame('build', $payload['current_stage'], 'The named recovery command must succeed.');
+        } finally {
+            $broken->remove();
+        }
     }
 
     public function testRecoveryAtVerifyStaysFailClosedForOutOfScopeChanges(): void
