@@ -135,7 +135,18 @@ final readonly class WorkflowDecisionCardFactory
             [$this->t(
                 'What led to this revision (the owner records no lifecycle trigger for a plan).',
                 'Was zu dieser Revision geführt hat (der Owner speichert für einen Plan keinen Auslöser).',
+            ), $this->t(
+                'Change motivation: no separately recorded rationale; the goal is a proposal, not proof of its cause.',
+                'Änderungsmotivation: keine separat erfasste Begründung; das Ziel ist ein Vorschlag, kein Nachweis seiner Ursache.',
+            ), $this->t(
+                'Current behavior: no independently recorded baseline observation; behavior anchors are Contract declarations.',
+                'Aktuelles Verhalten: keine separat erfasste Baseline-Beobachtung; Verhaltensanker sind Contract-Angaben.',
             ), ...$this->translationGap()],
+            [
+                'state' => 'proposed',
+                'behavior_anchors' => $contract->behaviorAnchors,
+                'acceptance_criteria' => $contract->acceptanceCriteria,
+            ],
         );
     }
 

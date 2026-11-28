@@ -19,6 +19,7 @@ final readonly class WorkflowDecisionCard
      * @param array{validation: array{state: string, detail: string|null, planned: list<string>}, review: array{state: string, detail: string|null}} $proof
      * @param list<array{id: string, label: string, effect: string, command: string|null}> $choices
      * @param list<string> $unknown
+     * @param array{state: 'proposed', behavior_anchors: list<string>, acceptance_criteria: list<string>}|null $proposedOutcomes
      */
     public function __construct(
         public string $type,
@@ -33,6 +34,7 @@ final readonly class WorkflowDecisionCard
         public array $proof,
         public array $choices,
         public array $unknown,
+        public ?array $proposedOutcomes = null,
     ) {
     }
 
@@ -54,6 +56,6 @@ final readonly class WorkflowDecisionCard
             'authorizes' => $this->authorizes,
             'choices' => $this->choices,
             'unknown' => $this->unknown,
-        ];
+        ] + ($this->proposedOutcomes === null ? [] : ['proposed_outcomes' => $this->proposedOutcomes]);
     }
 }

@@ -55,6 +55,14 @@ project, wrong service or failed probe is not a safe reason to launch another
 server or pretend a task URL is available. The CLI decision card remains the
 fallback, and the human must still explicitly approve the exact Contract revision.
 
+Contract approval cards expose `proposed_outcomes` in JSON and the CLI before
+file scope: declared behavior anchors and acceptance criteria, not observed
+results. Empty lists mean nothing was declared. The lifecycle `why_now` is not
+an independent change rationale; the card marks missing separately recorded
+motivation and baseline observations as unknown rather than inferring them from
+the goal. The original Contract text is preserved. This does not change the
+approval choices or the proof required after implementation.
+
 The CLI decision labels currently support English and German;
 unknown configured languages use English labels while preserving exact
 Contract text, commands, paths, and owner evidence. The host agent should still

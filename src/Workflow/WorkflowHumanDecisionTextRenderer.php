@@ -35,9 +35,7 @@ final readonly class WorkflowHumanDecisionTextRenderer
         $lines[] = $german ? 'Contract-Details:' : 'Contract details:';
         $this->appendList($lines, 'Scope', $contract->scope, $german);
         $this->appendList($lines, $german ? 'Ausgeschlossen' : 'Non-goals', $contract->nonGoals, $german);
-        $this->appendList($lines, $german ? 'Abnahmekriterien' : 'Acceptance criteria', $contract->acceptanceCriteria, $german);
         $this->appendList($lines, $german ? 'Validierung' : 'Validation', $contract->validation, $german);
-        $this->appendList($lines, $german ? 'Verhaltensanker' : 'Behavior anchors', $contract->behaviorAnchors, $german);
         $this->appendList(
             $lines,
             $german ? 'Operating-Prompt-Manifest' : 'Operating prompt manifest',
@@ -89,6 +87,11 @@ final readonly class WorkflowHumanDecisionTextRenderer
         $lines[] = ($german ? 'Warum jetzt: ' : 'Why now: ') . $card->whyNow['summary'];
         foreach ($card->whyNow['changes'] as $change) {
             $lines[] = '  - ' . $change;
+        }
+        if ($card->proposedOutcomes !== null) {
+            $lines[] = $german ? 'Vorgeschlagene Ergebnisse (nicht nachgewiesen):' : 'Proposed outcomes (not verified):';
+            $this->appendList($lines, $german ? 'Deklarierte Verhaltensanker' : 'Declared behavior anchors', $card->proposedOutcomes['behavior_anchors'], $german);
+            $this->appendList($lines, $german ? 'Abnahmekriterien' : 'Acceptance criteria', $card->proposedOutcomes['acceptance_criteria'], $german);
         }
         if ($card->mayChange !== [] || $card->type === 'contract_approval') {
             $this->appendList($lines, $german ? 'Darf ändern' : 'May change', $card->mayChange, $german);
