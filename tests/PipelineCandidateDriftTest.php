@@ -121,7 +121,8 @@ final class PipelineCandidateDriftTest extends TestCase
         foreach (['status', 'run'] as $command) {
             [, $payload] = $this->pipeline([$command, 'VER-1']);
             self::assertTrue($payload['complete'], $command);
-            self::assertSame('agent-loop finish VER-1', $payload['next_action'], $command);
+            self::assertSame('host_work', $payload['next_action_kind'], $command);
+            self::assertStringContainsString('adopt the reviewed candidate from its worktree before finish', $payload['next_action'], $command . ': no finish/status cycle.');
         }
         self::assertSame($state, file_get_contents((new ExecutionStateStore($this->run->root))->path('VER-1')));
 
@@ -138,7 +139,8 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertNull($gateway->candidateDrift('VER-1'));
         self::assertTrue($gateway->candidateAwaitingAdoption('VER-1'));
         [, $status] = $this->pipeline(['status', 'VER-1']);
-        self::assertSame('agent-loop finish VER-1', $status['next_action']);
+        self::assertSame('host_work', $status['next_action_kind']);
+        self::assertStringContainsString('adopt the reviewed candidate', $status['next_action']);
         $failure = $this->closeFailure();
         self::assertSame('execution_review', $failure['gate']);
         self::assertStringContainsString('adopt the reviewed candidate', $failure['detail']);
@@ -225,10 +227,27 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertNull($gateway->candidateDrift('VER-1'));
         [, $status] = $this->pipeline(['status', 'VER-1']);
         self::assertStringNotContainsString('pipeline recover', $status['next_action']);
-        $failure = (string) $this->pendingFailure();
-        self::assertStringContainsString('already recorded its Learning decision', $failure);
-        self::assertStringContainsString('--supersede', $failure);
-        self::assertStringNotContainsString('pipeline recover', $failure);
+        self::assertSame('host_work', $status['next_action_kind']);
+        self::assertStringContainsString('--supersede', $status['next_action']);
+        // The closed Run's session is gone; pipeline status carries the close-gate reason.
+        self::assertStringContainsString('already recorded its Learning decision', $status['next_action']);
+    }
+
+    public function testAModeOnlyChangeAfterCloseDoesNotRetractTheRecordedCompletion(): void
+    {
+        $gateway = new ExecutionGateway($this->run->root);
+        self::assertTrue($gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+        $this->copyWorkspaceSourceIntoRoot();
+        $this->finish([]);
+        $review = (new \voku\AgentLoop\Workflow\WorkflowReviewReportReader($this->run->root))->read('VER-1');
+        self::assertIsString($review['sha256']);
+        $this->finish(['--reviewed-report-sha256', $review['sha256'], '--by', 'fixture-reviewer']);
+        self::assertSame(0, $this->finish(['--learning', 'no_durable_learning', '--by', 'fixture-reviewer']));
+        self::assertNull($this->pendingFailure());
+
+        self::assertTrue(chmod($this->run->root . '/src/Foo.php', 0o755));
+
+        self::assertNull($this->pendingFailure(), 'The receipt path must not block a closed Run for a mode-only change.');
     }
 
     public function testRecoveryAtVerifyStaysFailClosedForOutOfScopeChanges(): void

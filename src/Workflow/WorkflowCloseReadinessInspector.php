@@ -192,6 +192,14 @@ final readonly class WorkflowCloseReadinessInspector
             return null;
         }
 
+        // This path is reached when the verification receipt still matches the
+        // content snapshot, so only a mode-only change remains. After the Learning
+        // decision such a change must not retract the Run's recorded completion;
+        // content changes are superseded through the receipt check instead.
+        if ((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->rootPath, $run)))->find($run->runId) !== null) {
+            return null;
+        }
+
         return $this->candidateDriftFailure($contract->taskId, $state->candidateRevision);
     }
 
@@ -206,6 +214,16 @@ final readonly class WorkflowCloseReadinessInspector
         } catch (RuntimeException $exception) {
             return 'the current workspace candidate cannot be compared with the reviewed candidate ' . $reviewedCandidate . ': ' . $exception->getMessage();
         }
+        return self::driftGuidance($kind, $observed, $taskId, $reviewedCandidate);
+    }
+
+    /**
+     * The close-gate reason for an observed candidate drift (see
+     * ExecutionGateway::observeCandidateDrift()); null when nothing drifted. Shared
+     * with pipeline status/run so both name the same next step.
+     */
+    public static function driftGuidance(string $kind, ?string $observed, string $taskId, string $reviewedCandidate): ?string
+    {
         if ($kind === 'awaiting_adoption') {
             return 'the owner checkout still holds the base, not the reviewed candidate ' . $reviewedCandidate
                 . '; adopt the reviewed candidate from its worktree before finish';
