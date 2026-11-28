@@ -3,6 +3,6 @@
   "private": true,
   "description": "Development-only: the TypeScript compiler the TypeScript/JavaScript map tests run against. Not part of the Composer package.",
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.0"
   }
 }
