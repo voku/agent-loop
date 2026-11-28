@@ -150,10 +150,20 @@ final readonly class RunPolicyEvaluator
         // produced the disagreement. Prefer the owner's own repair; when no
         // owner supplies one, say the artifact needs host work rather than
         // naming a command that cannot change anything.
+        $pendingExecutionReview = $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review'
+            && $this->referenceState($references, 'review') !== 'fail'
+            && ($this->isPendingOrdinaryExecutionReview($references)
+                || $this->isPendingRecoveredExecutionReview($references));
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
-            fn (array $d): bool => !in_array($d['code'], ['board.active_after_run_complete', 'board.backlog_with_governed_run'], true)
-                && !$this->isPendingSupersession($d, $references),
+            fn (array $disagreement): bool => !in_array(
+                $disagreement['code'],
+                ['board.active_after_run_complete', 'board.backlog_with_governed_run'],
+                true,
+            )
+                && !$this->isPendingSupersession($disagreement, $references)
+                && !($pendingExecutionReview && $disagreement['code'] === 'review.report_invalid'),
         ));
         if ($blockingDisagreements !== []) {
             foreach ($blockingDisagreements as $disagreement) {
@@ -609,7 +619,7 @@ final readonly class RunPolicyEvaluator
         $reason = $references['verification']['reason'] ?? null;
 
         return [
-            'action' => 'resolve the blocked independent execution review before acknowledging the Recall report'
+            'action' => 'resolve the blocked independent execution review'
                 . (is_string($reason) && trim($reason) !== '' ? ': ' . trim($reason) : '')
                 . '; the pipeline has no pending stage to advance, so keep this Run incomplete and use an approved recovery path',
             'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
