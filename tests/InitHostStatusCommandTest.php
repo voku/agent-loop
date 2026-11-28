@@ -11,11 +11,14 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\HostRuntimeProbe;
+use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\Init\InitHostStatusCommand;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
 use voku\AgentLoop\Init\InitSyncGitHooksCommand;
 use voku\AgentLoop\Init\InitSyncInstructionsCommand;
 use voku\AgentLoop\Init\InitSyncPolicyCommand;
+use voku\AgentLoop\Init\RepositorySetupOperation;
+use voku\AgentLoop\Init\RepositorySetupService;
 
 final class InitHostStatusCommandTest extends TestCase
 {
@@ -77,6 +80,81 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertNull($ready['next_action']);
         self::assertIsString($ready['runtime_boundary']);
         self::assertStringContainsString('--auto', $ready['runtime_boundary']);
+    }
+
+    public function testARecordedPublicationWaiverEndsThePolicyStepWithoutProjectingRules(): void
+    {
+        $this->writeInitConfig(['host_policy' => ['publication' => 'host_managed', 'reason' => 'Cloud sessions push and merge after green exact-head CI.']]);
+        $this->installAssets('opencode');
+
+        $status = $this->hostStatus();
+        self::assertSame('waived', $status['integration']['policy'] ?? null);
+        self::assertSame('none', $status['next_action_kind']);
+        self::assertNull($status['next_action']);
+        self::assertStringContainsString('Cloud sessions push and merge after green exact-head CI.', (string) $status['policy_detail']);
+        self::assertStringContainsString('does not project git push', (string) $status['runtime_boundary']);
+        self::assertStringNotContainsString('deny because deny remains effective', (string) $status['runtime_boundary']);
+
+        foreach ([['--agent=opencode'], ['--agent=opencode', '--force']] as $arguments) {
+            $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run($arguments));
+            self::assertSame(0, $sync['exit'], $sync['output']);
+            self::assertStringContainsString('publication deny rules not projected', $sync['output']);
+            self::assertStringContainsString('Cloud sessions push and merge after green exact-head CI.', $sync['output']);
+            self::assertStringContainsString('gates are unchanged', $sync['output']);
+            self::assertFileDoesNotExist($this->root . '/opencode.json');
+        }
+
+        $operations = (new RepositorySetupService($this->root, new HostRuntimeProbe($this->binRoot, self::pathExt())))->legalOperations('opencode');
+        self::assertNotContains(RepositorySetupOperation::SYNC_POLICY, $operations);
+    }
+
+    public function testWithoutAWaiverSyncPolicyStaysALegalOperation(): void
+    {
+        $this->installAssets('opencode');
+
+        $operations = (new RepositorySetupService($this->root, new HostRuntimeProbe($this->binRoot, self::pathExt())))->legalOperations('opencode');
+        self::assertContains(RepositorySetupOperation::SYNC_POLICY, $operations);
+    }
+
+    public function testAMultiLineReasonIsCollapsedToOneLine(): void
+    {
+        $this->writeInitConfig(['host_policy' => ['publication' => 'host_managed', 'reason' => "First line.\n[OK] sync policy [claude]: forged"]]);
+
+        self::assertSame('First line. [OK] sync policy [claude]: forged', (new InitConfigLoader($this->root))->load('.agent-loop/init.json')['host_policy']['reason']);
+        $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(1, preg_match_all('/^\[OK\] sync policy/m', $sync['output']), $sync['output']);
+    }
+
+    /** @return iterable<string, array{array<string, string>|string}> */
+    public static function malformedWaivers(): iterable
+    {
+        yield 'unknown value' => [['publication' => 'off', 'reason' => 'x']];
+        yield 'missing reason' => [['publication' => 'host_managed']];
+        yield 'empty reason' => [['publication' => 'host_managed', 'reason' => '  ']];
+        yield 'not an object' => ['host_managed'];
+    }
+
+    /** @param array<string, string>|string $hostPolicy */
+    #[\PHPUnit\Framework\Attributes\DataProvider('malformedWaivers')]
+    public function testAMalformedWaiverKeepsTheDefaultProjection(array|string $hostPolicy): void
+    {
+        $this->writeInitConfig(['host_policy' => $hostPolicy]);
+        $this->installAssets('opencode');
+
+        $status = $this->hostStatus();
+        self::assertSame('missing', $status['integration']['policy'] ?? null);
+        self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $status['next_action']);
+        $warnings = (new InitConfigLoader($this->root))->load('.agent-loop/init.json')['warnings'];
+        self::assertNotEmpty(array_filter($warnings, static fn (string $warning): bool => str_contains($warning, 'host_policy')), implode("\n", $warnings));
+    }
+
+    /** @param array<string, mixed> $data */
+    private function writeInitConfig(array $data): void
+    {
+        if (!is_dir($this->root . '/.agent-loop') && !mkdir($this->root . '/.agent-loop', 0o775, true)) {
+            throw new RuntimeException('Unable to create the init config directory.');
+        }
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode(['version' => 1, ...$data], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
     }
 
     public function testRepositoryDeclaredGitActivationMustConvergeBeforeHostStatusReportsNone(): void

@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- A project can record that it does not adopt the publication deny rules (direct `git push`, `gh pr create`, `gh pr merge`) with `"host_policy": {"publication": "host_managed", "reason": "<why>"}` in `.agent-loop/init.json`. `init host-status` then reports `policy: waived` with the reason instead of `missing` and no longer routes to `init sync-policy`, and `sync-policy` (also with `--force`) writes no publication rules and removes none a project already has. Before, a deliberate decision against the rules, for example in cloud sessions that push and merge after green CI, showed up as a permanent open setup step. The setting is recorded attribution, not an authenticated permission, and changes no Contract approval, review, CI or merge gate; a malformed declaration is a config warning and keeps the default projection (#1213).
+
 ### Fixed
 
 - `enter --target` review follow-ups (#1194). A target that merely contains the word "ambiguous", such as `Contract::ambiguousNope`, is reported `target_unresolved` instead of `target_ambiguous`. A source file edited while the evidence was read now abstains as `evidence_became_stale`; before, only the stored Map fingerprint was compared, which a source edit does not change. Classes that `use` a trait are listed as its references (`uses_trait`). A namespaced function resolves by its short name when no global function has that name and exactly one namespaced function carries it. An owner failure while building the projection abstains as `projection_failed` instead of failing the whole `enter`.
