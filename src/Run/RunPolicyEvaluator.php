@@ -150,10 +150,20 @@ final readonly class RunPolicyEvaluator
         // produced the disagreement. Prefer the owner's own repair; when no
         // owner supplies one, say the artifact needs host work rather than
         // naming a command that cannot change anything.
+        $pendingExecutionReview = $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review'
+            && $this->referenceState($references, 'review') !== 'fail'
+            && ($this->isPendingOrdinaryExecutionReview($references)
+                || $this->isPendingRecoveredExecutionReview($references));
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
-            fn (array $d): bool => !in_array($d['code'], ['board.active_after_run_complete', 'board.backlog_with_governed_run'], true)
-                && !$this->isPendingSupersession($d, $references),
+            fn (array $disagreement): bool => !in_array(
+                $disagreement['code'],
+                ['board.active_after_run_complete', 'board.backlog_with_governed_run'],
+                true,
+            )
+                && !$this->isPendingSupersession($disagreement, $references)
+                && !($pendingExecutionReview && $disagreement['code'] === 'review.report_invalid'),
         ));
         if ($blockingDisagreements !== []) {
             foreach ($blockingDisagreements as $disagreement) {
@@ -217,6 +227,17 @@ final readonly class RunPolicyEvaluator
             ];
         }
         if ($this->mutationAllowed($state, $mode, $references, $disagreements)) {
+            $reviewState = $this->referenceState($references, 'review');
+            if (
+                in_array($reviewState, ['missing', 'invalid', 'stale', 'ok', 'warn'], true)
+                && $this->referenceState($references, 'verification') === 'blocked'
+                && ($references['verification']['gate'] ?? null) === 'execution_review'
+            ) {
+                return $this->isPendingOrdinaryExecutionReview($references)
+                    ? $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json'])
+                    : $this->blockedExecutionReviewAction($references);
+            }
+
             return [
                 'action' => 'perform the approved host-native implementation for ' . $taskId
                     . ' before calling agent-loop finish ' . $taskId,
@@ -430,6 +451,29 @@ final readonly class RunPolicyEvaluator
         ) {
             return $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
         }
+        if (
+            $this->referenceState($references, 'review') !== 'fail'
+            && $this->referenceState($references, 'verification') === 'blocked'
+            && $this->isPendingOrdinaryExecutionReview($references)
+        ) {
+            return $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
+        }
+
+        if (
+            $this->referenceState($references, 'review') === 'unacknowledged'
+            && $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review'
+        ) {
+            return $this->blockedExecutionReviewAction($references);
+        }
+        if (
+            in_array($this->referenceState($references, 'review'), ['missing', 'invalid', 'stale', 'ok', 'warn'], true)
+            && $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review'
+            && !$this->isPendingOrdinaryExecutionReview($references)
+        ) {
+            return $this->blockedExecutionReviewAction($references);
+        }
 
         $reviewState = $this->referenceState($references, 'review');
         if (in_array($reviewState, ['missing', 'invalid', 'stale'], true)) {
@@ -548,6 +592,39 @@ final readonly class RunPolicyEvaluator
         return ($references['verification']['gate'] ?? null) === 'execution_review'
             && is_string($reason)
             && str_starts_with($reason, 'recovered execution pipeline:');
+    }
+
+    /** @param array<string, array<string, mixed>> $references */
+    private function isPendingOrdinaryExecutionReview(array $references): bool
+    {
+        if (($references['verification']['gate'] ?? null) !== 'execution_review') {
+            return false;
+        }
+
+        $reason = $references['verification']['reason'] ?? null;
+        if (!is_string($reason)) {
+            return false;
+        }
+
+        return $reason === 'independent review pipeline has not started'
+            || str_starts_with($reason, 'independent review pipeline is incomplete at stage ')
+            || $reason === 'independent review pipeline is waiting for Attention';
+    }
+
+    /** @param array<string, array<string, mixed>> $references
+     *  @return array{action: string, kind: string, invocation: null}
+     */
+    private function blockedExecutionReviewAction(array $references): array
+    {
+        $reason = $references['verification']['reason'] ?? null;
+
+        return [
+            'action' => 'resolve the blocked independent execution review'
+                . (is_string($reason) && trim($reason) !== '' ? ': ' . trim($reason) : '')
+                . '; the pipeline has no pending stage to advance, so keep this Run incomplete and use an approved recovery path',
+            'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+            'invocation' => null,
+        ];
     }
 
     /**

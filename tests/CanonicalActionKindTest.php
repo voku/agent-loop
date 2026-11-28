@@ -143,6 +143,159 @@ final class CanonicalActionKindTest extends TestCase
         self::assertStringContainsString('--by <actor>', $policy->nextAction);
     }
 
+    public function testIncompleteExecutionReviewPrecedesReportAcknowledgement(): void
+    {
+        $references = $this->executionReviewReferences(
+            'unacknowledged',
+            'independent review pipeline is incomplete at stage investigate',
+        );
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+
+        self::assertSame('agent-loop pipeline status E5-001 --format=json', $policy->nextAction);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND, $policy->nextActionKind);
+        self::assertFalse($policy->ordinaryCloseAllowed);
+    }
+
+    public function testTerminalReviewBlockDoesNotRequestReportAcknowledgement(): void
+    {
+        $reasons = [
+            'semantic review stage correctness-review has no accepted PASS result',
+            'semantic review stage correctness-review is stale for the final candidate',
+            'semantic review stage correctness-review has no fresh observed context identity',
+            'semantic review stage correctness-review cannot prove isolation from predecessor build',
+            'semantic review stage correctness-review has stale review evidence: evidence is stale',
+            'selected non-manual profile has no semantic review stage after its final mutating stage',
+        ];
+        foreach ($reasons as $reason) {
+            $policy = (new RunPolicyEvaluator())->evaluate(
+                'E5-001',
+                'governed',
+                $this->executionReviewReferences('unacknowledged', $reason),
+                [],
+            );
+            $this->assertBlockedExecutionReview($policy);
+        }
+
+        foreach (['unacknowledged', 'missing', 'invalid', 'stale', 'ok', 'warn'] as $state) {
+            $policy = (new RunPolicyEvaluator())->evaluate(
+                'E5-001',
+                'governed',
+                $this->executionReviewReferences(
+                    $state,
+                    'semantic review stage correctness-review has no accepted PASS result',
+                ),
+                [],
+            );
+            $this->assertBlockedExecutionReview($policy);
+        }
+    }
+
+    public function testUnavailableReportStillRoutesAnIncompletePipeline(): void
+    {
+        foreach (['unacknowledged', 'missing', 'invalid', 'stale', 'ok', 'warn'] as $state) {
+            $policy = (new RunPolicyEvaluator())->evaluate(
+                'E5-001',
+                'governed',
+                $this->executionReviewReferences($state, 'independent review pipeline is incomplete at stage investigate'),
+                [],
+            );
+            self::assertSame('agent-loop pipeline status E5-001 --format=json', $policy->nextAction);
+            self::assertSame(RunPolicyEvaluation::KIND_COMMAND, $policy->nextActionKind);
+            self::assertStringNotContainsString('--reviewed-report-sha256', $policy->nextAction);
+            self::assertFalse($policy->ordinaryCloseAllowed);
+        }
+
+        foreach (['independent review pipeline has not started', 'independent review pipeline is waiting for Attention'] as $reason) {
+            $policy = (new RunPolicyEvaluator())->evaluate(
+                'E5-001',
+                'governed',
+                $this->executionReviewReferences('unacknowledged', $reason),
+                [],
+            );
+            self::assertSame('agent-loop pipeline status E5-001 --format=json', $policy->nextAction);
+        }
+    }
+
+    public function testRecoveredPipelineRoutesBeforeAcknowledgementAndThenAllowsIt(): void
+    {
+        $references = $this->executionReviewReferences(
+            'unacknowledged',
+            'recovered execution pipeline: review is incomplete',
+        );
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+        self::assertSame('agent-loop pipeline status E5-001 --format=json', $policy->nextAction);
+        self::assertFalse($policy->ordinaryCloseAllowed);
+
+        $references['verification']['state'] = 'ready';
+        $complete = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $complete->nextActionKind);
+        self::assertStringContainsString('--reviewed-report-sha256 sha256:' . str_repeat('a', 64), $complete->nextAction);
+    }
+
+    public function testMissingRecallArtifactStillRoutesToRecovery(): void
+    {
+        $references = $this->executionReviewReferences(
+            'unacknowledged',
+            'independent review pipeline is incomplete at stage investigate',
+        );
+        $references['recall']['state'] = 'missing';
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+
+        self::assertSame('agent-loop enter E5-001', $policy->nextAction);
+    }
+
+    private function assertBlockedExecutionReview(RunPolicyEvaluation $policy): void
+    {
+        self::assertSame(RunPolicyEvaluation::KIND_HOST_WORK, $policy->nextActionKind);
+        self::assertStringContainsString('resolve the blocked independent execution review', $policy->nextAction);
+        self::assertStringNotContainsString('before acknowledging the Recall report', $policy->nextAction);
+        self::assertStringNotContainsString('--reviewed-report-sha256', $policy->nextAction);
+        self::assertStringNotContainsString('agent-loop pipeline status', $policy->nextAction);
+        self::assertFalse($policy->ordinaryCloseAllowed);
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function executionReviewReferences(string $reportState, string $reason): array
+    {
+        $references = $this->references(
+            contract: 'approved',
+            approval: 'current',
+            session: 'active',
+            recall: 'compiled',
+            executionContract: 'not_required',
+            verification: 'blocked',
+            review: $reportState,
+            learning: 'missing',
+        );
+        $references['verification']['gate'] = 'execution_review';
+        $references['verification']['reason'] = $reason;
+        $references['review']['source'] = ['sha256' => 'sha256:' . str_repeat('a', 64)];
+
+        return $references;
+    }
+
+    public function testFailedReviewRetainsPriorityOverOrdinaryIncompletePipeline(): void
+    {
+        $references = $this->references(
+            contract: 'approved',
+            approval: 'current',
+            session: 'active',
+            recall: 'compiled',
+            executionContract: 'not_required',
+            verification: 'blocked',
+            review: 'fail',
+            learning: 'missing',
+        );
+        $references['verification']['gate'] = 'execution_review';
+        $references['verification']['reason'] = 'independent review pipeline is incomplete at stage investigate';
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+        self::assertSame('agent-loop review blindspots E5-001', $policy->nextAction);
+        self::assertFalse($policy->ordinaryCloseAllowed);
+    }
+
     public function testRecallOutcomeFinishTemplatePreservesArgumentTokens(): void
     {
         $references = $this->references(
