@@ -201,10 +201,16 @@ final readonly class WorkflowCloseReadinessInspector
      */
     private function candidateDriftFailure(string $taskId, string $reviewedCandidate): ?string
     {
+        $gateway = new ExecutionGateway($this->rootPath);
         try {
-            $observed = (new ExecutionGateway($this->rootPath))->candidateDrift($taskId);
+            $observed = $gateway->candidateDrift($taskId);
+            $awaitingAdoption = $observed === null && $gateway->candidateAwaitingAdoption($taskId);
         } catch (RuntimeException $exception) {
             return 'the current workspace candidate cannot be compared with the reviewed candidate ' . $reviewedCandidate . ': ' . $exception->getMessage();
+        }
+        if ($awaitingAdoption) {
+            return 'the owner checkout still holds the base, not the reviewed candidate ' . $reviewedCandidate
+                . '; adopt the reviewed candidate from its worktree before finish';
         }
         if ($observed === null) {
             return null;

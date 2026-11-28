@@ -114,7 +114,9 @@ final class PipelineCandidateDriftTest extends TestCase
         $state = file_get_contents((new ExecutionStateStore($this->run->root))->path('VER-1'));
 
         self::assertNull($gateway->candidateDrift('VER-1'), 'An owner checkout holding the base has not changed the candidate.');
-        self::assertNull($this->pendingFailure());
+        self::assertTrue($gateway->candidateAwaitingAdoption('VER-1'));
+        self::assertStringContainsString('adopt the reviewed candidate from its worktree before finish', (string) $this->pendingFailure());
+        self::assertStringNotContainsString('pipeline recover', (string) $this->pendingFailure());
         foreach (['status', 'run'] as $command) {
             [, $payload] = $this->pipeline([$command, 'VER-1']);
             self::assertTrue($payload['complete'], $command);
@@ -124,6 +126,35 @@ final class PipelineCandidateDriftTest extends TestCase
 
         [, $explicit] = $this->pipeline(['status', 'VER-1', '--workspace=' . $this->run->workspace]);
         self::assertSame('complete', $explicit['status'], 'The worktree still holds the reviewed candidate.');
+    }
+
+    public function testAForeignOutOfScopeEditDoesNotTurnAnUnadoptedCandidateIntoRecovery(): void
+    {
+        $gateway = new ExecutionGateway($this->run->root);
+        self::assertTrue($gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+        file_put_contents($this->run->root . '/README.md', "Unrelated owner-checkout change.\n");
+
+        self::assertNull($gateway->candidateDrift('VER-1'));
+        self::assertTrue($gateway->candidateAwaitingAdoption('VER-1'));
+        [, $status] = $this->pipeline(['status', 'VER-1']);
+        self::assertSame('agent-loop finish VER-1', $status['next_action']);
+        $failure = $this->closeFailure();
+        self::assertSame('execution_review', $failure['gate']);
+        self::assertStringContainsString('adopt the reviewed candidate', $failure['detail']);
+    }
+
+    public function testRevertingTheAdoptedCandidateInTheOwnerCheckoutBlocksClose(): void
+    {
+        $gateway = new ExecutionGateway($this->run->root);
+        self::assertTrue($gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+        $base = (string) file_get_contents($this->run->root . '/src/Foo.php');
+        $this->copyWorkspaceSourceIntoRoot();
+        self::assertFalse($gateway->candidateAwaitingAdoption('VER-1'));
+
+        file_put_contents($this->run->root . '/src/Foo.php', $base);
+
+        self::assertTrue($gateway->candidateAwaitingAdoption('VER-1'));
+        self::assertStringContainsString('still holds the base, not the reviewed candidate', $this->closeFailure()['detail']);
     }
 
     public function testRecoveryAtVerifyStaysFailClosedForOutOfScopeChanges(): void

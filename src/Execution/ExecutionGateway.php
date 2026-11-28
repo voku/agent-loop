@@ -174,19 +174,39 @@ final readonly class ExecutionGateway
      * Observation only: the candidate the workspace holds now when it differs from
      * the execution's accepted candidate, compared the way verify compares it (the
      * approved scope in the owner checkout, the whole tree in a candidate worktree).
-     * Null means the workspace still holds the accepted candidate. It never
-     * changes execution state; recovery stays the explicit `pipeline recover` step.
+     * Null means the workspace still holds the accepted candidate, or the implicit
+     * owner checkout still holds the unchanged base (see candidateAwaitingAdoption()).
+     * It never changes execution state; recovery stays the explicit `pipeline recover` step.
      *
      * @return non-empty-string|null
      */
     public function candidateDrift(string $taskId, ?string $candidateWorkspace = null): ?string
+    {
+        [$kind, $observed] = $this->observeCandidateDrift($taskId, $candidateWorkspace);
+
+        return $kind === 'changed' ? $observed : null;
+    }
+
+    /**
+     * True when the implicit owner checkout holds the unchanged base on the approved
+     * scope while the accepted candidate differs: the reviewed candidate still lives
+     * in another worktree and must be adopted before close. Not a recovery case,
+     * because recovering to the base would reopen build on reverted content.
+     */
+    public function candidateAwaitingAdoption(string $taskId): bool
+    {
+        return $this->observeCandidateDrift($taskId, null)[0] === 'awaiting_adoption';
+    }
+
+    /** @return array{0: 'none'|'unchanged'|'awaiting_adoption'|'changed', 1: non-empty-string|null} */
+    private function observeCandidateDrift(string $taskId, ?string $candidateWorkspace): array
     {
         [$contract, , $plan] = $this->current($taskId);
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
         if (!$state instanceof ExecutionState || $plan->baseCommit === null || !$this->hasMutatingAgentStage($plan)) {
             // A plan without a mutating agent stage (the manual profile) never
             // accepts a candidate, so its workspace has nothing to drift from.
-            return null;
+            return ['none', null];
         }
         $workspace = $this->verifyWorkspace($candidateWorkspace);
         $identity = new CandidateWorkspaceIdentity();
@@ -197,23 +217,24 @@ final readonly class ExecutionGateway
         try {
             $identity->assertHolds($workspace, $plan->baseCommit, $state->candidateRevision, $statePath, $scope);
 
-            return null;
+            return ['unchanged', null];
         } catch (RuntimeException $exception) {
             if (!str_starts_with($exception->getMessage(), 'CANDIDATE_MISMATCH:')) {
                 throw $exception;
             }
         }
-        $observed = $identity->observe($workspace, $plan->baseCommit, $statePath);
-        // An implicit owner checkout that still holds the unchanged base has not
-        // changed the candidate: the reviewed candidate lives in another worktree
-        // until it is adopted (the same guard as observeStageCandidate). Routing it
-        // to recovery would reopen build on reverted content.
+        // Compared on the same paths as the drift check above, so unrelated files
+        // in the owner checkout do not hide that its scope still holds the base.
         if ($candidateWorkspace === null
-            && hash_equals($identity->normalize($workspace, $plan->baseCommit, $plan->baseCommit), $observed)) {
-            return null;
+            && hash_equals(
+                $identity->normalize($workspace, $plan->baseCommit, $plan->baseCommit),
+                $identity->observe($workspace, $plan->baseCommit, $statePath, $scope),
+            )) {
+            return ['awaiting_adoption', null];
         }
+        $observed = $identity->observe($workspace, $plan->baseCommit, $statePath);
 
-        return $observed === '' || hash_equals($observed, $state->candidateRevision) ? null : $observed;
+        return $observed === '' || hash_equals($observed, $state->candidateRevision) ? ['unchanged', null] : ['changed', $observed];
     }
 
     private function hasMutatingAgentStage(ExecutionPlan $plan): bool
