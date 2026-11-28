@@ -6183,16 +6183,16 @@
         },
         {
             "name": "voku/itp-context",
-            "version": "0.4.0",
+            "version": "0.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/itp-context.git",
-                "reference": "80ea5b8288fc5b7f551c54caade93297a75132b1"
+                "reference": "fff29fd7f639be8b53ac415046a0846d1de26b32"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/itp-context/zipball/80ea5b8288fc5b7f551c54caade93297a75132b1",
-                "reference": "80ea5b8288fc5b7f551c54caade93297a75132b1",
+                "url": "https://api.github.com/repos/voku/itp-context/zipball/fff29fd7f639be8b53ac415046a0846d1de26b32",
+                "reference": "fff29fd7f639be8b53ac415046a0846d1de26b32",
                 "shasum": ""
             },
             "require": {
@@ -6200,14 +6200,15 @@
             },
             "require-dev": {
                 "phpstan/phpstan": "^2.1",
-                "phpunit/phpunit": "^11.5"
+                "phpunit/phpunit": "^11.5 || ^12.0"
             },
             "bin": [
                 "bin/itp-context-summarize",
                 "bin/itp-context-validate",
                 "bin/itp-context-generate",
                 "bin/itp-context-export",
-                "bin/itp-context-query"
+                "bin/itp-context-query",
+                "bin/itp-context-source-hints"
             ],
             "type": "library",
             "extra": {
@@ -6246,7 +6247,8 @@
                 "issues": "https://github.com/voku/itp-context/issues",
                 "source": "https://github.com/voku/itp-context"
             },
-            "time": "2026-10-14T21:35:41+00:00"
+            "time": "2026-11-27T13:36:40+00:00",
+            "published-time": "2026-11-27T13:37:57+00:00"
         },
         {
             "name": "voku/phpstan-agent-format",
