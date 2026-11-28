@@ -201,16 +201,18 @@ final readonly class WorkflowCloseReadinessInspector
      */
     private function candidateDriftFailure(string $taskId, string $reviewedCandidate): ?string
     {
-        $gateway = new ExecutionGateway($this->rootPath);
         try {
-            $observed = $gateway->candidateDrift($taskId);
-            $awaitingAdoption = $observed === null && $gateway->candidateAwaitingAdoption($taskId);
+            [$kind, $observed] = (new ExecutionGateway($this->rootPath))->observeCandidateDrift($taskId);
         } catch (RuntimeException $exception) {
             return 'the current workspace candidate cannot be compared with the reviewed candidate ' . $reviewedCandidate . ': ' . $exception->getMessage();
         }
-        if ($awaitingAdoption) {
+        if ($kind === 'awaiting_adoption') {
             return 'the owner checkout still holds the base, not the reviewed candidate ' . $reviewedCandidate
                 . '; adopt the reviewed candidate from its worktree before finish';
+        }
+        if ($kind === 'changed_with_foreign_files') {
+            return 'the owner checkout changed the approved scope after the reviewed candidate ' . $reviewedCandidate
+                . ' and also holds unrelated changes outside the scope; set those aside, or move the changed candidate into a clean worktree and run agent-loop pipeline recover ' . $taskId . ' --candidate <its candidate> --workspace <that worktree>';
         }
         if ($observed === null) {
             return null;

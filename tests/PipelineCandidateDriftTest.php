@@ -157,6 +157,24 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertStringContainsString('still holds the base, not the reviewed candidate', $this->closeFailure()['detail']);
     }
 
+    public function testAnInScopeEditNextToForeignOwnerCheckoutFilesNamesNoRecoveryThatWouldFail(): void
+    {
+        $gateway = new ExecutionGateway($this->run->root);
+        self::assertTrue($gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+        $this->copyWorkspaceSourceIntoRoot();
+        file_put_contents($this->run->root . '/README.md', "Unrelated owner-checkout change.\n");
+        self::assertSame('unchanged', $gateway->observeCandidateDrift('VER-1')[0], 'Verify tolerates foreign files outside the scope.');
+
+        file_put_contents($this->run->root . '/src/Foo.php', "<?php\nfinal class Foo { public const int VALUE = 7; }\n");
+
+        self::assertSame(['changed_with_foreign_files', null], $gateway->observeCandidateDrift('VER-1'));
+        self::assertNull($gateway->candidateDrift('VER-1'));
+        $failure = $this->closeFailure();
+        self::assertSame('execution_review', $failure['gate']);
+        self::assertStringContainsString('also holds unrelated changes outside the scope; set those aside', $failure['detail']);
+        self::assertStringNotContainsString('--candidate git-tree-v1:', $failure['detail']);
+    }
+
     public function testRecoveryAtVerifyStaysFailClosedForOutOfScopeChanges(): void
     {
         file_put_contents($this->run->workspace . '/README.md', "Unrelated change.\n");

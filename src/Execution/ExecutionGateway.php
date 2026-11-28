@@ -198,8 +198,16 @@ final readonly class ExecutionGateway
         return $this->observeCandidateDrift($taskId, null)[0] === 'awaiting_adoption';
     }
 
-    /** @return array{0: 'none'|'unchanged'|'awaiting_adoption'|'changed', 1: non-empty-string|null} */
-    private function observeCandidateDrift(string $taskId, ?string $candidateWorkspace): array
+    /**
+     * How the workspace relates to the accepted candidate, for the close gate:
+     * 'none' (nothing to compare), 'unchanged', 'awaiting_adoption', 'changed'
+     * (recoverable with the returned candidate) or 'changed_with_foreign_files'
+     * (an in-scope change in an owner checkout that also holds unrelated files
+     * outside the scope, which recovery would refuse; no candidate is named).
+     *
+     * @return array{0: 'none'|'unchanged'|'awaiting_adoption'|'changed'|'changed_with_foreign_files', 1: non-empty-string|null}
+     */
+    public function observeCandidateDrift(string $taskId, ?string $candidateWorkspace = null): array
     {
         [$contract, , $plan] = $this->current($taskId);
         $state = (new ExecutionStateStore($this->rootPath))->find($taskId);
@@ -231,6 +239,12 @@ final readonly class ExecutionGateway
                 $identity->observe($workspace, $plan->baseCommit, $statePath, $scope),
             )) {
             return ['awaiting_adoption', null];
+        }
+        // Recovery claims the whole tree and refuses changed files outside the
+        // scope, so naming it for an owner checkout with foreign files would
+        // route to a command that is bound to fail.
+        if ($scope !== [] && $identity->differsOutsideScope($workspace, $plan->baseCommit, $statePath, $scope)) {
+            return ['changed_with_foreign_files', null];
         }
         $observed = $identity->observe($workspace, $plan->baseCommit, $statePath);
 

@@ -161,7 +161,10 @@ names where the candidate lives; a completed Run is compared in the owner
 checkout, where it closes, and an owner checkout whose approved scope still
 holds the unchanged base is not drift: the reviewed candidate is then still
 waiting to be adopted from its worktree, and the close gate asks for that
-adoption instead of naming recovery), and the close gate (`finish`, `workflow status`) blocks at
+adoption instead of naming recovery; an in-scope change in an owner checkout
+that also holds unrelated files outside the scope names no recovery either,
+because recovery would refuse those files: set them aside or recover from a
+clean candidate worktree with `--workspace`), and the close gate (`finish`, `workflow status`) blocks at
 the execution review gate with a reason naming both candidates and the exact
 recovery command. Loop does not recover on its own; the owner supplies the
 content-addressed candidate to:
