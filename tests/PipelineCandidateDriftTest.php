@@ -208,6 +208,29 @@ final class PipelineCandidateDriftTest extends TestCase
         }
     }
 
+    public function testAnEditAfterTheLearningDecisionNamesTheSupersedeRouteInsteadOfRecovery(): void
+    {
+        $gateway = new ExecutionGateway($this->run->root);
+        self::assertTrue($gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+        $this->copyWorkspaceSourceIntoRoot();
+        $this->finish([]);
+        $review = (new \voku\AgentLoop\Workflow\WorkflowReviewReportReader($this->run->root))->read('VER-1');
+        self::assertIsString($review['sha256']);
+        $this->finish(['--reviewed-report-sha256', $review['sha256'], '--by', 'fixture-reviewer']);
+        self::assertSame(0, $this->finish(['--learning', 'no_durable_learning', '--by', 'fixture-reviewer']));
+
+        file_put_contents($this->run->root . '/src/Foo.php', "<?php\nfinal class Foo { public const int VALUE = 9; }\n");
+
+        self::assertSame(['changed_after_learning', null], $gateway->observeCandidateDrift('VER-1'));
+        self::assertNull($gateway->candidateDrift('VER-1'));
+        [, $status] = $this->pipeline(['status', 'VER-1']);
+        self::assertStringNotContainsString('pipeline recover', $status['next_action']);
+        $failure = (string) $this->pendingFailure();
+        self::assertStringContainsString('already recorded its Learning decision', $failure);
+        self::assertStringContainsString('--supersede', $failure);
+        self::assertStringNotContainsString('pipeline recover', $failure);
+    }
+
     public function testRecoveryAtVerifyStaysFailClosedForOutOfScopeChanges(): void
     {
         file_put_contents($this->run->workspace . '/README.md', "Unrelated change.\n");
@@ -285,6 +308,20 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertNotNull($failure);
 
         return $failure;
+    }
+
+    /** @param list<string> $options */
+    private function finish(array $options): int
+    {
+        $level = ob_get_level();
+        ob_start();
+        try {
+            return (new \voku\AgentLoop\Workflow\HostFrontDoorApplication($this->run->root))->run('finish', ['VER-1', '--format=json', ...$options]);
+        } finally {
+            while (ob_get_level() > $level) {
+                ob_end_clean();
+            }
+        }
     }
 
     private function pendingFailure(): ?string

@@ -210,6 +210,10 @@ final readonly class WorkflowCloseReadinessInspector
             return 'the owner checkout still holds the base, not the reviewed candidate ' . $reviewedCandidate
                 . '; adopt the reviewed candidate from its worktree before finish';
         }
+        if ($kind === 'changed_after_learning') {
+            return 'the workspace changed after the reviewed candidate ' . $reviewedCandidate
+                . ' and the Run already recorded its Learning decision; start a new Contract revision (agent-loop workflow plan ' . $taskId . ' ... --supersede) to change the implementation';
+        }
         if ($kind === 'changed_with_foreign_files') {
             return 'the owner checkout changed the approved scope after the reviewed candidate ' . $reviewedCandidate
                 . ' and also holds unrelated changes outside the scope; set those aside, or move the changed candidate into a clean worktree and run agent-loop pipeline recover ' . $taskId . ' --candidate <its candidate> --workspace <that worktree>';
