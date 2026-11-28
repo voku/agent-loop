@@ -491,18 +491,23 @@ final readonly class InitWizardCommand
             ];
         }
         if (isset($answers['map.paths'])) {
-            // An unanswered language question proposes nothing: the build indexes what map build resolves
-            // today, so a later plain map build agrees with it. Only an invalid declaration needs explicit
-            // languages, because map build refuses it.
-            $languages = $answers['map.languages'] ?? $resolvedLanguages ?? $byId['map.languages']['default'];
-            // An invalid declaration makes map build refuse unless --languages is explicit.
-            $nextActions[] = [
-                'id' => 'map.paths',
-                // Without --languages, map build adds the configured languages (or php), so omit it only when that is the choice.
-                'command' => 'vendor/bin/agent-loop map build --paths=' . escapeshellarg(implode(',', $answers['map.paths']))
-                    . ($languages === $resolvedLanguages ? '' : ' --languages=' . escapeshellarg(implode(',', $languages))),
-                'requires_confirmation' => true,
-            ];
+            // Only an explicit answer may override the effective configuration.
+            $languages = $answers['map.languages'] ?? $resolvedLanguages;
+            if ($languages === null) {
+                $nextActions[] = [
+                    'id' => 'map.paths',
+                    'status' => 'prerequisite_required',
+                    'prerequisite' => 'Answer map.languages explicitly before building a map with an invalid language declaration.',
+                    'requires_confirmation' => true,
+                ];
+            } else {
+                $nextActions[] = [
+                    'id' => 'map.paths',
+                    'command' => 'vendor/bin/agent-loop map build --paths=' . escapeshellarg(implode(',', $answers['map.paths']))
+                        . ($languages === $resolvedLanguages ? '' : ' --languages=' . escapeshellarg(implode(',', $languages))),
+                    'requires_confirmation' => true,
+                ];
+            }
         }
         foreach (['checks.composer_scripts' => 'composer', 'checks.package_scripts' => 'package.json'] as $id => $owner) {
             foreach ($answers[$id] ?? [] as $script) {
