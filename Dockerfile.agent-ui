@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-FROM composer:2.11.2@sha256:50ea4d33fdcde1adb0f045547295faa1548b33872e5f789dae5b02ce2fb5de93 AS composer
+FROM composer:2.11.3@sha256:4e5f671c4a5784b422c20fcb993a38da96529438889dbce40be27c452d18dd6d AS composer
 
-FROM php:8.6.0-cli-trixie@sha256:d84acf3155d907afaa5afa9b9457c5f12016b6dc7ade84659f40cdc505cc087d
+FROM php:8.6.0-cli-trixie@sha256:64340b5b5eb25273bdd0986124c8efb08dadfbd4fda6929c8a44618a318c7b17
 
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes \

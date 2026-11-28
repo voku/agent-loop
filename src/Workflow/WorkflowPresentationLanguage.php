@@ -6,18 +6,21 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
+use voku\AgentLoop\AgentGuidance\HostSessionBinding;
 use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
 
 /**
- * Language for human-facing decision text. A host session may override the
- * project's prompting.language for itself only; the project setting, recorded
- * decisions and machine-readable tokens stay unchanged. Presentation only.
+ * Language for human-facing decision text: the host session's language, else the
+ * user's default language, else the project's prompting.language. The project
+ * setting, recorded decisions and machine-readable tokens stay unchanged.
+ * Presentation only.
  */
 final readonly class WorkflowPresentationLanguage
 {
     public const string SOURCE_HOST_SESSION = 'host_session';
+    public const string SOURCE_USER_DEFAULT = 'user_default';
     public const string SOURCE_PROJECT = 'project';
 
     private function __construct(public string $language, public string $source)
@@ -26,17 +29,19 @@ final readonly class WorkflowPresentationLanguage
 
     public static function resolve(string $rootPath): self
     {
-        $directory = getenv('AGENT_LOOP_INTERACTION_DIR');
-        $session = getenv('AGENT_LOOP_HOST_SESSION_ID');
-        if (is_string($directory) && $directory !== '' && is_string($session) && $session !== '') {
-            try {
-                $language = (new InteractionPreferenceStore($directory))->find($session)?->language;
-                if ($language !== null) {
-                    return new self($language, self::SOURCE_HOST_SESSION);
-                }
-            } catch (Throwable) {
-                // An unreadable host preference cannot change presentation; the project setting applies.
+        try {
+            $binding = HostSessionBinding::fromEnvironment();
+            $language = $binding->preference()?->language;
+            if ($language !== null) {
+                return new self($language, self::SOURCE_HOST_SESSION);
             }
+            // The user's own default follows them into every new session; a session language still wins.
+            $default = $binding->directory === null ? null : (new InteractionPreferenceStore($binding->directory))->defaultLanguage();
+            if ($default !== null) {
+                return new self($default, self::SOURCE_USER_DEFAULT);
+            }
+        } catch (Throwable) {
+            // An unreadable host preference cannot change presentation; the project setting applies.
         }
 
         $config = (new InitConfigLoader($rootPath))->load((new ProjectLayout($rootPath))->configPath());

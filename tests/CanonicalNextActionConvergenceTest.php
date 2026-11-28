@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use PHPUnit\Framework\Attributes\Group;
 
 /**
@@ -113,6 +114,105 @@ final class CanonicalNextActionConvergenceTest extends TestCase
         [$action, $kind] = $this->nextStep();
         self::assertSame('command_template', $kind);
         self::assertStringContainsString('--reviewed-report-sha256', $action);
+    }
+
+    public function testStandardPipelineFinishesBeforeRequestingReportAcknowledgement(): void
+    {
+        $this->enterStandardPipeline();
+
+        self::assertSame('agent-loop pipeline status CONV-001 --format=json', $this->nextStep()[0]);
+        $this->repairDeclaredValidation();
+
+        ob_start();
+        $exit = (new HostFrontDoorCommand($this->root))->run('finish', ['CONV-001', '--format=json']);
+        $finish = json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertNotSame(0, $exit);
+        self::assertSame('execution_review', $finish['manifest']['references']['verification']['gate'] ?? null);
+        self::assertSame('unacknowledged', $finish['manifest']['references']['review']['state'] ?? null);
+        self::assertSame('agent-loop pipeline status CONV-001 --format=json', $finish['next_action'] ?? null);
+        self::assertSame(['agent-loop pipeline status CONV-001 --format=json', 'command'], $this->nextStep());
+    }
+
+    public function testInvalidReportDoesNotPreemptAnIncompleteStandardPipeline(): void
+    {
+        $this->enterStandardPipeline();
+
+        $reportPath = (new WorkflowReviewReportReader($this->root))->absolutePath('CONV-001');
+        if (!is_dir(dirname($reportPath))) {
+            self::assertTrue(mkdir(dirname($reportPath), 0o775, true));
+        }
+        self::assertNotFalse(file_put_contents($reportPath, '{invalid report'));
+
+        ob_start();
+        $statusExit = $this->dispatchInRoot([
+            'agent-loop',
+            'workflow',
+            'status',
+            'CONV-001',
+            '--format=json',
+        ]);
+        $statusOutput = (string) ob_get_clean();
+        $status = json_decode($statusOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(2, $statusExit, $statusOutput);
+        self::assertSame('review.report_invalid', $status['manifest']['disagreements'][0]['code'] ?? null);
+        self::assertSame('invalid', $status['manifest']['references']['review']['state'] ?? null);
+        self::assertSame('execution_review', $status['manifest']['references']['verification']['gate'] ?? null);
+        self::assertStringContainsString(
+            'incomplete at stage investigate',
+            $status['manifest']['references']['verification']['reason'] ?? '',
+        );
+        self::assertSame(
+            'agent-loop pipeline status CONV-001 --format=json',
+            $status['manifest']['next_action'] ?? null,
+        );
+        self::assertSame('command', $status['manifest']['next_action_kind'] ?? null);
+
+        ob_start();
+        $finishExit = (new HostFrontDoorCommand($this->root))->run('finish', ['CONV-001', '--format=json']);
+        $finish = json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertNotSame(0, $finishExit);
+        self::assertSame('review.report_invalid', $finish['manifest']['disagreements'][0]['code'] ?? null);
+        self::assertSame('agent-loop pipeline status CONV-001 --format=json', $finish['next_action'] ?? null);
+        self::assertStringNotContainsString('--reviewed-report-sha256', $finish['next_action'] ?? '');
+    }
+
+    private function enterStandardPipeline(): void
+    {
+        exec('git -C ' . escapeshellarg($this->root) . ' init --quiet', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.name fixture', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.email fixture@example.invalid', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' add src/Greeter.php', $output, $exit);
+        self::assertSame(0, $exit);
+        exec('git -C ' . escapeshellarg($this->root) . ' commit --quiet -m fixture', $output, $exit);
+        self::assertSame(0, $exit);
+
+        self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']), 'map build');
+        self::assertSame(0, $this->dispatch([
+            'agent-loop',
+            'workflow',
+            'approve',
+            'CONV-001',
+            '--revision',
+            '1',
+            '--by',
+            'lars',
+        ]), 'approve');
+        self::assertSame(0, $this->dispatch([
+            'agent-loop',
+            'workflow',
+            'execution-profile',
+            'CONV-001',
+            '--profile',
+            'standard',
+            '--by',
+            'lars',
+        ]), 'execution profile');
+        self::assertSame(0, $this->frontDoor('enter'), 'enter succeeds while exposing the pending pipeline as next action');
     }
 
     private function frontDoor(string $command): int

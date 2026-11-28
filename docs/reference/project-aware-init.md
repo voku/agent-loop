@@ -2,7 +2,7 @@
 
 The first slice of [#947](https://github.com/voku/agent-loop/issues/947) exposes deterministic project evidence to a human or an LLM-aware coding host:
 
-For the **actual end-user onboarding flow**, see [PHP project onboarding with a coding agent](php-project-onboarding.md). The coding host's own LLM uses the evidence; Agent Loop needs no second model client.
+For the **actual end-user onboarding flow**, see [PHP project onboarding with a coding agent](php-project-onboarding.md). To walk through the same evidence as fixed, versioned questions (with per-user language overrides), run the read-only [setup wizard](setup-wizard.md); `agent-loop setup` is the canonical name of these commands and `init` a compatible alias. The coding host's own LLM uses the evidence; Agent Loop needs no second model client.
 
 ```bash
 vendor/bin/agent-loop init recommend --format=json

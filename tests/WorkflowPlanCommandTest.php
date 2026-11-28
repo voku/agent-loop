@@ -666,9 +666,10 @@ CARD,
             ]);
             ob_end_clean();
 
-            self::assertSame(0, $exitExplicit);
-            $contractExplicit = (new TaskContractStore($root))->load('TASK-GIT-2');
-            self::assertSame('explicit-sha-1234', $contractExplicit->baseCommit);
+            // An explicit base that is not a commit is refused at plan time: storing it
+            // would only produce a Contract that execution later cannot enter.
+            self::assertSame(1, $exitExplicit);
+            self::assertNull((new TaskContractStore($root))->find('TASK-GIT-2'));
         } finally {
             $this->removeDirectory($root);
         }

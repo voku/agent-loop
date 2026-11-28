@@ -7,10 +7,11 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
-use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
+use voku\AgentLoop\AgentGuidance\HostSessionBinding;
 use voku\AgentLoop\FutureWorkMode;
 use voku\AgentLoop\HumanExplanationPolicy;
 use voku\AgentLoop\Init\InitConfigLoader;
+use voku\AgentLoop\Init\RepositoryActivation;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
@@ -97,6 +98,9 @@ final readonly class WorkflowContextCommand
                 echo json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
             } else {
                 echo implode("\n", $context['lines']) . "\n";
+                if ($context['interaction']['question'] !== null) {
+                    echo self::questionLine($context['interaction']['question']) . "\n";
+                }
             }
 
             return 0;
@@ -165,7 +169,9 @@ final readonly class WorkflowContextCommand
      *         human_explanations: 'ask'|'always'|'never',
      *         interactive_behavior: 'ask'|'generate'|'skip',
      *         unattended_behavior: 'generate'|'skip',
-     *         authority_bearing_decisions: 'human_required'
+     *         authority_bearing_decisions: 'human_required',
+     *         host_session: array{state: string, source: string|null, session_id: string|null, preference: 'not_applicable'|'unavailable'|'unknown'|'known', mode: string|null, mode_source: 'task_override'|'session_default'|'shared_default'|null},
+     *         question: array{id: 'interaction_mode', text: string, blocking: false, unattended: 'skip', choices: list<array{id: string, effect: string, command: string}>}|null
      *     },
      *     future_work: array{
      *         mode: 'focus'|'discover'|'invest',
@@ -205,26 +211,24 @@ final readonly class WorkflowContextCommand
         $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
         $presentationLanguage = WorkflowPresentationLanguage::resolve($this->rootPath);
         $budget->add('policy', 'Response language: ' . $presentationLanguage->language
-            . ($presentationLanguage->source === WorkflowPresentationLanguage::SOURCE_HOST_SESSION ? ' (host session; project: ' . $prompting['language'] . ')' : '')
+            . match ($presentationLanguage->source) {
+                WorkflowPresentationLanguage::SOURCE_HOST_SESSION => ' (host session; project: ' . $prompting['language'] . ')',
+                WorkflowPresentationLanguage::SOURCE_USER_DEFAULT => ' (user default; project: ' . $prompting['language'] . ')',
+                default => '',
+            }
             . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
         $budget->add('policy', 'Blind-spot presentation: ' . $prompting['blindspots']['tone'] . ' tone. Focus on the task or concern supplied by the user; do not invent personal motives or evidence.');
 
-        $interactionDirectory = getenv('AGENT_LOOP_INTERACTION_DIR');
-        $hostSession = getenv('AGENT_LOOP_HOST_SESSION_ID');
-        if (is_string($interactionDirectory) && $interactionDirectory !== '' && is_string($hostSession) && $hostSession !== '') {
-            try {
-                $preference = (new InteractionPreferenceStore($interactionDirectory))->find($hostSession);
-                if ($preference !== null) {
-                    $mode = $preference->modeFor($taskId);
-                    $guidance = $mode === 'autonomous'
-                        ? 'Continue authorized implementation, verification, independent review and in-scope repair without redundant permission requests.'
-                        : 'Discuss meaningful implementation choices and invite feedback; handle routine work without ceremonial confirmations.';
-                    $budget->add('policy', 'Interaction mode: ' . $mode . '. ' . $guidance . ' Behavioral guidance only; no authorization or gate changes.');
-                }
-            } catch (Throwable) {
-                $budget->add('policy', 'Interaction preference unavailable or invalid; no authority is inferred.');
-            }
+        $hostSession = $this->hostSession($taskId);
+        if ($hostSession['mode'] !== null) {
+            $guidance = $hostSession['mode'] === 'autonomous'
+                ? 'Continue authorized implementation, verification, independent review and in-scope repair without redundant permission requests.'
+                : 'Discuss meaningful implementation choices and invite feedback; handle routine work without ceremonial confirmations.';
+            $budget->add('policy', 'Interaction mode: ' . $hostSession['mode'] . '. ' . $guidance . ' Behavioral guidance only; no authorization or gate changes.');
+        } elseif ($hostSession['preference'] === 'unavailable') {
+            $budget->add('policy', 'Interaction preference unavailable or invalid; no authority is inferred.');
         }
+        $question = $hostSession['preference'] === 'unknown' ? $this->interactionQuestion((string) $hostSession['session_id']) : null;
 
         $this->addLifecycleAuthority($budget, $taskId);
 
@@ -295,6 +299,8 @@ final readonly class WorkflowContextCommand
                 'interactive_behavior' => $policy->interactiveBehavior(),
                 'unattended_behavior' => $policy->unattendedBehavior(),
                 'authority_bearing_decisions' => 'human_required',
+                'host_session' => $hostSession,
+                'question' => $question,
             ],
             'future_work' => [
                 'mode' => $futureWorkMode->value,
@@ -306,6 +312,80 @@ final readonly class WorkflowContextCommand
             'omitted' => $budget->omitted(),
             'skipped' => $budget->skipped(),
         ];
+    }
+
+    /**
+     * Binding and preference are separate facts: an unbound or invalid session
+     * has no preference to ask for, an unreadable store is not "no preference".
+     *
+     * @return array{state: string, source: string|null, session_id: string|null, preference: 'not_applicable'|'unavailable'|'unknown'|'known', mode: string|null, mode_source: 'task_override'|'session_default'|'shared_default'|null}
+     */
+    private function hostSession(string $taskId): array
+    {
+        $binding = HostSessionBinding::fromEnvironment();
+        $projection = [
+            'state' => $binding->state,
+            'source' => $binding->source,
+            'session_id' => $binding->sessionId,
+            'preference' => 'not_applicable',
+            'mode' => null,
+            'mode_source' => null,
+        ];
+        if ($binding->state !== HostSessionBinding::BOUND) {
+            return $projection;
+        }
+        if ($binding->directory === null) {
+            return ['preference' => 'unavailable'] + $projection;
+        }
+        try {
+            $preference = $binding->preference();
+            $shared = $binding->inheritsSharedDefault();
+        } catch (Throwable) {
+            return ['preference' => 'unavailable'] + $projection;
+        }
+        if ($preference === null) {
+            return ['preference' => 'unknown'] + $projection;
+        }
+
+        return [
+            'preference' => 'known',
+            'mode' => $preference->modeFor($taskId),
+            'mode_source' => match (true) {
+                isset($preference->taskOverrides[$taskId]) => 'task_override',
+                $shared => 'shared_default',
+                default => 'session_default',
+            },
+        ] + $projection;
+    }
+
+    /** @return array{id: 'interaction_mode', text: string, blocking: false, unattended: 'skip', choices: list<array{id: string, effect: string, command: string}>} */
+    private function interactionQuestion(string $sessionId): array
+    {
+        $command = (new RepositoryActivation($this->rootPath))->cliPath() . ' workflow interaction ' . $sessionId . ' ';
+
+        return [
+            'id' => 'interaction_mode',
+            'text' => 'How should I work in this session: discuss meaningful choices with you, or continue autonomously inside the approved scope?',
+            'blocking' => false,
+            'unattended' => 'skip',
+            'choices' => [
+                ['id' => 'collaborative', 'effect' => 'Discuss meaningful implementation choices; routine work needs no confirmation.', 'command' => $command . 'collaborative'],
+                ['id' => 'autonomous', 'effect' => 'Continue authorized work, review and in-scope repair without extra questions. Approvals stay yours.', 'command' => $command . 'autonomous'],
+            ],
+        ];
+    }
+
+    /**
+     * Rendered outside the context budget: an optional question must never evict
+     * Contract content or make a bounded execution contract exceed its budget.
+     *
+     * @param array{text: string, choices: list<array{id: string, effect: string, command: string}>} $question
+     */
+    public static function questionLine(array $question): string
+    {
+        return 'Ask the developer once, before host work (skip when unattended or already stated): ' . $question['text']
+            . ' Save the answer: ' . implode(' | ', array_column($question['choices'], 'command'))
+            . '. Grants no authority and blocks nothing.';
     }
 
     /**

@@ -10,8 +10,49 @@ use RuntimeException;
 /** Stores host session preferences independently of task and project configuration. */
 final readonly class InteractionPreferenceStore
 {
+    /** The shared host default: the mode new sessions bind to, and the user's default language. */
+    private const string SHARED_DEFAULT = "\0host-default";
+
     public function __construct(private string $directory)
     {
+    }
+
+    /** The user's default presentation language for every host session; null when none is set. */
+    public function defaultLanguage(): ?string
+    {
+        return $this->find(self::SHARED_DEFAULT)?->language;
+    }
+
+    /**
+     * Set or clear (null) the user's default language. It lives on the shared default, so it
+     * needs one: a language is not a mode, and inventing a mode would bind new sessions to it.
+     */
+    public function setDefaultLanguage(?string $language): void
+    {
+        if (!is_dir($this->directory)) {
+            throw new RuntimeException('Set a shared default mode before setting a default language.');
+        }
+        $lock = fopen($this->directory . '/default.lock', 'c');
+        if ($lock === false) {
+            throw new RuntimeException('Cannot open shared preference lock.');
+        }
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                throw new RuntimeException('Cannot lock shared preference.');
+            }
+            if ($this->find(self::SHARED_DEFAULT) === null) {
+                throw new RuntimeException('Set a shared default mode before setting a default language.');
+            }
+            $this->setLanguage(self::SHARED_DEFAULT, $language);
+        } finally {
+            fclose($lock);
+        }
+    }
+
+    /** Whether a shared default exists, so a default language can be stored. */
+    public function hasSharedDefault(): bool
+    {
+        return $this->find(self::SHARED_DEFAULT) !== null;
     }
 
     private function save(InteractionPreference $preference): void
@@ -56,7 +97,9 @@ final readonly class InteractionPreferenceStore
             if (!flock($lock, LOCK_EX)) {
                 throw new RuntimeException('Cannot lock interaction preference.');
             }
-            $existing = $this->find($sessionId);
+            // A task override of a session that only inherits the shared default binds
+            // it in the same write, so a rejected mode leaves the session unbound.
+            $existing = $taskId === null ? $this->find($sessionId) : $this->effective($sessionId);
             if ($taskId !== null) {
                 if ($existing === null) {
                     throw new RuntimeException('Set a session default before setting a task override.');
@@ -121,7 +164,7 @@ final readonly class InteractionPreferenceStore
             }
             $this->update($sessionId, $mode, null);
             try {
-                $this->update("\0host-default", $mode, null);
+                $this->update(self::SHARED_DEFAULT, $mode, null);
             } catch (\Throwable $exception) {
                 throw new RuntimeException('Session preference was saved, but the shared host default was not: ' . $exception->getMessage(), 0, $exception);
             }
@@ -136,6 +179,7 @@ final readonly class InteractionPreferenceStore
         if (trim($sessionId) === '') {
             return null;
         }
+        $this->assertSearchable();
         if (!is_dir($this->directory)) {
             return null;
         }
@@ -151,7 +195,7 @@ final readonly class InteractionPreferenceStore
             if ($current !== null) {
                 return $current;
             }
-            $default = $this->find("\0host-default");
+            $default = $this->find(self::SHARED_DEFAULT);
             if ($default === null) {
                 return null;
             }
@@ -163,11 +207,27 @@ final readonly class InteractionPreferenceStore
         }
     }
 
+    /**
+     * The session's preference or, before it is bound, the shared default it
+     * would be bound to. Never writes, so read-only projections may use it.
+     */
+    public function effective(string $sessionId): ?InteractionPreference
+    {
+        $current = $this->find($sessionId);
+        if ($current !== null || trim($sessionId) === '') {
+            return $current;
+        }
+        $default = $this->find(self::SHARED_DEFAULT);
+
+        return $default === null ? null : new InteractionPreference($sessionId, $default->defaultMode);
+    }
+
     public function find(string $sessionId): ?InteractionPreference
     {
         if (trim($sessionId) === '') {
             return null;
         }
+        $this->assertSearchable();
         $path = $this->path($sessionId);
         if (is_link($path)) {
             throw new RuntimeException('Interaction preference must not be a symlink.');
@@ -175,7 +235,7 @@ final readonly class InteractionPreferenceStore
         if (!is_file($path)) {
             return null;
         }
-        $contents = file_get_contents($path);
+        $contents = is_readable($path) ? file_get_contents($path) : false;
         if (!is_string($contents)) {
             throw new RuntimeException('Cannot read interaction preference.');
         }
@@ -198,6 +258,19 @@ final readonly class InteractionPreferenceStore
         }
 
         return new InteractionPreference($sessionId, $data['default'], $data['tasks'], $language);
+    }
+
+    /** Without search permission, also on a parent, every file looks absent; that is not "no preference". */
+    private function assertSearchable(): void
+    {
+        $nearest = $this->directory;
+        while (!file_exists($nearest) && dirname($nearest) !== $nearest) {
+            $nearest = dirname($nearest);
+        }
+        // is_executable() describes search permission of a directory on POSIX only.
+        if (!is_dir($nearest) || (DIRECTORY_SEPARATOR === '/' && !is_executable($nearest))) {
+            throw new RuntimeException('Cannot read interaction preference directory.');
+        }
     }
 
     private function path(string $sessionId): string

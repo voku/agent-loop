@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use stdClass;
 use RuntimeException;
 use voku\AgentLoop\AgentGuidance\InteractionPreferenceStore;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -136,6 +138,159 @@ final class WorkflowContextCommandTest extends TestCase
             putenv('AGENT_LOOP_INTERACTION_DIR');
             putenv('AGENT_LOOP_HOST_SESSION_ID');
         }
+    }
+
+    public function testBoundSessionWithoutPreferenceGetsOneQuestionAndAnAnswerEndsIt(): void
+    {
+        $directory = $this->root . '/host-preferences';
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        putenv('CLAUDE_CODE_SESSION_ID=claude-a');
+        try {
+            $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+            $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            self::assertSame(
+                ['preference' => 'unknown', 'state' => 'bound', 'source' => 'CLAUDE_CODE_SESSION_ID', 'session_id' => 'claude-a', 'mode' => null, 'mode_source' => null],
+                $context['interaction']['host_session'],
+            );
+            $question = $context['interaction']['question'];
+            self::assertNotNull($question);
+            self::assertStringContainsString('"blocking":false,"unattended":"skip"', json_encode($question, JSON_THROW_ON_ERROR));
+            self::assertSame(['collaborative', 'autonomous'], array_column($question['choices'], 'id'));
+            self::assertStringEndsWith('workflow interaction claude-a collaborative', $question['choices'][0]['command']);
+            self::assertStringEndsWith('workflow interaction claude-a autonomous', $question['choices'][1]['command']);
+            self::assertStringNotContainsString('Ask the developer once', implode("\n", $context['lines']), 'The question never competes for the context budget.');
+            ob_start();
+            self::assertSame(0, (new WorkflowContextCommand($this->root))->run(['ABC-123']));
+            $text = (string) ob_get_clean();
+            self::assertSame(1, substr_count($text, 'Ask the developer once'));
+            foreach ($question['choices'] as $choice) {
+                self::assertStringContainsString($choice['command'], $text);
+            }
+            self::assertDirectoryDoesNotExist($directory, 'Asking must not write a preference.');
+            self::assertEquals($manifest, (new RunManifestProjector($this->root))->project('ABC-123'));
+
+            // A shared default, a session default and a task override each end the question.
+            $store = new InteractionPreferenceStore($directory);
+            $store->setDefault('earlier', 'autonomous');
+            $inherited = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            self::assertNull($inherited['interaction']['question']);
+            self::assertSame(['autonomous', 'shared_default'], [$inherited['interaction']['host_session']['mode'], $inherited['interaction']['host_session']['mode_source']]);
+
+            $store->update('claude-a', 'autonomous', null);
+            $store->update('claude-a', 'collaborative', 'ABC-123');
+            $overridden = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+            self::assertNull($overridden['interaction']['question']);
+            self::assertSame(['collaborative', 'task_override'], [$overridden['interaction']['host_session']['mode'], $overridden['interaction']['host_session']['mode_source']]);
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('CLAUDE_CODE_SESSION_ID');
+        }
+    }
+
+    public function testUnboundInvalidAndUnreadableSessionsAskNothing(): void
+    {
+        $directory = $this->root . '/host-preferences';
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+        try {
+            $command = new WorkflowContextCommand($this->root);
+            $unbound = $command->build('ABC-123', 120, 12000)['interaction'];
+            self::assertSame(['unbound', 'not_applicable'], [$unbound['host_session']['state'], $unbound['host_session']['preference']]);
+            self::assertNull($unbound['question']);
+
+            putenv('AGENT_LOOP_HOST_SESSION_ID=not a session');
+            putenv('CLAUDE_CODE_SESSION_ID=claude-a');
+            $invalid = $command->build('ABC-123', 120, 12000)['interaction'];
+            self::assertSame(['invalid', null], [$invalid['host_session']['state'], $invalid['host_session']['session_id']]);
+            self::assertNull($invalid['question']);
+
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+            mkdir($directory, 0o700);
+            file_put_contents($directory . '/' . hash('sha256', 'claude-a') . '.json', '{ broken');
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            $previous = ['HOME' => getenv('HOME'), 'XDG_STATE_HOME' => getenv('XDG_STATE_HOME')];
+            putenv('HOME');
+            putenv('XDG_STATE_HOME');
+            try {
+                $noDirectory = $command->build('ABC-123', 120, 12000)['interaction'];
+            } finally {
+                foreach ($previous as $name => $value) {
+                    putenv($value === false ? $name : $name . '=' . $value);
+                }
+            }
+            self::assertSame('unavailable', $noDirectory['host_session']['preference']);
+            self::assertNull($noDirectory['question']);
+
+            putenv('AGENT_LOOP_INTERACTION_DIR=' . $directory);
+            $unreadable = $command->build('ABC-123', 120, 12000);
+            self::assertSame('unavailable', $unreadable['interaction']['host_session']['preference']);
+            self::assertNull($unreadable['interaction']['question']);
+            self::assertStringContainsString('Interaction preference unavailable or invalid', implode("\n", $unreadable['lines']));
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('AGENT_LOOP_HOST_SESSION_ID');
+            putenv('CLAUDE_CODE_SESSION_ID');
+        }
+    }
+
+    public function testTheQuestionDisplacesNoContextContentAtAnyBudget(): void
+    {
+        $command = new WorkflowContextCommand($this->root);
+        foreach ([[12, 512], [20, 1500], [40, 4000], [120, 12000]] as [$lines, $bytes]) {
+            $unbound = $command->build('ABC-123', $lines, $bytes);
+            putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->root . '/host-preferences');
+            putenv('CLAUDE_CODE_SESSION_ID=claude-a');
+            try {
+                $bound = $command->build('ABC-123', $lines, $bytes);
+            } finally {
+                putenv('AGENT_LOOP_INTERACTION_DIR');
+                putenv('CLAUDE_CODE_SESSION_ID');
+            }
+            self::assertNotNull($bound['interaction']['question']);
+            self::assertSame($unbound['lines'], $bound['lines']);
+            self::assertSame($unbound['omitted'], $bound['omitted']);
+        }
+    }
+
+    public function testEnterSurfacesTheQuestionWithoutChangingTheNextAction(): void
+    {
+        $enter = function (): stdClass {
+            ob_start();
+            try {
+                (new HostFrontDoorCommand($this->root))->run('enter', ['NEW-1', '--format=json']);
+            } finally {
+                $output = (string) ob_get_clean();
+            }
+            $decoded = json_decode($output, false, 512, JSON_THROW_ON_ERROR);
+            self::assertInstanceOf(stdClass::class, $decoded);
+
+            return $decoded;
+        };
+        $without = $enter();
+        self::assertObjectNotHasProperty('session_question', $without);
+
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->root . '/host-preferences');
+        putenv('CLAUDE_CODE_SESSION_ID=claude-a');
+        try {
+            $with = $enter();
+        } finally {
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('CLAUDE_CODE_SESSION_ID');
+        }
+        ob_start();
+        putenv('AGENT_LOOP_INTERACTION_DIR=' . $this->root . '/host-preferences');
+        putenv('CLAUDE_CODE_SESSION_ID=claude-a');
+        try {
+            (new HostFrontDoorCommand($this->root))->run('enter', ['NEW-1']);
+        } finally {
+            $text = (string) ob_get_clean();
+            putenv('AGENT_LOOP_INTERACTION_DIR');
+            putenv('CLAUDE_CODE_SESSION_ID');
+        }
+        self::assertSame(1, substr_count($text, 'Ask the developer once'));
+        self::assertSame('interaction_mode', $with->session_question->id);
+        self::assertSame($without->next_action, $with->next_action);
+        self::assertSame($without->next_action_kind, $with->next_action_kind);
+        self::assertSame($without->mutation_ready, $with->mutation_ready);
     }
 
     public function testAutonomousPreferenceDoesNotApproveAnUnapprovedContract(): void

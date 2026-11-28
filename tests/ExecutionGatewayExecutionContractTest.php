@@ -175,7 +175,8 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         $context = implode("\n", $payload['context']['lines']);
 
         self::assertTrue($payload['mutation_ready']);
-        self::assertSame('host_work', $payload['next_action_kind']);
+        self::assertSame('command', $payload['next_action_kind']);
+        self::assertSame('agent-loop pipeline status ' . self::TASK . ' --format=json', $payload['next_action']);
         self::assertStringContainsString('Governed execution contract:', $context);
         self::assertStringContainsString('.agent-loop/recall/' . self::TASK . '/execution-contract.md', $context);
         self::assertStringContainsString('## Goal', $context);
@@ -192,7 +193,8 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         $context = implode("\n", $payload['context']['lines']);
 
         self::assertTrue($payload['mutation_ready']);
-        self::assertSame('host_work', $payload['next_action_kind']);
+        self::assertSame('command', $payload['next_action_kind']);
+        self::assertSame('agent-loop pipeline status ' . self::TASK . ' --format=json', $payload['next_action']);
         self::assertStringNotContainsString('Governed execution contract:', $context);
     }
 

@@ -189,11 +189,11 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
             'semantic review stage correctness-review has stale review evidence',
             (string) ($status['manifest']['references']['verification']['reason'] ?? ''),
         );
-        self::assertStringContainsString(
-            'pipeline status ABC-123',
-            (string) ($status['manifest']['next_action'] ?? ''),
-        );
-        self::assertSame('command', $status['policy']['next_action_kind'] ?? null);
+        $nextAction = (string) ($status['manifest']['next_action'] ?? '');
+        self::assertStringContainsString('resolve the blocked independent execution review', $nextAction);
+        self::assertStringNotContainsString('pipeline status ABC-123', $nextAction);
+        self::assertStringNotContainsString('--reviewed-report-sha256', $nextAction);
+        self::assertSame('host_work', $status['policy']['next_action_kind'] ?? null);
     }
 
     public function testFailedCurrentValidationBlocksStatusWithSameReasonAsClose(): void

@@ -315,6 +315,9 @@ final class ExecutionReviewRoundCapTest extends TestCase
 
     private function buildAndRequestChanges(int $round): void
     {
+        // Each round is a real repair: a rework that keeps the rejected candidate
+        // without rebuttal evidence is refused (see ExecutionReworkProgressTest).
+        file_put_contents($this->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public int \$x = " . $round . "; }\n");
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-' . $round, '--auto-verify']);
         self::assertSame(0, $exit, (string) json_encode($payload));
         [$exit, $payload] = $this->submit(['--outcome', 'changes_required', '--artifact', 'src/Foo.php', '--context-id', 'ctx:review-' . $round]);

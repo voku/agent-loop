@@ -64,6 +64,9 @@ final readonly class WorkflowContractApprovalPresentation
      *     previous_approved_by: string|null,
      *     previous_approved_at: string|null,
      *     previous_goal: string|null,
+     *     previous_rejection_kind: 'rejection'|'change_request'|null,
+     *     previous_rejected_by: string|null,
+     *     previous_rejection_reason: string|null,
      *     lists: array<string, array{added: list<string>, removed: list<string>}>,
      *     empty: bool
      * }|null
@@ -89,6 +92,11 @@ final readonly class WorkflowContractApprovalPresentation
             'previous_approved_by' => $wasApproved ? $this->previousRevision->approvedBy : null,
             'previous_approved_at' => $wasApproved ? $this->previousRevision->approvedAt : null,
             'previous_goal' => $previousGoal,
+            // The archived revision keeps the human decision that ended it, so a
+            // later revision can say whether it answers a change request or a rejection.
+            'previous_rejection_kind' => $this->previousRevision->rejectedBy === null ? null : $this->previousRevision->rejectionKind,
+            'previous_rejected_by' => $this->previousRevision->rejectedBy,
+            'previous_rejection_reason' => $this->previousRevision->rejectedBy === null ? null : $this->previousRevision->rejectionReason,
             'lists' => $lists,
             'empty' => $previousGoal === null && $lists === [],
         ];

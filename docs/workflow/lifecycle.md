@@ -48,6 +48,34 @@ structural references remain unverified navigation evidence: the host inspects
 source and chooses the Contract scope, and the human approval boundary is
 unchanged. Without `--request`, the existing PLAN response is unchanged.
 
+Once the host can name the behavior it is changing, it can ask which files
+structurally depend on that symbol:
+
+```bash
+agent-loop enter <task-id> --target '<Class>::$property' --target '<Class>::method' --format=json
+```
+
+`--target` accepts a class, `Class::method`, `Class::$property` or function
+(at most five, repeatable) and works on every `enter` path. Loop reads the
+already-current Map through its typed relation API and adds
+`references.target_evidence`: the declaring file, then test and source files
+whose relations (calls, property access, instantiation, type references,
+inheritance, trait use) point at the symbol, with per-kind counts, most references first,
+eight files per role and an `omitted` count. For a class, references to its
+methods and properties count too. A short class name resolves only when exactly
+one class, interface, trait or enum carries it. A function name resolves to the
+global function of that name; without one it resolves only when exactly one
+namespaced function carries it. Otherwise the row abstains as
+`target_ambiguous`. When the Contract is approved each path carries
+`in_contract_scope`; the Contract is not changed. An unresolved or ambiguous
+target abstains on its own row; a missing or stale Map abstains for the whole
+projection, as does a source edit while the evidence was being read
+(`evidence_became_stale`) or an owner failure (`projection_failed`), and
+neither changes the `enter` result. A file with no recorded references is missing evidence, not proof
+that nothing depends on the symbol. The projection has authority `none`: it is
+a list of files to read, and choosing scope or requesting a Contract revision
+stays with the host and the human approval boundary.
+
 The structured lifecycle result exposes the facts needed for routing:
 
 - `mutation_ready` — whether implementation work is currently authorized;

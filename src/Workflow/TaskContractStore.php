@@ -10,6 +10,7 @@ use DateTimeInterface;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionProjection;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\ProjectLayout;
 
@@ -134,7 +135,6 @@ final class TaskContractStore
             $plannedBy = WorkflowActorAttribution::normalize($plannedBy, 'revise a Task Contract');
             $this->assertClosableScope($scope);
             $previous = $this->load($taskId);
-            $this->archive($previous);
             $now = $this->now();
             $contract = $this->newContract(
                 $taskId,
@@ -155,6 +155,7 @@ final class TaskContractStore
                 $acceptanceCriteria,
                 $acceptanceObservations,
             );
+            $this->archive($previous);
             $this->write($contract);
 
             return $contract;
@@ -183,13 +184,14 @@ final class TaskContractStore
         }
     }
 
-    public function approve(string $taskId, string $by, int $expectedRevision, ?string $expectedHead = null): TaskContract
+    public function approve(string $taskId, string $by, int $expectedRevision, ?string $expectedHead = null, ?string $recordedBy = null): TaskContract
     {
+        $recordedBy = WorkflowActorAttribution::recorder($recordedBy);
         if (str_starts_with(trim($by), 'standing:')) {
             throw new RuntimeException('The standing: actor prefix is reserved and cannot approve a Task Contract.');
         }
 
-        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $expectedHead): TaskContract {
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $expectedHead, $recordedBy): TaskContract {
             $this->assertExpectedHead($expectedHead);
             $contract = $this->load($taskId);
             if ($expectedRevision !== $contract->revision) {
@@ -205,6 +207,13 @@ final class TaskContractStore
                 );
             }
             if ($contract->status === TaskContract::APPROVED && $contract->approvedBy !== null && $contract->approvedAt !== null) {
+                if ($recordedBy !== null && $recordedBy !== $contract->recordedBy) {
+                    throw new RuntimeException(sprintf(
+                        'Contract revision %d is already approved with a different recorder; the existing approval is kept unchanged.',
+                        $contract->revision,
+                    ));
+                }
+
                 return $contract;
             }
             if ($contract->status !== TaskContract::CANDIDATE) {
@@ -237,6 +246,7 @@ final class TaskContractStore
                 $now,
                 $contract->acceptanceCriteria,
                 $contract->acceptanceObservations,
+                recordedBy: $recordedBy,
             );
             $this->write($approved);
 
@@ -244,15 +254,26 @@ final class TaskContractStore
         });
     }
 
-    public function reject(string $taskId, string $by, int $expectedRevision, string $reason, ?string $expectedHead = null): TaskContract
-    {
+    public function reject(
+        string $taskId,
+        string $by,
+        int $expectedRevision,
+        string $reason,
+        ?string $expectedHead = null,
+        string $kind = TaskContract::REJECTION,
+        ?string $recordedBy = null,
+    ): TaskContract {
+        $recordedBy = WorkflowActorAttribution::recorder($recordedBy);
+        if (!in_array($kind, TaskContract::REJECTION_KINDS, true)) {
+            throw new RuntimeException('Unsupported Contract rejection kind: ' . $kind . '.');
+        }
         $by = trim($by);
         $reason = trim($reason);
         if ($by === '' || str_starts_with($by, 'standing:') || $reason === '' || strlen($reason) > 4000) {
             throw new RuntimeException('Contract rejection requires a named human actor and a reason of at most 4000 bytes.');
         }
 
-        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $reason, $expectedHead): TaskContract {
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision, $reason, $expectedHead, $kind, $recordedBy): TaskContract {
             $this->assertExpectedHead($expectedHead);
             $contract = $this->load($taskId);
             if ($contract->revision !== $expectedRevision || $contract->status !== TaskContract::CANDIDATE) {
@@ -283,6 +304,8 @@ final class TaskContractStore
                 $by,
                 $now,
                 $reason,
+                $kind,
+                $recordedBy,
             );
             $this->write($rejected);
 
@@ -423,6 +446,8 @@ final class TaskContractStore
             $contract->rejectedBy,
             $contract->rejectedAt,
             $contract->rejectionReason,
+            $contract->rejectionKind,
+            $contract->recordedBy,
         );
         $this->atomicWrite($superseded->path, CanonicalJson::pretty($superseded->toArray()));
     }
@@ -497,7 +522,7 @@ final class TaskContractStore
             $updatedAt,
             $this->path($taskId),
             $plannedBy,
-            $this->optionalString($baseCommit),
+            $this->resolvedBaseCommit($baseCommit),
             $tags,
             $behaviorAnchors,
             $operatingPromptManifest,
@@ -505,6 +530,23 @@ final class TaskContractStore
             acceptanceCriteria: $acceptanceCriteria,
             acceptanceObservations: $acceptanceObservations,
         );
+    }
+
+    /**
+     * Resolve before writing a Contract or archiving an approved revision.
+     * A non-Git project retains its historical behavior.
+     */
+    private function resolvedBaseCommit(?string $baseCommit): ?string
+    {
+        $baseCommit = $this->optionalString($baseCommit);
+        if ($baseCommit === null || !GitWorkTree::detected($this->rootPath)) {
+            return $baseCommit;
+        }
+
+        return GitWorkTree::resolveCommit($this->rootPath, $baseCommit)
+            ?? throw new RuntimeException(
+                'Contract base_commit must resolve to exactly one Git commit before planning: ' . $baseCommit,
+            );
     }
 
     private function write(TaskContract $contract): void
@@ -605,6 +647,14 @@ final class TaskContractStore
         $rejectedBy = $this->optionalStringField($data, 'rejected_by', $path);
         $rejectedAt = $this->optionalStringField($data, 'rejected_at', $path);
         $rejectionReason = $this->optionalStringField($data, 'rejection_reason', $path);
+        $rawRejectionKind = array_key_exists('rejection_kind', $data) ? $data['rejection_kind'] : null;
+        $rejectionKind = match (true) {
+            // Contracts written before rejection_kind existed recorded only rejections.
+            $rawRejectionKind === null => $rejectedBy === null ? null : TaskContract::REJECTION,
+            $rejectedBy !== null && $rawRejectionKind === TaskContract::REJECTION => TaskContract::REJECTION,
+            $rejectedBy !== null && $rawRejectionKind === TaskContract::CHANGE_REQUEST => TaskContract::CHANGE_REQUEST,
+            default => throw new RuntimeException('Contract has an unknown or orphaned rejection_kind in ' . $path . '.'),
+        };
         if ($status === TaskContract::REJECTED && ($rejectedBy === null || $rejectedAt === null || $rejectionReason === null || $approvedBy !== null || $approvedAt !== null || str_starts_with($rejectedBy, 'standing:'))) {
             throw new RuntimeException('Rejected Contract has invalid rejection or approval metadata in ' . $path . '.');
         }
@@ -621,6 +671,11 @@ final class TaskContractStore
         }
         if ($status === TaskContract::CANDIDATE && ($approvedBy !== null || $approvedAt !== null)) {
             throw new RuntimeException('Candidate Contract contains stale approval metadata in ' . $path . '.');
+        }
+        $recordedBy = WorkflowActorAttribution::recorderFromRecord($data, $path);
+        if ($recordedBy !== null && $approvedBy === null && $rejectedBy === null) {
+            // A recorder only ever accompanies a recorded decision.
+            throw new RuntimeException('Contract names a recorder without a recorded decision in ' . $path . '.');
         }
         if ($status === TaskContract::APPROVED && str_starts_with(trim($approvedBy), 'standing:')) {
             // A pre-upgrade pseudo-actor cannot authorize a current approval.
@@ -653,6 +708,8 @@ final class TaskContractStore
             $rejectedBy,
             $rejectedAt,
             $rejectionReason,
+            $rejectionKind,
+            $recordedBy,
         );
     }
 

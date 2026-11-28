@@ -108,6 +108,14 @@ final readonly class InitCli
             'description' => 'Inspect existing PHPStan, Composer, PHP-CS-Fixer and slop config as read-only setup evidence for human or LLM review.',
             'notes' => ['Does not execute PHP-CS-Fixer configs, call an LLM, install tools, copy excludes between tools, or change review safeguards.'],
         ],
+        'wizard' => [
+            'usage' => 'agent-loop init wizard [--answers=<file.json>] [--format=json]',
+            'description' => 'Emit the versioned setup question contract from current project evidence; with --answers, report the resulting changes and the command that owns each.',
+            'notes' => [
+                'Read-only and safe to rerun: the same evidence and answers give the same output, and nothing is written or executed.',
+                'One question at a time: --interactive asks in the terminal; --next [--answers=<partial.json>] returns the next question for a coding host.',
+            ],
+        ],
         'scaffold' => [
             'usage' => 'agent-loop init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo] [--dry-run]',
             'description' => 'Create the minimum local workflow infrastructure for a real project or an opt-in tutorial board.',
@@ -115,7 +123,8 @@ final readonly class InitCli
         ],
     ];
 
-    public function __construct(private string $rootPath)
+    /** @param 'init'|'setup' $commandName `setup` is canonical; `init` stays a compatible alias. */
+    public function __construct(private string $rootPath, private string $commandName = 'init')
     {
     }
 
@@ -151,6 +160,7 @@ final readonly class InitCli
             'recommend' => (new InitRecommendCommand($this->rootPath))->run($rest),
             'plan' => (new InitPlanCommand($this->rootPath))->run($rest),
             'apply' => (new InitApplyCommand($this->rootPath))->run($rest),
+            'wizard' => (new InitWizardCommand($this->rootPath))->run($rest),
             default => $this->printUsage(1, $command),
         };
     }
@@ -158,7 +168,7 @@ final readonly class InitCli
     private function printUsage(int $exitCode, string $unknownCommand = ''): int
     {
         if ($unknownCommand !== '') {
-            fwrite(\STDERR, "Unknown init command: {$unknownCommand}\n\n");
+            fwrite(\STDERR, "Unknown {$this->commandName} command: {$unknownCommand}\n\n");
         }
 
         $usage = <<<'TXT'
@@ -186,10 +196,14 @@ final readonly class InitCli
           agent-loop init recommend [--format=json]
           agent-loop init plan [--format=json] [--language=<BCP47>]
           agent-loop init apply --language=<BCP47> --evidence-sha256=<SHA256> --accept=prompting.language [--dry-run|--yes]
+          agent-loop init wizard [--answers=<file.json>] [--next] [--format=json]
+          agent-loop init wizard --interactive
+
+        `agent-loop setup` is the canonical, rerunnable name for these commands; `agent-loop init` remains a compatible alias with identical behavior.
 
         Commands:
-          Every init subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
-          help              Show init help.
+          Every subcommand accepts help, --help, and -h. Help is read-only and performs no setup operation.
+          help              Show this help.
           doctor            Diagnose local setup and repo-managed agent asset hints.
           paths             Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
           status            Show what is activated here: resolved CLI path, host projection, local Git integration, sources, aliases, target manifests, and the next activation command (read-only).
@@ -209,9 +223,11 @@ final readonly class InitCli
           recommend         Discover project tooling and emit read-only, source-backed JSON for setup review.
           plan              Produce typed, source-backed read-only setup candidates with zero file edits or executions.
           apply             Update only an accepted prompt-language field after current-evidence validation; no other writes.
+          wizard            Emit the deterministic, versioned setup questions from current evidence; with --answers, report each change and the command that owns it. --next returns one question at a time for a coding host; --interactive asks them in the terminal. Read-only.
           scaffold          Create minimum local workflow infrastructure. Use --prefix for a real empty board or --demo for tutorial board/task state; neither is invented by default.
         TXT;
 
+        $usage = $this->named($usage);
         if ($unknownCommand === '') {
             echo $usage . "\n";
         } else {
@@ -224,7 +240,7 @@ final readonly class InitCli
     private function printCommandUsage(string $command): int
     {
         $help = self::COMMAND_HELP[$command];
-        echo "Usage:\n  {$help['usage']} [--help|-h]\n\n";
+        echo "Usage:\n  {$this->named($help['usage'])} [--help|-h]\n\n";
         echo "Description:\n  {$help['description']}\n\n";
         echo "Notes:\n";
         foreach ($help['notes'] as $note) {
@@ -233,6 +249,11 @@ final readonly class InitCli
         echo "\nAliases: help, --help, -h\n";
 
         return 0;
+    }
+
+    private function named(string $text): string
+    {
+        return $this->commandName === 'init' ? $text : str_replace('agent-loop init ', 'agent-loop ' . $this->commandName . ' ', $text);
     }
 
     /** @param list<string> $tokens */

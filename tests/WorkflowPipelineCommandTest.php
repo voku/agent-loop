@@ -274,7 +274,9 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertSame("review", $stage["prior_handoff"]["from_stage"]);
         self::assertSame("build", $stage["prior_handoff"]["to_stage"]);
 
-        // 4. Builder re-submits build -> advances to review (attempt 2)
+        // 4. Builder repairs the candidate and re-submits build -> advances to review (attempt 2).
+        // An unchanged re-submission without a rebuttal would be refused as a no-op repair.
+        file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo { public function run(?string \$value): string { return \$value ?? ''; } }\n");
         $res4 = $this->captureRun($command, [
             "submit", "PIPE-2",
             "--outcome=completed",
@@ -290,6 +292,7 @@ final class WorkflowPipelineCommandTest extends TestCase
             "submit", "PIPE-2",
             "--outcome=pass",
             "--summary=All checks satisfied.", "--context-id=ctx:review-2",
+            "--artifact=src/Foo.php",
             "--format=json",
         ]);
         self::assertSame(0, $res5["exit"]);

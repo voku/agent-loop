@@ -28,6 +28,42 @@ final class HostPolicyProjectorTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
+    public function testAPublicationWaiverIsReportedForEveryHostAndForceWritesOrRemovesNothing(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'version' => 1,
+            'host_policy' => ['publication' => 'host_managed', 'reason' => 'Agents publish after green CI.'],
+        ], JSON_THROW_ON_ERROR));
+        mkdir($this->root . '/.claude', 0o775, true);
+        $existing = json_encode(['permissions' => ['deny' => ['Bash(rm -rf *)']]], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        file_put_contents($this->root . '/.claude/settings.json', $existing);
+
+        $projector = new HostPolicyProjector($this->root);
+        self::assertSame('Agents publish after green CI.', $projector->publicationWaiverReason());
+        foreach (HostPolicyProjector::supportedAgents() as $agent) {
+            $inspection = $projector->inspect($agent);
+            self::assertSame('waived', $inspection['status'], $agent);
+            self::assertStringContainsString('not authenticated permission', $inspection['detail'], $agent);
+            self::assertStringContainsString('Agents publish after green CI.', $inspection['detail'], $agent);
+
+            $result = $projector->sync($agent, false, true);
+            self::assertFalse($result['changed'], $agent);
+        }
+        self::assertSame($existing, file_get_contents($this->root . '/.claude/settings.json'), 'Existing project rules stay untouched.');
+        self::assertFileDoesNotExist($this->root . '/opencode.json');
+        self::assertFileDoesNotExist($this->root . '/.codex');
+        self::assertFileDoesNotExist($this->root . '/.cursor');
+
+        $this->expectException(InvalidArgumentException::class);
+        $projector->inspect('copilot');
+    }
+
+    public function testWithoutAWaiverTheReasonIsNull(): void
+    {
+        self::assertNull((new HostPolicyProjector($this->root))->publicationWaiverReason());
+    }
+
     public function testClaudeMergePreservesProjectSettingsAndUsesDirectFormHardDenyWithoutWritingAutoMode(): void
     {
         mkdir($this->root . '/.claude', 0o775, true);

@@ -40,7 +40,7 @@ final readonly class WorkflowApproveCommand
             $notes = [];
             $profileChoice = null;
             $wasAlreadyApproved = $contract->status === TaskContract::APPROVED;
-            $contract = $contracts->approve($taskId->value, $options['by'], $options['revision'], $options['head']);
+            $contract = $contracts->approve($taskId->value, $options['by'], $options['revision'], $options['head'], $options['recordedBy']);
             if (!$wasAlreadyApproved) {
                 // Approval records authority and nothing else. Map discovery is
                 // deterministic preparation, so `enter` reconciles it rather
@@ -168,13 +168,14 @@ final readonly class WorkflowApproveCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, format: string, revision: int, head: ?string}
+     * @return array{by: string, format: string, revision: int, head: ?string, recordedBy: ?string}
      */
     private function parse(array $tokens): array
     {
         $by = null;
         $revision = null;
         $head = null;
+        $recordedBy = null;
         $format = 'text';
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
@@ -211,15 +212,19 @@ final readonly class WorkflowApproveCommand
                 $head = $tokens[++$index];
                 continue;
             }
-            if ($token !== '--by') {
+            if ($token !== '--by' && $token !== '--recorded-by') {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
-                throw new InvalidArgumentException('--by requires a value.');
+                throw new InvalidArgumentException($token . ' requires a value.');
             }
             $value = trim($tokens[++$index]);
             if ($value === '') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
+            }
+            if ($token === '--recorded-by') {
+                $recordedBy = $value;
+                continue;
             }
             $by = $value;
         }
@@ -230,6 +235,6 @@ final readonly class WorkflowApproveCommand
             throw new InvalidArgumentException('--revision is required; re-read the current Contract revision before approving.');
         }
 
-        return ['by' => $by, 'format' => $format, 'revision' => $revision, 'head' => $head];
+        return ['by' => $by, 'format' => $format, 'revision' => $revision, 'head' => $head, 'recordedBy' => $recordedBy];
     }
 }

@@ -66,7 +66,19 @@ jobs:
           test "$(git rev-parse HEAD)" = "$ITP_HEAD_SHA"
           mkdir -p build/itp-source-linked
           vendor/bin/itp-context-validate 'voku\AgentLoop\Context\ArchitectureRules' > build/itp-source-linked/validate.txt
-          vendor/bin/itp-context-summarize src/Workflow/WorkflowLearningRecorder.php > build/itp-source-linked/summary.md
+          vendor/bin/agent-map build --root=. --paths=src/Workflow
+          vendor/bin/agent-map query WorkflowLearningRecorder > build/itp-source-linked/map-query.txt
+          source_path="$(grep -oE 'src/[A-Za-z0-9_./-]+\.php' build/itp-source-linked/map-query.txt | sort -u | grep '/WorkflowLearningRecorder\.php$')"
+          test "$source_path" = 'src/Workflow/WorkflowLearningRecorder.php'
+          vendor/bin/itp-context-source-hints --root=. --file="$source_path" > build/itp-source-linked/hints.json
+          source_digest="sha256:$(sha256sum "$source_path" | cut -d' ' -f1)"
+          jq -e --arg path "$source_path" --arg digest "$source_digest" --arg rule 'voku\AgentLoop\Context\ArchitectureRules::WorkflowActorIsAttribution' --arg subject 'voku\AgentLoop\Workflow\WorkflowLearningRecorder::assertAllowedActor' '
+            .status == "ready" and .authority == "none" and .resolution == "syntax_only"
+            and .inspected_files == [{"path": $path, "sha256": $digest}]
+            and any(.rules[]; .rule_id == $rule and .evidence == "source_attribute_only" and (.files | index($path) != null) and (.subjects | index($subject) != null))
+          ' build/itp-source-linked/hints.json
+          # Resolve the rule definition separately, only in this trusted checkout.
+          vendor/bin/itp-context-summarize "$source_path" > build/itp-source-linked/summary.md
           grep -Fq '# Context: WorkflowLearningRecorder' build/itp-source-linked/summary.md
           grep -Fq 'ArchitectureRules::WorkflowActorIsAttribution' build/itp-source-linked/summary.md
           grep -Fq -- '- **Owner:** voku/agent-loop' build/itp-source-linked/summary.md
@@ -83,11 +95,11 @@ jobs:
               source_sha: $source_sha,
               source_path: $source_path,
               summary_sha256: $summary_sha256,
-              checks: ["rule_enum_valid", "source_annotation_present", "owner_resolved", "proof_resolved", "change_guidance_resolved", "tracked_source_unchanged"],
+              checks: ["rule_enum_valid", "source_annotation_present", "map_path_resolved", "source_hint_digest_verified", "owner_resolved", "proof_resolved", "change_guidance_resolved", "tracked_source_unchanged"],
               acting_agent_ab_result: "INCONCLUSIVE / NOT RUN",
               authority: "advisory context, not approval"
             }' > build/itp-source-linked/report.json
-          jq -e '.source_sha == env.ITP_HEAD_SHA and (.checks | length) == 6' build/itp-source-linked/report.json >/dev/null
+          jq -e '.source_sha == env.ITP_HEAD_SHA and (.checks | length) == 8' build/itp-source-linked/report.json >/dev/null
       - name: Upload exact-head ITP source-linked evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

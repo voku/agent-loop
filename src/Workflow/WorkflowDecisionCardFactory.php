@@ -53,17 +53,34 @@ final readonly class WorkflowDecisionCardFactory
             ];
         } else {
             $approved = $delta['previous_was_approved'];
+            $decisionKind = $approved ? null : $delta['previous_rejection_kind'];
+            $decidedBy = $delta['previous_rejected_by'] ?? 'a human';
+            $decisionReason = $delta['previous_rejection_reason'] ?? '';
             $whyNow = [
-                'kind' => $approved ? 'supersedes_approved' : 'supersedes_draft',
-                'summary' => $approved
-                    ? $this->t(
+                'kind' => match (true) {
+                    $approved => 'supersedes_approved',
+                    $decisionKind === TaskContract::CHANGE_REQUEST => 'supersedes_change_request',
+                    $decisionKind === TaskContract::REJECTION => 'supersedes_rejection',
+                    default => 'supersedes_draft',
+                },
+                'summary' => match (true) {
+                    $approved => $this->t(
                         sprintf('Revision %d replaces revision %d, which %s approved%s.', $delta['to_revision'], $delta['from_revision'], $delta['previous_approved_by'] ?? 'a human', $delta['previous_approved_at'] === null ? '' : ' at ' . $delta['previous_approved_at']),
                         sprintf('Revision %d ersetzt Revision %d, freigegeben von %s%s.', $delta['to_revision'], $delta['from_revision'], $delta['previous_approved_by'] ?? 'einem Menschen', $delta['previous_approved_at'] === null ? '' : ' am ' . $delta['previous_approved_at']),
-                    )
-                    : $this->t(
+                    ),
+                    $decisionKind === TaskContract::CHANGE_REQUEST => $this->t(
+                        sprintf('Revision %d answers the change request %s made on revision %d: %s', $delta['to_revision'], $decidedBy, $delta['from_revision'], $decisionReason),
+                        sprintf('Revision %d beantwortet die Änderungsanforderung von %s an Revision %d: %s', $delta['to_revision'], $decidedBy, $delta['from_revision'], $decisionReason),
+                    ),
+                    $decisionKind === TaskContract::REJECTION => $this->t(
+                        sprintf('Revision %d replaces revision %d, which %s rejected: %s', $delta['to_revision'], $delta['from_revision'], $decidedBy, $decisionReason),
+                        sprintf('Revision %d ersetzt Revision %d, die %s abgelehnt hat: %s', $delta['to_revision'], $delta['from_revision'], $decidedBy, $decisionReason),
+                    ),
+                    default => $this->t(
                         sprintf('Revision %d replaces revision %d, which was never approved.', $delta['to_revision'], $delta['from_revision']),
                         sprintf('Revision %d ersetzt Revision %d, die nie freigegeben wurde.', $delta['to_revision'], $delta['from_revision']),
                     ),
+                },
                 'changes' => $this->deltaLines($delta),
             ];
         }
@@ -109,7 +126,7 @@ final readonly class WorkflowDecisionCardFactory
                 $this->choice('request_changes', $this->t('Request changes', 'Änderungen anfordern'), $this->t(
                     'Describe what must change. The Contract remains unapproved until a revised version is presented and explicitly approved.',
                     'Beschreibe die nötigen Änderungen. Der Contract bleibt nicht freigegeben, bis eine neue Revision vorgelegt und ausdrücklich freigegeben wird.',
-                ), null),
+                ), 'agent-loop workflow request-changes ' . $contract->taskId . ' --revision ' . $contract->revision . ' --by <actor> --reason <reason>'),
                 $this->choice('reject', $this->t('Reject', 'Ablehnen'), $this->t(
                     'Record a rejection and reason. A new Contract revision is required before work can proceed.',
                     'Die Ablehnung mit Begründung festhalten. Vor weiterer Arbeit ist eine neue Contract-Revision erforderlich.',

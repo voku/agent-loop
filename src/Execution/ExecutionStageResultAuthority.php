@@ -47,6 +47,7 @@ final readonly class ExecutionStageResultAuthority
             }
             $artifactClaims[] = $claim;
         }
+        $this->assertReworkProgress($plan, $state, $stage, $result, $artifactClaims);
         $validationCommands = [];
         foreach ($result->validationReferences as $reference) {
             $claim = $evidence->assertCurrent(
@@ -209,6 +210,89 @@ final readonly class ExecutionStageResultAuthority
                 );
             }
         }
+    }
+
+    /**
+     * A repair stage entered because a review returned changes_required must
+     * either change the rejected candidate or dispute the finding with cited
+     * current-candidate evidence and a rebuttal. Completing with the exact
+     * rejected candidate and neither would only replay the same validation and
+     * review, so it is refused before it can consume a review round. Blocked,
+     * clarification and failure outcomes, repairs after failed validation, and
+     * a build that follows a human-resolved Attention are not governed here.
+     *
+     * @param list<ExecutionEvidenceClaim> $artifactClaims
+     */
+    private function assertReworkProgress(
+        ExecutionPlan $plan,
+        ExecutionState $state,
+        ExecutionStage $stage,
+        StageResult $result,
+        array $artifactClaims,
+    ): void {
+        if ($result->outcome !== StageOutcome::COMPLETED
+            || $stage->kind !== ExecutionStageKind::AGENT
+            || !$stage->mayMutate
+            || $state->lastAttentionId !== null) {
+            return;
+        }
+        $latestKey = array_key_last($state->history);
+        if ($latestKey === null) {
+            return;
+        }
+        $rejected = $state->history[$latestKey]->result;
+        if ($rejected->outcome !== StageOutcome::CHANGES_REQUIRED
+            || ($plan->stage($rejected->stageId)->transitions[StageOutcome::CHANGES_REQUIRED->value] ?? null) !== $stage->id
+            || !hash_equals($rejected->candidateRevision, $result->candidateRevision)
+            || !hash_equals($state->candidateRevision, $result->candidateRevision)) {
+            return;
+        }
+        if (self::isEvidencedDispute($result, $artifactClaims)) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'CANDIDATE_MISMATCH: ' . $stage->id . ' completed with the exact candidate that ' . $rejected->stageId
+            . ' rejected and without rebuttal evidence, so another review round would repeat the same candidate. '
+            . 'Continue by registering a changed candidate (--workspace <path>), or dispute the finding by submitting '
+            . 'completed with a --summary rebuttal and at least one --artifact <current candidate file> as evidence, '
+            . 'or report blocked or needs_clarification.',
+        );
+    }
+
+    /**
+     * A dispute is a reasoned claim, not proof: it needs a rebuttal (see
+     * isRebuttalSummary()) and at least one cited file of the current
+     * candidate. The fresh review that follows decides whether it holds.
+     *
+     * @param list<ExecutionEvidenceClaim> $artifactClaims
+     */
+    private static function isEvidencedDispute(StageResult $result, array $artifactClaims): bool
+    {
+        if (!self::isRebuttalSummary($result)) {
+            return false;
+        }
+        foreach ($artifactClaims as $claim) {
+            if (str_starts_with($claim->sourceReference, 'workspace-file:')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether a repair stage's summary states a rebuttal rather than the CLI's
+     * default summary, the unfilled `<summary>` of a suggested command, or the
+     * unfilled summary of the completion-protocol template.
+     */
+    public static function isRebuttalSummary(StageResult $result): bool
+    {
+        return !in_array(
+            $result->summary,
+            ['', '<summary>', ExecutionGateway::COMPLETION_SUMMARY_PLACEHOLDER, 'Stage result: ' . $result->outcome->value],
+            true,
+        );
     }
 
     private function latestAcceptedResultForStage(ExecutionState $state, string $stageId): ?StageResult

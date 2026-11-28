@@ -24,6 +24,12 @@ Once current authority permits the work, the agent should normally handle model 
 
 Do not ask a human to approve a shell command merely because the agent can execute it, and do not fabricate approval merely because continuing would be convenient.
 
+### Who decided and who recorded it
+
+A decision record names the decision-maker in its existing actor field (`approved_by`, `rejected_by`, `acknowledged_by`). When someone else enters that decision, for example an agent recording a human's explicit approval from the chat, the recording command takes `--recorded-by <recorder>` (`workflow approve`, `workflow reject`, `workflow request-changes`, `quick`, and `finish --reviewed-report-sha256`). The record then also stores `recorded_by` and `authority_evidence: {"status": "self_asserted"}`.
+
+Both fields are attribution, not authenticated identity: nothing verifies that the named human decided or that the recorder is who it says. `self_asserted` is the only status any command can write; `workflow status` shows it as "recorded by <recorder> (self-asserted, not verified)". A record without the fields only means that no separate recorder was declared, not that the decision-maker entered it. Records written without `--recorded-by` are byte-identical to earlier versions.
+
 ## What evidence should return to the human
 
 For non-trivial work, report concrete evidence rather than confidence:
@@ -111,9 +117,13 @@ For Contract approval, `agent-loop enter` renders the exact candidate, the
 scope of approval, and what the available responses do. It offers three
 distinct responses:
 approve the exact revision, request changes and keep it unapproved, or decline
-and leave the task blocked. The CLI does not invent a persistent rejection
-action when the lifecycle has none. A recommendation is not approval and must
-never be recorded as the human's choice.
+and leave the task blocked. Each response has its own command on the card:
+`workflow approve`, `workflow request-changes` and `workflow reject`, all bound
+to the exact revision and taking the named human as `--by`. A change request and
+a rejection both end that revision without approval; the Contract records which
+one it was (`rejection_kind`), and the next revision's card names the kind, the
+actor and the reason. Record a response only when that human gave it. A
+recommendation is not approval and must never be recorded as the human's choice.
 
 Projects may set `interaction.decision_presentation` to `cli` (the default) or
 `html` in `.agent-loop/init.json`. It prefers the existing agent-ui view for

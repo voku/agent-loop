@@ -57,6 +57,7 @@ final readonly class InitSyncPolicyCommand
         $force = OptionTokens::hasFlag($tokens, 'force');
         $agents = $agent->isAll() ? HostPolicyProjector::supportedAgents() : [$agent->canonicalName()];
         $projector = new HostPolicyProjector($this->rootPath);
+        $waived = $projector->publicationWaiverReason() !== null;
 
         foreach ($agents as $canonicalAgent) {
             try {
@@ -69,7 +70,9 @@ final readonly class InitSyncPolicyCommand
 
             $prefix = $dryRun && $result['changed'] ? '[DRY-RUN]' : '[OK]';
             echo $prefix . ' sync policy [' . $canonicalAgent . ']: ' . $result['detail'] . '; path=' . $result['path'] . "\n";
-            echo $this->boundaryHint($canonicalAgent) . "\n";
+            echo ($waived
+                ? '[IMPORTANT] sync policy [' . $canonicalAgent . ']: the project waived the publication deny rules; agent-loop no longer projects them, and any already present stay in force until removed by hand. agent-loop Contract approval, review, exact-head CI and merge gates are unchanged.'
+                : $this->boundaryHint($canonicalAgent)) . "\n";
         }
 
         return 0;

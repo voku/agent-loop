@@ -79,7 +79,7 @@ final class WorkflowDecisionCardTest extends TestCase
         self::assertStringContainsString('defaults to standard', $card['choices'][0]['effect']);
         self::assertStringContainsString('Surgical has one fresh review', $card['choices'][0]['effect']);
         self::assertStringContainsString('before the first enter', $card['choices'][0]['effect']);
-        self::assertNull($card['choices'][1]['command']);
+        self::assertSame('agent-loop workflow request-changes DEMO-1 --revision 1 --by <actor> --reason <reason>', $card['choices'][1]['command']);
         self::assertNotSame([], $card['unknown']);
         self::assertStringNotContainsString('passed', (string) json_encode($card['proof']));
     }
