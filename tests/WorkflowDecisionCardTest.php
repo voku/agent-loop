@@ -76,6 +76,9 @@ final class WorkflowDecisionCardTest extends TestCase
         self::assertSame(WorkflowDecisionCardFactory::NOT_RUN, $card['proof']['review']['state']);
         self::assertSame(['approve', 'request_changes', 'reject'], array_column($card['choices'], 'id'));
         self::assertSame('agent-loop workflow approve DEMO-1 --revision 1 --by <named-actor>', $card['choices'][0]['command']);
+        self::assertStringContainsString('defaults to standard', $card['choices'][0]['effect']);
+        self::assertStringContainsString('Surgical has one fresh review', $card['choices'][0]['effect']);
+        self::assertStringContainsString('before the first enter', $card['choices'][0]['effect']);
         self::assertSame('agent-loop workflow request-changes DEMO-1 --revision 1 --by <actor> --reason <reason>', $card['choices'][1]['command']);
         self::assertNotSame([], $card['unknown']);
         self::assertStringNotContainsString('passed', (string) json_encode($card['proof']));

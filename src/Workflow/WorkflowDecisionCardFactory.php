@@ -120,8 +120,8 @@ final readonly class WorkflowDecisionCardFactory
             ],
             [
                 $this->choice('approve', $this->t('Approve', 'Freigeben'), $this->t(
-                    'Work may begin within the described scope.',
-                    'Die Arbeit darf innerhalb des beschriebenen Scope beginnen.',
+                    'Work may begin within the described scope. Without an explicit selection the profile defaults to standard: independent correctness and blindspot reviews. Surgical has one fresh review. After approval, select a different profile before the first enter fixes it; consider technical and user impact and uncertainty.',
+                    'Die Arbeit darf innerhalb des beschriebenen Scope beginnen. Ohne ausdrückliche Auswahl gilt standard: unabhängige Correctness- und Blindspot-Reviews. Surgical hat ein Review in frischem Kontext. Ein anderes Profil nach der Freigabe und vor dem ersten enter wählen, das die Auswahl festlegt; technische Auswirkungen, Auswirkungen auf Nutzer und Unsicherheit berücksichtigen.',
                 ), $presentation->action === '' ? null : $presentation->action),
                 $this->choice('request_changes', $this->t('Request changes', 'Änderungen anfordern'), $this->t(
                     'Describe what must change. The Contract remains unapproved until a revised version is presented and explicitly approved.',
