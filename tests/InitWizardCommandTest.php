@@ -250,6 +250,23 @@ final class InitWizardCommandTest extends TestCase
         self::assertSame(1, $this->runWizard(['--format=text'])[0]);
     }
 
+    public function testPathsOnlyKeepsEffectiveFallbackUntilLanguagesAreAccepted(): void
+    {
+        $this->writePhpProject();
+        $this->writeJavaScriptProject();
+
+        $wizard = new InitWizardCommand($this->root);
+        $paths = $wizard->inspect(['map.paths' => ['src', 'lib']]);
+        self::assertSame([], $paths['changes']);
+        self::assertSame("vendor/bin/agent-loop map build --paths='src,lib'", $paths['next_actions'][0]['command']);
+        self::assertSame(['php', 'typescript'], array_column($paths['questions'], null, 'id')['map.languages']['default']);
+
+        $accepted = $wizard->inspect(['map.paths' => ['src', 'lib'], 'map.languages' => ['action' => 'recommended']]);
+        self::assertSame(['map' => ['languages' => ['php', 'typescript']]], $accepted['changes'][0]['apply']['fragment']);
+        self::assertSame("vendor/bin/agent-loop map build --paths='src,lib' --languages='php,typescript'", $accepted['next_actions'][0]['command']);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
     public function testMapBuildCommandKeepsConfiguredLanguagesAndQuotesItsValues(): void
     {
         $this->writePhpProject();
@@ -282,7 +299,10 @@ final class InitWizardCommandTest extends TestCase
         self::assertSame("vendor/bin/agent-loop map build --paths='src' --languages='php'", $answered['next_actions'][0]['command'], 'map build refuses an invalid declaration unless --languages is explicit.');
 
         $unanswered = (new InitWizardCommand($this->root))->inspect(['map.paths' => ['src']]);
-        self::assertSame("vendor/bin/agent-loop map build --paths='src' --languages='php'", $unanswered['next_actions'][0]['command']);
+        self::assertSame('prerequisite_required', $unanswered['next_actions'][0]['status']);
+        self::assertStringContainsString('map.languages', $unanswered['next_actions'][0]['prerequisite']);
+        self::assertArrayNotHasKey('command', $unanswered['next_actions'][0]);
+        self::assertSame('map.languages', (new InitWizardCommand($this->root))->next(['map.paths' => ['src']])['step']['id']);
 
         $withLanguage = (new InitWizardCommand($this->root))->inspect(['map.languages' => ['php'], 'prompting.language' => 'de']);
         self::assertSame(['map.languages', 'prompting.language'], array_column($withLanguage['changes'], 'id'), 'The repair is still offered next to the blocked language change.');
