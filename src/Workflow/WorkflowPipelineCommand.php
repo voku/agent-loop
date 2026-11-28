@@ -658,10 +658,15 @@ final readonly class WorkflowPipelineCommand
      */
     private function driftHostWork(ExecutionGateway $gateway, string $taskId, ExecutionProjection $projection, ?string $candidateWorkspace): ?string
     {
-        if (!$projection->complete()) {
-            return null;
-        }
         [$kind, $observed] = $this->driftObservation($gateway, $taskId, $projection, $candidateWorkspace);
+        if (!$projection->complete()) {
+            // At verify, an owner checkout that still holds the base is not where
+            // the reviewed candidate lives; name the worktree, never a recovery.
+            return $kind === 'awaiting_adoption'
+                ? 'the workspace ' . $candidateWorkspace . ' still holds the base on the approved scope, not the reviewed candidate ' . $projection->candidateRevision
+                    . '; run agent-loop pipeline run ' . $taskId . ' --workspace <the worktree that holds the reviewed candidate>'
+                : null;
+        }
         if (!in_array($kind, ['awaiting_adoption', 'changed_with_foreign_files', 'changed_after_learning'], true)) {
             return null;
         }

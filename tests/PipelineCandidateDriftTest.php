@@ -130,6 +130,30 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertSame('complete', $explicit['status'], 'The worktree still holds the reviewed candidate.');
     }
 
+    public function testNamingTheUntouchedOwnerCheckoutAsWorkspaceNeverRecoversToTheBase(): void
+    {
+        $statePath = (new ExecutionStateStore($this->run->root))->path('VER-1');
+        $state = file_get_contents($statePath);
+        [, $atVerify] = $this->pipeline(['status', 'VER-1', '--workspace=' . $this->run->root]);
+        self::assertSame('host_work', $atVerify['next_action_kind']);
+        self::assertStringContainsString('still holds the base on the approved scope', $atVerify['next_action']);
+        self::assertStringNotContainsString('pipeline recover', $atVerify['next_action']);
+        [, $runAtVerify] = $this->pipeline(['run', 'VER-1', '--workspace=' . $this->run->root]);
+        self::assertSame($atVerify['next_action'], $runAtVerify['next_action'], 'pipeline run names the same host work.');
+        self::assertSame($state, file_get_contents($statePath), 'Routing alone never changes execution state.');
+
+        $gateway = new ExecutionGateway($this->run->root);
+        self::assertTrue($gateway->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+        $completed = file_get_contents($statePath);
+        foreach (['status', 'run'] as $command) {
+            [, $payload] = $this->pipeline([$command, 'VER-1', '--workspace=' . $this->run->root]);
+            self::assertSame('host_work', $payload['next_action_kind'], $command);
+            self::assertStringContainsString('adopt the reviewed candidate from its worktree before finish', $payload['next_action'], $command);
+            self::assertStringNotContainsString('pipeline recover', $payload['next_action'], $command);
+        }
+        self::assertSame($completed, file_get_contents($statePath));
+    }
+
     public function testAForeignOutOfScopeEditDoesNotTurnAnUnadoptedCandidateIntoRecovery(): void
     {
         $gateway = new ExecutionGateway($this->run->root);

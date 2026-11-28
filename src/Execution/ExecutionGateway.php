@@ -236,7 +236,10 @@ final readonly class ExecutionGateway
         }
         // Compared on the same paths as the drift check above, so unrelated files
         // in the owner checkout do not hide that its scope still holds the base.
-        if ($candidateWorkspace === null
+        // Applies whenever the owner checkout is compared, also when --workspace
+        // names it explicitly: recovering to the base would reopen build on
+        // reverted content.
+        if ($scope !== []
             && hash_equals(
                 $identity->normalize($workspace, $plan->baseCommit, $plan->baseCommit),
                 $identity->observe($workspace, $plan->baseCommit, $statePath, $scope),
