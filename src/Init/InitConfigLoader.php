@@ -472,7 +472,8 @@ final readonly class InitConfigLoader
 
             return $default;
         }
-        $reason = property_exists($shape, 'reason') && is_string($shape->reason) ? trim($shape->reason) : '';
+        // One line: the reason is echoed into line-oriented command output.
+        $reason = property_exists($shape, 'reason') && is_string($shape->reason) ? trim(str_replace(["\r\n", "\r", "\n", "\t"], ' ', $shape->reason)) : '';
         if ($reason === '') {
             $warnings[] = '[WARN] init config: host_policy.publication host_managed requires a non-empty reason';
 

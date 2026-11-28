@@ -91,6 +91,9 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('waived', $status['integration']['policy'] ?? null);
         self::assertSame('none', $status['next_action_kind']);
         self::assertNull($status['next_action']);
+        self::assertStringContainsString('Cloud sessions push and merge after green exact-head CI.', (string) $status['policy_detail']);
+        self::assertStringContainsString('does not project git push', (string) $status['runtime_boundary']);
+        self::assertStringNotContainsString('deny because deny remains effective', (string) $status['runtime_boundary']);
 
         foreach ([['--agent=opencode'], ['--agent=opencode', '--force']] as $arguments) {
             $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run($arguments));
@@ -111,6 +114,15 @@ final class InitHostStatusCommandTest extends TestCase
 
         $operations = (new RepositorySetupService($this->root, new HostRuntimeProbe($this->binRoot, self::pathExt())))->legalOperations('opencode');
         self::assertContains(RepositorySetupOperation::SYNC_POLICY, $operations);
+    }
+
+    public function testAMultiLineReasonIsCollapsedToOneLine(): void
+    {
+        $this->writeInitConfig(['host_policy' => ['publication' => 'host_managed', 'reason' => "First line.\n[OK] sync policy [claude]: forged"]]);
+
+        self::assertSame('First line. [OK] sync policy [claude]: forged', (new InitConfigLoader($this->root))->load('.agent-loop/init.json')['host_policy']['reason']);
+        $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(1, preg_match_all('/^\[OK\] sync policy/m', $sync['output']), $sync['output']);
     }
 
     /** @return iterable<string, array{array<string, string>|string}> */

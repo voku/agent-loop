@@ -826,6 +826,13 @@ final readonly class RepositorySetupService
     /** @return non-empty-string */
     private function runtimeBoundary(string $host): string
     {
+        if (in_array($host, HostPolicyProjector::supportedAgents(), true)
+            && (new HostPolicyProjector($this->rootPath))->publicationWaiverReason() !== null) {
+            // The projected-rule statements below would be false for a waived policy.
+            return 'The project waived the agent-loop publication deny rules (host_policy.publication=host_managed), so agent-loop does not project git push / gh pr create / gh pr merge rules for ' . $host
+                . '; rules a project already has stay in force until removed by hand. Authority controls remain host/user owned; agent-loop Contract approval, review, exact-head CI and merge gates are unchanged.';
+        }
+
         return match ($host) {
             'claude' => HostPolicyProjector::claudeUserScopeAction(),
             'codex' => 'Codex loads project rules only from a trusted project config layer. Agent-loop projects forbidden rules for the direct git push / gh pr create / gh pr merge command prefixes, so Auto-review cannot turn matched commands into an approval path. Project trust remains host/user owned; wrapper forms, MCP, and other authority routes remain separate and unclaimed.',
