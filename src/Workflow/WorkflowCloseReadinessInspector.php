@@ -225,7 +225,7 @@ final readonly class WorkflowCloseReadinessInspector
     public static function driftGuidance(string $kind, ?string $observed, string $taskId, string $reviewedCandidate): ?string
     {
         if ($kind === 'awaiting_adoption') {
-            return 'the owner checkout still holds the base, not the reviewed candidate ' . $reviewedCandidate
+            return 'the workspace still holds the base, not the reviewed candidate ' . $reviewedCandidate
                 . '; adopt the reviewed candidate from its worktree before finish';
         }
         if ($kind === 'changed_after_learning') {

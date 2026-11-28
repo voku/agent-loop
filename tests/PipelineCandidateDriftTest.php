@@ -154,6 +154,32 @@ final class PipelineCandidateDriftTest extends TestCase
         self::assertSame($completed, file_get_contents($statePath));
     }
 
+    public function testNamingAnotherWorktreeThatHoldsOnlyTheBaseNeverRecoversToTheBase(): void
+    {
+        $plan = (new ExecutionPlanStore($this->run->root))->load('VER-1');
+        self::assertNotNull($plan->baseCommit);
+        $clean = $this->run->workspace . '-clean';
+        $this->run->git($this->run->root, 'worktree', 'add', '-q', '--detach', $clean, $plan->baseCommit);
+        try {
+            $statePath = (new ExecutionStateStore($this->run->root))->path('VER-1');
+            $state = file_get_contents($statePath);
+            foreach (['status', 'run'] as $command) {
+                [, $payload] = $this->pipeline([$command, 'VER-1', '--workspace=' . $clean]);
+                self::assertSame('host_work', $payload['next_action_kind'], $command);
+                self::assertStringContainsString('still holds the base', $payload['next_action'], $command);
+                self::assertStringNotContainsString('pipeline recover', $payload['next_action'], $command);
+            }
+            self::assertSame($state, file_get_contents($statePath), 'Routing alone never changes execution state.');
+
+            self::assertTrue((new ExecutionGateway($this->run->root))->runDeterministicStage('VER-1', 'verify', $this->run->workspace)->complete());
+            [, $completed] = $this->pipeline(['status', 'VER-1', '--workspace=' . $clean]);
+            self::assertSame('host_work', $completed['next_action_kind']);
+            self::assertStringNotContainsString('pipeline recover', $completed['next_action']);
+        } finally {
+            exec('git -C ' . escapeshellarg($this->run->root) . ' worktree remove --force ' . escapeshellarg($clean) . ' 2>/dev/null');
+        }
+    }
+
     public function testAForeignOutOfScopeEditDoesNotTurnAnUnadoptedCandidateIntoRecovery(): void
     {
         $gateway = new ExecutionGateway($this->run->root);

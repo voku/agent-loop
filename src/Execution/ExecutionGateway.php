@@ -234,16 +234,15 @@ final readonly class ExecutionGateway
                 throw $exception;
             }
         }
-        // Compared on the same paths as the drift check above, so unrelated files
-        // in the owner checkout do not hide that its scope still holds the base.
-        // Applies whenever the owner checkout is compared, also when --workspace
-        // names it explicitly: recovering to the base would reopen build on
-        // reverted content.
-        if ($scope !== []
-            && hash_equals(
-                $identity->normalize($workspace, $plan->baseCommit, $plan->baseCommit),
-                $identity->observe($workspace, $plan->baseCommit, $statePath, $scope),
-            )) {
+        // A workspace still holding the base is not where the reviewed candidate
+        // lives: recovering to the base would reopen build on reverted content.
+        // Compared on the same paths as the drift check above (the owner checkout
+        // on its scope, any other worktree on its whole tree), so unrelated owner
+        // checkout files do not hide that its scope still holds the base.
+        if (hash_equals(
+            $identity->normalize($workspace, $plan->baseCommit, $plan->baseCommit),
+            $identity->observe($workspace, $plan->baseCommit, $statePath, $scope),
+        )) {
             return ['awaiting_adoption', null];
         }
         // Recovery claims the whole tree and refuses changed files outside the
