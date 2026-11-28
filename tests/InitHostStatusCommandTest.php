@@ -95,6 +95,11 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('does not project git push', (string) $status['runtime_boundary']);
         self::assertStringNotContainsString('deny because deny remains effective', (string) $status['runtime_boundary']);
 
+        $this->createExecutable('cursor-agent');
+        $cursor = $this->hostStatus(['--agent=cursor', '--format=json']);
+        self::assertStringContainsString('does not project git push', (string) $cursor['runtime_boundary']);
+        self::assertStringContainsString('MCP authority coverage are separate and unclaimed', (string) $cursor['runtime_boundary'], 'Host caveats that do not depend on the rules stay.');
+
         foreach ([['--agent=opencode'], ['--agent=opencode', '--force']] as $arguments) {
             $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run($arguments));
             self::assertSame(0, $sync['exit'], $sync['output']);
@@ -118,9 +123,9 @@ final class InitHostStatusCommandTest extends TestCase
 
     public function testAMultiLineReasonIsCollapsedToOneLine(): void
     {
-        $this->writeInitConfig(['host_policy' => ['publication' => 'host_managed', 'reason' => "First line.\n[OK] sync policy [claude]: forged"]]);
+        $this->writeInitConfig(['host_policy' => ['publication' => 'host_managed', 'reason' => "First line.\n[OK] sync policy [claude]: forged\u{1b}[2K\u{2028}end"]]);
 
-        self::assertSame('First line. [OK] sync policy [claude]: forged', (new InitConfigLoader($this->root))->load('.agent-loop/init.json')['host_policy']['reason']);
+        self::assertSame('First line. [OK] sync policy [claude]: forged [2K end', (new InitConfigLoader($this->root))->load('.agent-loop/init.json')['host_policy']['reason']);
         $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
         self::assertSame(1, preg_match_all('/^\[OK\] sync policy/m', $sync['output']), $sync['output']);
     }
@@ -144,8 +149,24 @@ final class InitHostStatusCommandTest extends TestCase
         $status = $this->hostStatus();
         self::assertSame('missing', $status['integration']['policy'] ?? null);
         self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $status['next_action']);
+        $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode', '--dry-run']));
+        self::assertStringContainsString('host_policy', $sync['output']);
+        self::assertStringContainsString('publication deny rules are projected as usual', $sync['output']);
         $warnings = (new InitConfigLoader($this->root))->load('.agent-loop/init.json')['warnings'];
         self::assertNotEmpty(array_filter($warnings, static fn (string $warning): bool => str_contains($warning, 'host_policy')), implode("\n", $warnings));
+    }
+
+    public function testAnUnrelatedWarningThatMentionsHostPolicyIsNotReportedAsAnIgnoredWaiver(): void
+    {
+        $this->writeInitConfig([
+            'host_policy' => ['publication' => 'host_managed', 'reason' => 'CI-gated cloud sessions publish.'],
+            'recall' => ['document_manifests' => ['../host_policy']],
+        ]);
+        $this->installAssets('opencode');
+
+        $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode', '--dry-run']));
+        self::assertStringNotContainsString('publication deny rules are projected as usual', $sync['output']);
+        self::assertStringContainsString('waived by project configuration', $sync['output']);
     }
 
     /** @param array<string, mixed> $data */
