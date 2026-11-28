@@ -11,6 +11,9 @@ use voku\AgentLoop\PathResolver;
 
 final readonly class InitConfigLoader
 {
+    public const string PUBLICATION_PROJECTED = 'projected';
+    public const string PUBLICATION_HOST_MANAGED = 'host_managed';
+
     private const int MAX_FOLLOW_UP_SLICES = 10;
 
     public function __construct(private string $rootPath)
@@ -44,7 +47,8 @@ final readonly class InitConfigLoader
      *         control_plane: array{enabled: bool, host: string, port: int}
      *     },
      *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}},
-     *     runtime: array{container: array<'service'|'image'|'workdir'|'user', non-empty-string>}
+     *     runtime: array{container: array<'service'|'image'|'workdir'|'user', non-empty-string>},
+     *     host_policy: array{publication: 'projected'|'host_managed', reason: non-empty-string|null}
      * }
      *
      * Optional already-read content lets security-conscious callers inspect a
@@ -91,6 +95,7 @@ final readonly class InitConfigLoader
                 ],
             ],
             'runtime' => ['container' => []],
+            'host_policy' => ['publication' => self::PUBLICATION_PROJECTED, 'reason' => null],
         ];
 
         if ($configPath === null || trim($configPath) === '') {
@@ -421,6 +426,14 @@ final readonly class InitConfigLoader
             }
         }
 
+        if ($decodedShape instanceof stdClass && property_exists($decodedShape, 'host_policy')) {
+            if ($decodedShape->host_policy instanceof stdClass) {
+                $result['host_policy'] = $this->hostPolicy($decodedShape->host_policy, $result['warnings']);
+            } else {
+                $result['warnings'][] = '[WARN] init config: host_policy must be an object';
+            }
+        }
+
         $hasRuntime = $decodedShape instanceof stdClass && property_exists($decodedShape, 'runtime');
         $runtimeShape = $hasRuntime ? $decodedShape->runtime : null;
         $runtime = $decoded['runtime'] ?? null;
@@ -435,6 +448,39 @@ final readonly class InitConfigLoader
         }
 
         return $result;
+    }
+
+    /**
+     * A project may record that it does not adopt the projected publication deny
+     * rules (direct git push / gh pr create / gh pr merge). The record is
+     * attribution, not authenticated permission, and anything malformed keeps the
+     * default projection.
+     *
+     * @param list<string> $warnings
+     *
+     * @return array{publication: 'projected'|'host_managed', reason: non-empty-string|null}
+     */
+    private function hostPolicy(stdClass $shape, array &$warnings): array
+    {
+        $default = ['publication' => self::PUBLICATION_PROJECTED, 'reason' => null];
+        $publication = property_exists($shape, 'publication') ? $shape->publication : self::PUBLICATION_PROJECTED;
+        if ($publication === self::PUBLICATION_PROJECTED) {
+            return $default;
+        }
+        if ($publication !== self::PUBLICATION_HOST_MANAGED) {
+            $warnings[] = '[WARN] init config: host_policy.publication must be projected or host_managed';
+
+            return $default;
+        }
+        // One line: the reason is echoed into line-oriented command output.
+        $reason = property_exists($shape, 'reason') && is_string($shape->reason) ? trim(str_replace(["\r\n", "\r", "\n", "\t"], ' ', $shape->reason)) : '';
+        if ($reason === '') {
+            $warnings[] = '[WARN] init config: host_policy.publication host_managed requires a non-empty reason';
+
+            return $default;
+        }
+
+        return ['publication' => self::PUBLICATION_HOST_MANAGED, 'reason' => $reason];
     }
 
     /**

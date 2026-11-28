@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use RuntimeException;
+use voku\AgentLoop\ProjectLayout;
 use JsonException;
 use stdClass;
 use voku\AgentLoop\PackageResources;
@@ -59,13 +61,19 @@ final readonly class HostPolicyProjector
 
     /**
      * @return array{
-     *     status: 'ready'|'missing'|'conflict'|'manual',
+     *     status: 'ready'|'missing'|'conflict'|'manual'|'waived',
      *     path: non-empty-string,
      *     detail: non-empty-string
      * }
      */
     public function inspect(string $agent): array
     {
+        // Unsupported agents still fail in the match below, waiver or not.
+        $waiver = in_array($agent, self::HOSTS, true) ? $this->publicationWaiverReason() : null;
+        if ($waiver !== null) {
+            return ['status' => 'waived', 'path' => $this->configPath(), 'detail' => self::waiverDetail($waiver)];
+        }
+
         return match ($agent) {
             'codex' => $this->inspectCodex(),
             'claude' => $this->inspectClaude(),
@@ -80,6 +88,13 @@ final readonly class HostPolicyProjector
      */
     public function sync(string $agent, bool $dryRun = false, bool $force = false): array
     {
+        // A recorded waiver wins over --force: nothing is written and nothing a
+        // project already has is removed. Unsupported agents still fail below.
+        $waiver = in_array($agent, self::HOSTS, true) ? $this->publicationWaiverReason() : null;
+        if ($waiver !== null) {
+            return ['changed' => false, 'path' => $this->configPath(), 'detail' => 'publication deny rules not projected; ' . self::waiverDetail($waiver)];
+        }
+
         return match ($agent) {
             'codex' => $this->syncCodex($dryRun, $force),
             'claude' => $this->syncClaude($dryRun, $force),
@@ -87,6 +102,38 @@ final readonly class HostPolicyProjector
             'cursor' => $this->syncCursor($dryRun, $force),
             default => throw new InvalidArgumentException('Host policy projection is not supported for agent: ' . $agent),
         };
+    }
+
+    /**
+     * The recorded reason when `.agent-loop/init.json` declares
+     * host_policy.publication = host_managed; null otherwise, including for any
+     * malformed declaration (the loader warns and keeps the default projection).
+     *
+     * @return non-empty-string|null
+     */
+    public function publicationWaiverReason(): ?string
+    {
+        $config = (new InitConfigLoader($this->rootPath))->load($this->configPath());
+        $policy = $config['host_policy'];
+
+        return $policy['publication'] === InitConfigLoader::PUBLICATION_HOST_MANAGED ? $policy['reason'] : null;
+    }
+
+    /** @return non-empty-string */
+    private static function waiverDetail(string $reason): string
+    {
+        return 'publication policy waived by project configuration (host_policy.publication=host_managed; recorded attribution, not authenticated permission): ' . $reason;
+    }
+
+    /** @return non-empty-string */
+    private function configPath(): string
+    {
+        $path = (new ProjectLayout($this->rootPath))->configPath();
+        if ($path === '') {
+            throw new RuntimeException('Project config path cannot be resolved.');
+        }
+
+        return $path;
     }
 
     /**

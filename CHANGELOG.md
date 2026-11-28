@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- A project can record that it does not adopt the publication deny rules (direct `git push`, `gh pr create`, `gh pr merge`) with `"host_policy": {"publication": "host_managed", "reason": "<why>"}` in `.agent-loop/init.json`. `init host-status` then reports `policy: waived` with the reason instead of `missing` and no longer routes to `init sync-policy`, and `sync-policy` (also with `--force`) writes no publication rules and removes none a project already has. Before, a deliberate decision against the rules, for example in cloud sessions that push and merge after green CI, showed up as a permanent open setup step. The setting is recorded attribution, not an authenticated permission, and changes no Contract approval, review, CI or merge gate; a malformed declaration is a config warning and keeps the default projection (#1213).
+
 ## [0.20.108] - 2026-11-27
 
 ### Fixed
