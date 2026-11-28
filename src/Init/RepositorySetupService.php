@@ -671,7 +671,7 @@ final readonly class RepositorySetupService
     }
 
     /**
-     * @return array{status:'ready'|'missing'|'conflict'|'manual'|'unsupported',path:non-empty-string|null,detail:non-empty-string}
+     * @return array{status:'ready'|'missing'|'conflict'|'manual'|'waived'|'unsupported',path:non-empty-string|null,detail:non-empty-string}
      */
     private function policyStatus(string $host): array
     {
@@ -751,7 +751,7 @@ final readonly class RepositorySetupService
     }
 
     /**
-     * @param array{status:'ready'|'missing'|'conflict'|'manual'|'unsupported',path:non-empty-string|null,detail:non-empty-string} $policy
+     * @param array{status:'ready'|'missing'|'conflict'|'manual'|'waived'|'unsupported',path:non-empty-string|null,detail:non-empty-string} $policy
      * @param non-empty-string|null $gitIntegrationAction
      * @return array{kind:RepositorySetupNextActionKind,action:non-empty-string|null}
      */

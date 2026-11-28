@@ -79,6 +79,56 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('--auto', $ready['runtime_boundary']);
     }
 
+    public function testARecordedPublicationWaiverEndsThePolicyStepWithoutProjectingRules(): void
+    {
+        $this->writeInitConfig(['host_policy' => ['publication' => 'host_managed', 'reason' => 'Cloud sessions push and merge after green exact-head CI.']]);
+        $this->installAssets('opencode');
+
+        $status = $this->hostStatus();
+        self::assertSame('waived', $status['integration']['policy'] ?? null);
+        self::assertSame('none', $status['next_action_kind']);
+        self::assertNull($status['next_action']);
+
+        foreach ([['--agent=opencode'], ['--agent=opencode', '--force']] as $arguments) {
+            $sync = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run($arguments));
+            self::assertSame(0, $sync['exit'], $sync['output']);
+            self::assertStringContainsString('publication deny rules not projected', $sync['output']);
+            self::assertStringContainsString('Cloud sessions push and merge after green exact-head CI.', $sync['output']);
+            self::assertStringContainsString('gates are unchanged', $sync['output']);
+            self::assertFileDoesNotExist($this->root . '/opencode.json');
+        }
+    }
+
+    /** @return iterable<string, array{array<string, string>|string}> */
+    public static function malformedWaivers(): iterable
+    {
+        yield 'unknown value' => [['publication' => 'off', 'reason' => 'x']];
+        yield 'missing reason' => [['publication' => 'host_managed']];
+        yield 'empty reason' => [['publication' => 'host_managed', 'reason' => '  ']];
+        yield 'not an object' => ['host_managed'];
+    }
+
+    /** @param array<string, string>|string $hostPolicy */
+    #[\PHPUnit\Framework\Attributes\DataProvider('malformedWaivers')]
+    public function testAMalformedWaiverKeepsTheDefaultProjection(array|string $hostPolicy): void
+    {
+        $this->writeInitConfig(['host_policy' => $hostPolicy]);
+        $this->installAssets('opencode');
+
+        $status = $this->hostStatus();
+        self::assertSame('missing', $status['integration']['policy'] ?? null);
+        self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $status['next_action']);
+    }
+
+    /** @param array<string, mixed> $data */
+    private function writeInitConfig(array $data): void
+    {
+        if (!is_dir($this->root . '/.agent-loop') && !mkdir($this->root . '/.agent-loop', 0o775, true)) {
+            throw new RuntimeException('Unable to create the init config directory.');
+        }
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode(['version' => 1, ...$data], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+    }
+
     public function testRepositoryDeclaredGitActivationMustConvergeBeforeHostStatusReportsNone(): void
     {
         $runner = new ProcessRunner($this->root);
