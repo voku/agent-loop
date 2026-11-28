@@ -58,6 +58,10 @@ final readonly class InitSyncPolicyCommand
         $agents = $agent->isAll() ? HostPolicyProjector::supportedAgents() : [$agent->canonicalName()];
         $projector = new HostPolicyProjector($this->rootPath);
         $waived = $projector->publicationWaiverReason() !== null;
+        // Say why a declared waiver is ignored before any rule is written.
+        foreach ($projector->publicationWaiverWarnings() as $warning) {
+            echo $warning . "; publication deny rules are projected as usual\n";
+        }
 
         foreach ($agents as $canonicalAgent) {
             try {

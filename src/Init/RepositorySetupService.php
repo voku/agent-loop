@@ -829,8 +829,16 @@ final readonly class RepositorySetupService
         if (in_array($host, HostPolicyProjector::supportedAgents(), true)
             && (new HostPolicyProjector($this->rootPath))->publicationWaiverReason() !== null) {
             // The projected-rule statements below would be false for a waived policy.
+            // Host limitations that do not depend on the publication rules stay true.
+            $hostCaveat = match ($host) {
+                'claude' => ' ' . HostPolicyProjector::claudeUserScopeAction(),
+                'cursor' => ' Cursor CLI policy and MCP authority coverage are separate and unclaimed. Runtime auto-detection and live hook/read-only enforcement remain unverified; select Cursor explicitly until Slice 3 supplies runtime evidence.',
+                default => '',
+            };
+
             return 'The project waived the agent-loop publication deny rules (host_policy.publication=host_managed), so agent-loop does not project git push / gh pr create / gh pr merge rules for ' . $host
-                . '; rules a project already has stay in force until removed by hand. Authority controls remain host/user owned; agent-loop Contract approval, review, exact-head CI and merge gates are unchanged.';
+                . '; rules a project already has stay in force until removed by hand. Authority controls remain host/user owned; agent-loop Contract approval, review, exact-head CI and merge gates are unchanged.'
+                . $hostCaveat;
         }
 
         return match ($host) {
