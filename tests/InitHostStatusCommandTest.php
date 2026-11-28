@@ -11,11 +11,14 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\HostRuntimeProbe;
+use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\Init\InitHostStatusCommand;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
 use voku\AgentLoop\Init\InitSyncGitHooksCommand;
 use voku\AgentLoop\Init\InitSyncInstructionsCommand;
 use voku\AgentLoop\Init\InitSyncPolicyCommand;
+use voku\AgentLoop\Init\RepositorySetupOperation;
+use voku\AgentLoop\Init\RepositorySetupService;
 
 final class InitHostStatusCommandTest extends TestCase
 {
@@ -97,6 +100,17 @@ final class InitHostStatusCommandTest extends TestCase
             self::assertStringContainsString('gates are unchanged', $sync['output']);
             self::assertFileDoesNotExist($this->root . '/opencode.json');
         }
+
+        $operations = (new RepositorySetupService($this->root, new HostRuntimeProbe($this->binRoot, self::pathExt())))->legalOperations('opencode');
+        self::assertNotContains(RepositorySetupOperation::SYNC_POLICY, $operations);
+    }
+
+    public function testWithoutAWaiverSyncPolicyStaysALegalOperation(): void
+    {
+        $this->installAssets('opencode');
+
+        $operations = (new RepositorySetupService($this->root, new HostRuntimeProbe($this->binRoot, self::pathExt())))->legalOperations('opencode');
+        self::assertContains(RepositorySetupOperation::SYNC_POLICY, $operations);
     }
 
     /** @return iterable<string, array{array<string, string>|string}> */
@@ -118,6 +132,8 @@ final class InitHostStatusCommandTest extends TestCase
         $status = $this->hostStatus();
         self::assertSame('missing', $status['integration']['policy'] ?? null);
         self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $status['next_action']);
+        $warnings = (new InitConfigLoader($this->root))->load('.agent-loop/init.json')['warnings'];
+        self::assertNotEmpty(array_filter($warnings, static fn (string $warning): bool => str_contains($warning, 'host_policy')), implode("\n", $warnings));
     }
 
     /** @param array<string, mixed> $data */

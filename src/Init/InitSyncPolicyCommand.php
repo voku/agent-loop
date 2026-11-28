@@ -71,7 +71,7 @@ final readonly class InitSyncPolicyCommand
             $prefix = $dryRun && $result['changed'] ? '[DRY-RUN]' : '[OK]';
             echo $prefix . ' sync policy [' . $canonicalAgent . ']: ' . $result['detail'] . '; path=' . $result['path'] . "\n";
             echo ($waived
-                ? '[IMPORTANT] sync policy [' . $canonicalAgent . ']: the project waived the publication deny rules; agents in this host may run git push / gh pr create / gh pr merge directly. agent-loop Contract approval, review, exact-head CI and merge gates are unchanged.'
+                ? '[IMPORTANT] sync policy [' . $canonicalAgent . ']: the project waived the publication deny rules; agent-loop no longer projects them, and any already present stay in force until removed by hand. agent-loop Contract approval, review, exact-head CI and merge gates are unchanged.'
                 : $this->boundaryHint($canonicalAgent)) . "\n";
         }
 
