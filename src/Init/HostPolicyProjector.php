@@ -129,7 +129,7 @@ final readonly class HostPolicyProjector
     {
         $warnings = (new InitConfigLoader($this->rootPath))->load($this->configPath())['warnings'];
 
-        return array_values(array_filter($warnings, static fn (string $warning): bool => str_contains($warning, 'host_policy')));
+        return array_values(array_filter($warnings, static fn (string $warning): bool => str_starts_with($warning, '[WARN] init config: host_policy')));
     }
 
     /** @return non-empty-string */
